@@ -1,4 +1,4 @@
-echo "--Compiler compiled--"
+echo "--Compiling Test--"
 ./build/igel.exe ./test.ig
 exit_code=$?
 echo "Exit code:" $exit_code

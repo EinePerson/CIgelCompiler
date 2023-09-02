@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <variant>
+#include <iostream>
 
 #include "tokenizer.hpp"
 #include "arena.hpp"
@@ -10,24 +11,36 @@ struct Expression{
     Token token;
 };
 
+struct NodeTermIntLit{
+    Token int_lit;
+};
+
+struct NodeTermId{
+    Token id;
+};
+
 struct NodeExprId{
     Token id;
 };
 
 struct NodeExpr;
 
-struct BinExprAdd{
+struct NodeBinExprAdd{
     NodeExpr* ls;
     NodeExpr* rs;
 };
 
-struct BinExprMul{
+struct NodeBinExprMul{
     NodeExpr* ls;
     NodeExpr* rs;
 };
 
 struct NodeBinExpr {
-    std::variant<BinExprAdd*,BinExprMul*> var;
+    std::variant<NodeBinExprAdd*,NodeBinExprMul*> var;
+};
+
+struct NodeTerm{
+    std::variant<NodeTermIntLit*,NodeTermId*> var;
 };
 
 struct NodeIntLit{
@@ -35,7 +48,7 @@ struct NodeIntLit{
 };
 
 struct NodeExpr{
-    std::variant<NodeIntLit*,NodeExprId*,NodeBinExpr*> var;
+    std::variant<NodeTerm*,NodeBinExpr*> var;
 };
 
 struct NodeStmtLet {
@@ -63,34 +76,48 @@ class Parser{
             
         }
 
-        std::optional<NodeBinExpr*> parseBinExpr(){
-            if(auto ls = parseExpr()){
-                auto binExpr = m_alloc.alloc<NodeBinExpr>();
-                binExpr->
-            }
-            else return {};
-        }
-
-        std::optional<NodeExpr*> parseExpr(){
+        std::optional<NodeTerm*> parseTerm(){
             if(peak().has_value() && peak().value().type == TokenType::int_lit){
-                NodeIntLit* nodeInt = m_alloc.alloc<NodeIntLit>();
+                auto nodeInt = m_alloc.alloc<NodeTermIntLit>();
                 nodeInt->int_lit = consume();
-                auto expr = m_alloc.alloc<NodeExpr>();
+                auto expr = m_alloc.alloc<NodeTerm>();
                 expr->var = nodeInt;
                 return expr;
             }
             else if(peak().has_value() && peak().value().type == TokenType::id){
-                NodeExprId* nodeId = m_alloc.alloc<NodeExprId>();
+                auto* nodeId = m_alloc.alloc<NodeTermId>();
                 nodeId->id = consume();
-                auto expr = m_alloc.alloc<NodeExpr>();
+                auto expr = m_alloc.alloc<NodeTerm>();
                 expr->var = nodeId;
                 return expr;
-            }else if(auto bin_expr = parseBinExpr()){
-                auto expr = m_alloc.alloc<NodeExpr>();
-                expr->var = bin_expr.value();
-                return expr;
-            }
-            else return {};
+            }else return {};
+        }
+
+        std::optional<NodeExpr*> parseExpr(){
+            if(auto term = parseTerm()){
+                if(peak().has_value() && peak().value().type == TokenType::plus){
+                    auto binExpr = m_alloc.alloc<NodeBinExpr>();
+                    auto binExpr_add = m_alloc.alloc<NodeBinExprAdd>();
+                    auto ls_expr = m_alloc.alloc<NodeExpr>();
+                    ls_expr->var = term.value();
+                    binExpr_add->ls = ls_expr;
+                    consume();
+                    if(auto rs = parseExpr()){
+                        binExpr_add->rs = rs.value();
+                        binExpr->var = binExpr_add;
+                        auto expr = m_alloc.alloc<NodeExpr>();
+                        expr->var = binExpr;
+                        return expr;
+                    }else{
+                        std::cerr << "Expected expression" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else {
+                    auto expr = m_alloc.alloc<NodeExpr>();
+                    expr->var = term.value();
+                    return expr;
+                }
+            }else return {};
         }
 
         std::optional<NodeStmt*> parseStmt(){

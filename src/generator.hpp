@@ -25,11 +25,27 @@ class Generator {
         void genExpr(const NodeExpr* expr) {
             struct ExprVisitor{
                 Generator* gen;
-                void operator()(const NodeIntLit* intLit){
+                void operator()(const NodeTerm* term){
+                    gen->genTerm(term);
+                }
+                void operator()(const NodeBinExpr* binExtr) const {
+                    throw false;
+                }
+            };
+            ExprVisitor visitor{.gen = this};
+            std::visit(visitor,expr->var);
+        }
+
+        void genTerm(const NodeTerm* term){
+            struct TermVisitor
+            {
+                Generator* gen;
+
+                void operator()(const NodeTermIntLit* intLit) const {
                     gen->m_output << "   mov rax, " << intLit->int_lit.value.value() << "\n";
                     gen->push("rax");
                 }
-                void operator()(const NodeExprId* id){
+                void operator()(const NodeTermId* id) const {
                     if(!gen->m_vars.count(id->id.value.value())){
                         std::cerr << "Undeclared Identifier: " << id->id.value.value() << std::endl;
                         exit(EXIT_FAILURE);
@@ -38,12 +54,9 @@ class Generator {
                     offset << "    QWORD [rsp + " << (gen->m_stackPos - gen->m_vars.at(id->id.value.value()).stackPos - 1) * 8 << "]\n";
                     gen->push(offset.str());
                 }
-                void operator()(const NodeBinExpr* binExtr) const {
-                    throw false;
-                }
             };
-            ExprVisitor visitor{.gen = this};
-            std::visit(visitor,expr->var);
+            TermVisitor visitor({.gen = this});
+            std::visit(visitor,term->var);
         }
 
         void gen_stmt(const NodeStmt* stmt) {
