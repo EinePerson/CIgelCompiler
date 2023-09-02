@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "debugger",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/home/eine_person/igel_compiler/compiler/build/igel.exe",
+            "externalConsole": true,
+            "logging": {
+                "moduleLoad": false,
+                "trace": true
+            },
+            "args":["./igel.ig"],
+            "cwd": "${workspaceFolder}"
+        }
+    ],
+    
+}
