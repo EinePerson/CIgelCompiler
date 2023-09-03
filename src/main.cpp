@@ -42,6 +42,7 @@ int main(int argc,char* argv[]) {
         std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
         return EXIT_FAILURE;
     }
+    uint test = 25;
 
     std::fstream input(argv[1],std::ios::in);
     std::stringstream contStream;

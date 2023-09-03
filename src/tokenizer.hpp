@@ -6,6 +6,8 @@
 #include <map>
 #include <iostream>
 
+typedef unsigned int uint;
+
 enum class TokenType{
     _exit,
     int_lit,
