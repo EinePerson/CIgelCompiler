@@ -77,7 +77,7 @@ int main(int argc,char* argv[]) {
     std::string strs = "nasm -felf64 ./build/" + name + ".asm";
     const char* str = strs.c_str();
     system(str);
-    std::string strs1 = "ld -o out ./build/" + name + ".o";
+    std::string strs1 = "ld -o out.exe ./build/" + name + ".o";
     const char* str1 = strs1.c_str();
     system(str1);
 

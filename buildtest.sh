@@ -6,5 +6,5 @@ if [ $exit_code -ne 0 ]; then
     exit $exit_code
 fi
 echo "--Compiled Start of Programm--"
-./out
+./out.exe
 echo "Exit code:" $?

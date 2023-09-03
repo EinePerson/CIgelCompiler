@@ -36,7 +36,8 @@ struct NodeBinExprMul{
 };
 
 struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*,NodeBinExprMul*> var;
+    NodeBinExprAdd* var;
+    //std::variant<NodeBinExprAdd*,NodeBinExprMul*> var;
 };
 
 struct NodeTerm{
@@ -77,16 +78,16 @@ class Parser{
         }
 
         std::optional<NodeTerm*> parseTerm(){
-            if(peak().has_value() && peak().value().type == TokenType::int_lit){
+            if(auto int_lit = tryConsume(TokenType::int_lit)){
                 auto nodeInt = m_alloc.alloc<NodeTermIntLit>();
-                nodeInt->int_lit = consume();
+                nodeInt->int_lit = int_lit.value();
                 auto expr = m_alloc.alloc<NodeTerm>();
                 expr->var = nodeInt;
                 return expr;
             }
-            else if(peak().has_value() && peak().value().type == TokenType::id){
+            else if(auto id = tryConsume(TokenType::id)){
                 auto* nodeId = m_alloc.alloc<NodeTermId>();
-                nodeId->id = consume();
+                nodeId->id = id.value();
                 auto expr = m_alloc.alloc<NodeTerm>();
                 expr->var = nodeId;
                 return expr;
@@ -95,13 +96,12 @@ class Parser{
 
         std::optional<NodeExpr*> parseExpr(){
             if(auto term = parseTerm()){
-                if(peak().has_value() && peak().value().type == TokenType::plus){
+                if(tryConsume(TokenType::plus).has_value()){
                     auto binExpr = m_alloc.alloc<NodeBinExpr>();
                     auto binExpr_add = m_alloc.alloc<NodeBinExprAdd>();
                     auto ls_expr = m_alloc.alloc<NodeExpr>();
                     ls_expr->var = term.value();
                     binExpr_add->ls = ls_expr;
-                    consume();
                     if(auto rs = parseExpr()){
                         binExpr_add->rs = rs.value();
                         binExpr->var = binExpr_add;
@@ -131,18 +131,8 @@ class Parser{
                     std::cerr << "Invalid Expression" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                if(peak().has_value() && peak().value().type == TokenType::closeParenth){
-                    consume();
-                }else{
-                    std::cerr << "Expected: ')'" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                if(peak().has_value() && peak().value().type == TokenType::semi){
-                    consume();
-                }else {
-                    std::cerr << "Expected ';'" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                tryConsume(TokenType::closeParenth, "Expected `)`");
+                tryConsume(TokenType::semi,"Expected ';'");
                 auto stmtR = m_alloc.alloc<NodeStmt>();
                 stmtR->var = stmt;
                 return stmtR;
@@ -156,11 +146,7 @@ class Parser{
                     std::cerr << "Unexpected expression" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                if(peak().has_value() && peak().value().type == TokenType::semi)consume();
-                else {
-                    std::cerr << "Expected ';'" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                tryConsume(TokenType::semi,"Expected ';'");
                 auto stmtR = m_alloc.alloc<NodeStmt>();
                 stmtR->var = stmt;
                 return stmtR;
@@ -190,6 +176,19 @@ class Parser{
 
         inline Token consume(){
             return m_tokens.at(m_I++);
+        }
+
+        inline Token tryConsume(TokenType type,const std::string& err){
+            if(peak().has_value() && peak().value().type == type)return consume();
+            else {
+                std::cerr << err << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        inline std::optional<Token> tryConsume(TokenType type){
+            if(peak().has_value() && peak().value().type == type)return consume();
+            else return {};
         }
 
     private:

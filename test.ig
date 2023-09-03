@@ -1,3 +1,4 @@
-let x = 7 + 5;
-let y = 28;
+let x = 7 + 5 + 8;
+let y = 4 + x;
+let z = 2;
 exit(x);

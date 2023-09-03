@@ -28,8 +28,14 @@ class Generator {
                 void operator()(const NodeTerm* term){
                     gen->genTerm(term);
                 }
-                void operator()(const NodeBinExpr* binExtr) const {
-                    throw false;
+                void operator()(const NodeBinExpr* binExpr) const {
+                    gen->genExpr(binExpr->var->ls);
+                    gen->genExpr(binExpr->var->rs);
+                    gen->pop("rax");
+                    gen->pop("rbx");
+                    
+                    gen-> m_output << "   add rax, rbx\n";
+                    gen->push("rax");
                 }
             };
             ExprVisitor visitor{.gen = this};
