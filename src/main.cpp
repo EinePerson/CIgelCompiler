@@ -42,7 +42,6 @@ int main(int argc,char* argv[]) {
         std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
         return EXIT_FAILURE;
     }
-    uint test = 25;
 
     std::fstream input(argv[1],std::ios::in);
     std::stringstream contStream;
@@ -60,6 +59,9 @@ int main(int argc,char* argv[]) {
 
     Tokenizer tokenizer(std::move(cont));
     std::vector<Token> tokens = tokenizer.tokenize();
+    /*for(auto token : tokens){
+        std::cout << isBinOp(token.type) << ":" << ((int) token.type) << "\n";
+    }*/
 
     Parser parser(std::move(tokens));
     std::optional<NodeProgram> parsed = parser.parseProg();

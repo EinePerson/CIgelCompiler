@@ -9,16 +9,42 @@
 typedef unsigned int uint;
 
 enum class TokenType{
+    plus = 0,
+    sub = 1,
+    div = 2,
+    mul = 3,
+    pow = 4,
+
     _exit,
     int_lit,
     semi,
     openParenth,
     closeParenth,
     id,
-    let,
+    _long,
     eq,
-    plus,
 };
+
+bool isBinOp(TokenType type){
+    return type <= TokenType::pow;
+}
+
+std::optional<int> prec(TokenType type){
+    switch (type)
+    {
+    case TokenType::plus:
+    case TokenType::sub:
+        return 0;
+    case TokenType::div:
+    case TokenType::mul:
+        return 1;
+    case TokenType::pow:
+        return 2;
+    
+    default:
+        return {};
+    }
+}
 
 struct Token{
     TokenType type;
@@ -28,8 +54,11 @@ struct Token{
 class Tokenizer{
     public:
         const std::map<std::string,TokenType> IGEL_TOKENS = {
-        {"exit",TokenType::_exit},
-        {"let",TokenType::let},
+        {"long",TokenType::_long},
+        };
+
+        const std::map<std::string,TokenType> FUNCTIONS = {
+            {"exit",TokenType::_exit},
         };
 
         const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
@@ -37,7 +66,11 @@ class Tokenizer{
         {'(',TokenType::openParenth},
         {')',TokenType::closeParenth},
         {'=',TokenType::eq},
-        {'+',TokenType::plus}
+        {'+',TokenType::plus},
+        {'-',TokenType::sub},
+        {'/',TokenType::div},
+        {'*',TokenType::mul},
+        {'^',TokenType::pow},
         };
 
         inline explicit Tokenizer(const std::string& src): m_src(src){
@@ -56,7 +89,16 @@ class Tokenizer{
                     {
                         buf.push_back(consume());
                     }
-                    if(IGEL_TOKENS.count(buf)){
+                    if(peak().has_value() && peak().value() == '('){
+                        if(FUNCTIONS.count(buf)){
+                            tokens.push_back({.type = FUNCTIONS.at(buf)});
+                            buf.clear();
+                            continue;
+                        }else {
+                            std::cerr << "Unkown function reference " << buf << std::endl;
+                            exit(EXIT_FAILURE);
+                        }
+                    }else if(IGEL_TOKENS.count(buf)){
                         tokens.push_back({.type = IGEL_TOKENS.at(buf)});
                         buf.clear();
                         continue;
@@ -81,7 +123,7 @@ class Tokenizer{
                     consume();
                     continue;
                 }else {
-                    std::cerr << "Unkown Symbol " << buf << std::endl;
+                    std::cerr << "Unkown Symbol " << consume() << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
