@@ -1,3 +1,7 @@
 /all.sh
 /build
 /docs
+buildWin/
+buildAsmWin64.sh
+out.exe
+testAsm.sh
