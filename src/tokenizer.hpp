@@ -9,25 +9,30 @@
 typedef unsigned int uint;
 
 enum class TokenType{
-    plus = 0,
-    sub = 1,
-    div = 2,
-    mul = 3,
-    pow = 4,
-
+    _byte = 0,
+    _short = 1,
+    _int = 2,
+    _long = 3,
+    _ubyte = 4,
+    _ushort = 5,
+    _uint = 6,
+    _ulong = 7,
+    plus,
+    sub,
+    div,
+    mul,
+    pow,
     _exit,
     int_lit,
     semi,
     openParenth,
     closeParenth,
+    openCurl,
+    closeCurl,
     id,
-    _long,
     eq,
+    _if,
 };
-
-bool isBinOp(TokenType type){
-    return type <= TokenType::pow;
-}
 
 std::optional<int> prec(TokenType type){
     switch (type)
@@ -54,23 +59,33 @@ struct Token{
 class Tokenizer{
     public:
         const std::map<std::string,TokenType> IGEL_TOKENS = {
-        {"long",TokenType::_long},
+            {"byte",TokenType::_byte},
+            {"short",TokenType::_short},
+            {"int",TokenType::_int},
+            {"long",TokenType::_long},
+            {"ubyte",TokenType::_ubyte},
+            {"ushort",TokenType::_ushort},
+            {"uint",TokenType::_uint},
+            {"ulong",TokenType::_ulong},
         };
 
         const std::map<std::string,TokenType> FUNCTIONS = {
             {"exit",TokenType::_exit},
+            {"if",TokenType::_if},
         };
 
         const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
-        {';',TokenType::semi},
-        {'(',TokenType::openParenth},
-        {')',TokenType::closeParenth},
-        {'=',TokenType::eq},
-        {'+',TokenType::plus},
-        {'-',TokenType::sub},
-        {'/',TokenType::div},
-        {'*',TokenType::mul},
-        {'^',TokenType::pow},
+            {';',TokenType::semi},
+            {'(',TokenType::openParenth},
+            {')',TokenType::closeParenth},
+            {'=',TokenType::eq},
+            {'+',TokenType::plus},
+            {'-',TokenType::sub},
+            {'/',TokenType::div},
+            {'*',TokenType::mul},
+            {'^',TokenType::pow},
+            {'{',TokenType::openCurl},
+            {'}',TokenType::closeCurl},
         };
 
         inline explicit Tokenizer(const std::string& src): m_src(src){
@@ -88,6 +103,10 @@ class Tokenizer{
                     while (peak().has_value() && std::isalnum(peak().value()))
                     {
                         buf.push_back(consume());
+                    }
+                    while(peak().has_value() && std::isspace(peak().value())){
+                        consume();
+                        continue;
                     }
                     if(peak().has_value() && peak().value() == '('){
                         if(FUNCTIONS.count(buf)){

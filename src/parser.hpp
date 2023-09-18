@@ -8,6 +8,7 @@
 #include "arena.hpp"
 
 struct NodeExpr;
+struct NodeStmt;
 
 struct Expression{
     Token token;
@@ -66,6 +67,8 @@ struct NodeExpr{
 };
 
 struct NodeStmtLet {
+    char sid;
+    bool _signed;
     Token ident;
     NodeExpr* expr;
 };
@@ -74,8 +77,18 @@ struct NodeStmtExit {
     NodeExpr* expr;
 };
 
+struct  NodeStmtScope 
+{
+    std::vector<NodeStmt*> stmts;
+};
+
+struct NodeStmtIf{
+    NodeExpr* expr;
+    NodeStmtScope* scope;
+};
+
 struct NodeStmt{
-    std::variant<NodeStmtExit*, NodeStmtLet*> var;
+    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*> var;
 };
 
 struct NodeProgram
@@ -175,6 +188,16 @@ class Parser{
             return exprLs;
         }
 
+        std::optional<NodeStmtScope*> parseScope(){
+            if(!tryConsume(TokenType::openCurl).has_value())return {};
+            auto scope = m_alloc.alloc<NodeStmtScope>();
+            while(auto stmt = parseStmt()){
+                scope->stmts.push_back(stmt.value());
+            }
+            tryConsume(TokenType::closeCurl,"Expected '}'");
+            return scope;
+        }
+
         std::optional<NodeStmt*> parseStmt(){
             if(peak().value().type == TokenType::_exit && peak(1).has_value() && peak(1).value().type == TokenType::openParenth){
                 consume();
@@ -183,7 +206,7 @@ class Parser{
                 if(auto nodeExpr = parseExpr()){
                     stmt->expr = nodeExpr.value();
                 }else{
-                    std::cerr << "Invalid Expression" << std::endl;
+                    std::cerr << "Invalid Expression 1" << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 tryConsume(TokenType::closeParenth, "Expected `)`");
@@ -191,9 +214,15 @@ class Parser{
                 auto stmtR = m_alloc.alloc<NodeStmt>();
                 stmtR->var = stmt;
                 return stmtR;
-            }else if(peak().has_value() && peak().value().type == TokenType::_long && peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value() && peak(2).value().type == TokenType::eq){
-                consume();
+            }else if(peak().has_value() && peak().value().type <= TokenType::_ulong && peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value() && peak(2).value().type == TokenType::eq){
                 auto stmt = m_alloc.alloc<NodeStmtLet>();
+                if(peak().value().type <= TokenType::_long){
+                    stmt->sid = (char) consume().type;
+                    stmt->_signed = false;
+                }else {
+                    stmt->sid = (char) consume().type - 4;
+                    stmt->_signed = true;
+                }
                 stmt->ident = consume();
                 consume();
                 if(auto expr = parseExpr())stmt->expr = expr.value();
@@ -205,6 +234,29 @@ class Parser{
                 auto stmtR = m_alloc.alloc<NodeStmt>();
                 stmtR->var = stmt;
                 return stmtR;
+            }else if(auto scope = parseScope()){
+                auto stmt = m_alloc.alloc<NodeStmt>();
+                stmt->var = scope.value();
+                return stmt;
+            }else if(auto _if = tryConsume(TokenType::_if)){
+                tryConsume(TokenType::openParenth,"Expected '('");
+                auto stmt_if = m_alloc.alloc<NodeStmtIf>();
+                if(auto expr = parseExpr()){
+                    stmt_if->expr = expr.value();
+                }else {
+                    std::cerr << "Invalid Expression 2" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                tryConsume(TokenType::closeParenth,"Expected ')'");
+                if(auto scope = parseScope()){
+                    stmt_if->scope = scope.value();
+                }else {
+                    std::cerr << "Invalid Scope" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                auto stmt = m_alloc.alloc<NodeStmt>();
+                stmt->var = stmt_if;
+                return stmt;
             } else {
                 return {};
             }
@@ -217,7 +269,7 @@ class Parser{
                 if(auto stmt = parseStmt()){
                     prog.stmts.push_back(stmt.value());
                 }else {
-                    std::cerr << "Invalid Expression" << std::endl;
+                    std::cerr << "Invalid Expression 3" << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
