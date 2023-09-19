@@ -132,6 +132,7 @@ class Tokenizer{
                     {
                         buf.push_back(consume());
                     }
+                    if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
                     tokens.push_back({.type = TokenType::int_lit,.value = buf});
                     buf.clear();
                     continue;

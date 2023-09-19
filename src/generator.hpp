@@ -23,7 +23,7 @@ int sizeToReg(uint size){
             case 8:
                 return 3;
             default:
-                std::cout << "Size has to be at least 1 and not bigger then 8, but is: " << size;
+                std::cerr << "Size has to be at least 1 and not bigger then 8, but is: " << size;
                 exit(EXIT_FAILURE);
             }
         }
@@ -52,6 +52,25 @@ int sizeToReg(uint size){
             {"RAX","RBX","RCX","RDX","RDI","RSI","RBP","RSP","R8","R9","R10","R11","R12","R13","R14","R15"},
         };
 
+        int charToReg(char c){
+            switch (c)
+            {
+            case 'b':
+                return 0;
+                break;
+            case 's':
+                return 1;
+                break;
+            case 'L':
+                return 3;
+                break;
+            
+            default:
+                return 2;
+                break;
+            }
+        }
+
 class Generator {
 
 struct Var;
@@ -71,73 +90,91 @@ struct Var;
             return m_output.str();
         }
 
-        void genBinExpr(const NodeBinExpr* binExpr){
+        int genBinExpr(const NodeBinExpr* binExpr){
+            static int i;
             struct BinExprVisitor{
                 Generator* gen;
                 void operator()(const NodeBinExprSub* sub){
-                    gen->genExpr(sub->rs);
-                    gen->genExpr(sub->ls);
-                    gen->popSized(3,0);
-                    gen->popSized(3,1);
+                    int j = gen->genExpr(sub->rs);
+                    int k = gen->genExpr(sub->ls);
+                    i = std::max(j,k);
+                    gen->m_output << "   mov " << regs[i][0] << ",0\n";
+                    gen->pop(j,0);
+                    gen->pop(k,1);
                     
-                    gen-> m_output << "   sub rax, rbx\n";
-                    gen->pushSized(3,0);
+                    gen-> m_output << "   sub " << regs[i][0] << ", " << regs[k][1] << "\n";
+                    gen->push(i,0);
                 }
                 void operator()(const NodeBinExprMul* mul){
-                    gen->genExpr(mul->rs);
-                    gen->genExpr(mul->ls);
-                    gen->popSized(3,0);
-                    gen->popSized(3,1);
+                    int j = gen->genExpr(mul->rs);
+                    int k = gen->genExpr(mul->ls);
+                    i = std::max(j,k);
+                    gen->m_output << "   mov " << regs[i][0] << ",0\n";
+                    gen->pop(j,0);
+                    gen->pop(k,1);
                     
-                    gen-> m_output << "   mul rbx\n";
-                    gen->pushSized(3,0);
+                    gen-> m_output << "   mul " << regs[k][1] << "\n";
+                    gen->push(i,0);
                 }
                 void operator()(const NodeBinExprDiv* div){
-                    gen->genExpr(div->rs);
-                    gen->genExpr(div->ls);
-                    gen->popSized(3,0);
-                    gen->popSized(3,1);
+                    int j = gen->genExpr(div->rs);
+                    int k = gen->genExpr(div->ls);
+                    i = std::max(j,k);
+                    gen->m_output << "   mov " << regs[i][0] << ",0\n";
+                    gen->pop(j,0);
+                    gen->pop(k,1);
                     
-                    gen-> m_output << "   div rbx\n";
-                    gen->pushSized(3,0);
+                    gen-> m_output << "   div " << regs[k][1] << "\n";
+                    gen->push(i,0);
                 }
                 void operator()(const NodeBinExprAdd* add){
-                    gen->genExpr(add->rs);
-                    gen->genExpr(add->ls);
-                    gen->popSized(3,0);
-                    gen->popSized(3,1);
+                    int j = gen->genExpr(add->rs);
+                    int k = gen->genExpr(add->ls);
+                    i = std::max(j,k);
+                    gen->m_output << "   mov " << regs[i][0] << ",0\n";
+                    gen->pop(j,0);
+                    gen->pop(k,1);
                     
-                    gen-> m_output << "   add rax, rbx\n";
-                    gen->pushSized(3,0);
+                    gen-> m_output << "   add " << regs[i][0] << ", " << regs[k][1] << "\n";
+                    gen->push(i,0);
                 }
             };
             BinExprVisitor visitor{.gen = this};
             std::visit(visitor,binExpr->var);
+            return i;
         }
 
-        void genExpr(const NodeExpr* expr) {
+        int genExpr(const NodeExpr* expr) {
+            static int i = -1;
             struct ExprVisitor{
                 Generator* gen;
                 void operator()(const NodeTerm* term){
-                    gen->genTerm(term);
+                    i = gen->genTerm(term);
                 }
                 void operator()(const NodeBinExpr* binExpr) const {
-                    gen->genBinExpr(binExpr);
+                    i = gen->genBinExpr(binExpr);
                 }
             };
             ExprVisitor visitor{.gen = this};
             std::visit(visitor,expr->var);
+            return i;
         }
 
-        void genTerm(const NodeTerm* term){
+        int genTerm(const NodeTerm* term){
             static int i = -1;
             struct TermVisitor
             {
                 Generator* gen;
 
                 void operator()(const NodeTermIntLit* intLit) const {
-                    gen->m_output << "   mov rax, " << intLit->int_lit.value.value() << "\n";
-                    gen->pushSized(3,0);
+                    std::string s = intLit->int_lit.value.value();
+                    i = 2;
+                    if(std::isalpha(s.back())){
+                        i = charToReg(s.back());
+                        s.pop_back();
+                    }
+                    gen->m_output << "   mov " << regs[i][0] << ", " << s << "\n";
+                    gen->push(i,0);
                 }
                 void operator()(const NodeTermId* id) const {
                     auto it = std::find_if(gen->m_vars.cbegin(), gen->m_vars.cend(), [&](const Var& var) {
@@ -148,15 +185,16 @@ struct Var;
                         exit(EXIT_FAILURE);
                     }
                     const auto& var = *it;
-                    gen->modVar(var);
-                    i = 0;
+                    gen->copFVar(var);
+                    i = var.sid;
                 }
                 void operator()(const NodeTermParen* paren) const {
-                    gen->genExpr(paren->expr);
+                    i = gen->genExpr(paren->expr);
                 }
             };
             TermVisitor visitor({.gen = this});
             std::visit(visitor,term->var);
+            return i;
         }
 
         void genScope(const NodeStmtScope* scope){
@@ -173,7 +211,7 @@ struct Var;
                 void operator()(const NodeStmtExit* stmt_exit){
                     gen->genExpr(stmt_exit->expr);
                     gen->m_output << "   mov rax, 60\n";
-                    gen->popSized(3,4);
+                    gen->pop(3,4);
                     gen->m_output << "   syscall\n";
                 }
                 void operator()(const NodeStmtLet* stmt_let){
@@ -208,19 +246,32 @@ struct Var;
 
     private:
 
-        void modVar(Var var){
-            long i = m_stackPos - var.stackPos;
-            if(i > 0){
-                m_output << "   push QWORD [rsp + " << i - regIDSize(var.sid) << "]\n";
-                m_stackPos += 8;
+        void copFVar(Var var){
+            switch (var.sid)
+            {
+            case 0:
+                m_output << "   mov al,BYTE [rsp - " << var.stackPos << "]\n";
+                m_output << "   mov BYTE [rsp - " << m_stackPos << "],al\n";
+                break;
+            case 1:
+                m_output << "   mov ax,WORD [rsp - " << var.stackPos << "]\n";
+                m_output << "   mov WORD [rsp - " << m_stackPos << "],ax\n";
+                break;
+            case 2:
+                m_output << "   mov eax,DWORD [rsp - " << var.stackPos << "]\n";
+                m_output << "   mov DWORD [rsp - " << m_stackPos << "],eax\n";
+                break;
+            case 3:
+                m_output << "   mov rax,QWORD [rsp - " << var.stackPos << "]\n";
+                m_output << "   mov QWORD [rsp - " << m_stackPos << "],rax\n";
+                break;
+            default:
+                break;
             }
-            else if(i < 0){
-                m_output << "   push QWORD [rsp - " << (i * -1) - regIDSize(var.sid) << "]\n";
-                m_stackPos -= 8;
-            }
+            m_stackPos += regIDSize(var.sid);
         }
 
-        void pushSized(const int size,const int reg){
+        /*void pushSized(const int size,const int reg){
             m_output << "   push " << regs[size][reg] << "\n";
             m_stackPos += regIDSize(size);
         }
@@ -236,7 +287,7 @@ struct Var;
 
         void pop(const int type,const int reg){
             popSized(sizeToReg(type),reg);
-        }
+        }*/
 
         void beginScope(){
             m_scopes.push_back(m_varsBytes);
@@ -260,35 +311,101 @@ struct Var;
             return ss.str();
         }
 
-        void moveRAM(Var var,char val){
-            m_output << "   mov BYTE PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-        }
-
-        void moveRAM(Var var,short val){
-            m_output << "   mov WORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-        }
-
-        void moveRAM(Var var,int val){
-            m_output << "   mov DWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-        }
-
-        void moveRAM(Var var,long val){
-            m_output << "   mov QWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-        }
-
-        void moveRAM(Var var,long val,char sid){
-            switch (sid){
+        void writeRam(Var var,long val){
+            switch (var.sid){
             case 0:
-                moveRAM(var,(char) val);
+                m_output << "   mov BYTE [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
                 break;
             case 1:
-                moveRAM(var,(short) val);
+                m_output << "   mov WORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
                 break;
             case 2:
-                moveRAM(var,(int) val);
+                m_output << "   mov DWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
                 break;
             case 3:
-                moveRAM(var,(long) val);
+                m_output << "   mov QWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
+                break;
+            
+            default:
+                break;
+            }
+        }
+
+        void writeRam(Var var,int reg){
+            switch (var.sid){
+            case 0:
+                m_output << "   mov BYTE [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << regs[var.sid][reg] << "\n";
+                break;
+            case 1:
+                m_output << "   mov WORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << regs[var.sid][reg] << "\n";
+                break;
+            case 2:
+                m_output << "   mov DWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << regs[var.sid][reg] << "\n";
+                break;
+            case 3:
+                m_output << "   mov QWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << regs[var.sid][reg] << "\n";
+                break;
+            
+            default:
+                break;
+            }
+        }
+
+        void push(int sid,int reg){
+            switch (sid){
+            case 0:
+                m_output << "   mov BYTE [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+                break;
+            case 1:
+                m_output << "   mov WORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+                break;
+            case 2:
+                m_output << "   mov DWORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+                break;
+            case 3:
+                m_output << "   mov QWORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+                break;
+            
+            default:
+                break;
+            }
+            m_stackPos += regIDSize(sid);
+        }
+
+        void pop(int sid,int reg){
+            m_stackPos -= regIDSize(sid);
+            switch (sid){
+            case 0:
+                m_output << "   mov " << regs[sid][reg] << ",BYTE [rsp - " << m_stackPos << "]\n";
+                break;
+            case 1:
+                m_output << "   mov " << regs[sid][reg] << ",WORD [rsp - " << m_stackPos << "]\n";
+                break;
+            case 2:
+                m_output << "   mov " << regs[sid][reg] << ",DWORD [rsp - " << m_stackPos << "]\n";
+                break;
+            case 3:
+                m_output << "   mov " << regs[sid][reg] << ",QWORD [rsp - " << m_stackPos << "]\n";
+                break;
+            
+            default:
+                break;
+            }
+        }
+
+        void readRam(Var var,uint reg){
+            switch (var.sid){
+            case 0:
+                m_output << "   mov " << regs[0][reg] << ", BYTE PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
+                break;
+            case 1:
+                m_output << "   mov " << regs[1][reg] << ", WORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
+                break;
+            case 2:
+                m_output << "   mov " << regs[2][reg] << ", DWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
+                break;
+            case 3:
+                m_output << "   mov " << regs[3][reg] << ", QWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
                 break;
             
             default:
