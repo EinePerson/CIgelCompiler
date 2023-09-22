@@ -50,8 +50,14 @@ struct NodeBinExprDiv{
     NodeExpr* rs;
 };
 
+struct NodeBinAreth{
+    NodeExpr* ls;
+    NodeExpr* rs;
+    TokenType type;
+};
+
 struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*,NodeBinExprMul*,NodeBinExprSub*,NodeBinExprDiv*> var;
+    std::variant<NodeBinExprAdd*,NodeBinExprMul*,NodeBinExprSub*,NodeBinExprDiv*,NodeBinAreth*> var;
 };
 
 struct NodeTerm{
@@ -84,7 +90,7 @@ struct  NodeStmtScope
 
 struct NodeStmtIf{
     NodeExpr* expr;
-    NodeStmtScope* scope;
+    std::variant<NodeStmtScope*,NodeStmt*> scope;
 };
 
 struct NodeStmt{
@@ -95,7 +101,6 @@ struct NodeProgram
 {
     std::vector<NodeStmt*> stmts;
 };
-
 
 class Parser{
     public:
@@ -123,7 +128,7 @@ class Parser{
                     std::cerr << "Expected Expression" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                tryConsume(TokenType::closeParenth,"Expected ')'");
+                tryConsume(TokenType::closeParenth,"Expected ')'1");
                 auto term_paren = m_alloc.alloc<NodeTermParen>();
                 term_paren->expr = expr.value();
                 auto term = m_alloc.alloc<NodeTerm>();
@@ -178,13 +183,20 @@ class Parser{
                     sub->ls = exprLs2;
                     sub->rs = exprR.value();
                     expr->var = sub;
+                }else if(op.type >= TokenType::equal && op.type <= TokenType::small){
+                    auto areth = m_alloc.alloc<NodeBinAreth>();
+                    exprLs2->var = exprLs->var;
+                    areth->ls = exprLs2;
+                    areth->rs = exprR.value();
+                    areth->type = op.type;
+                    expr->var = areth;
                 }else{
                     std::cerr << "Unkown operator" << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 exprLs->var = expr;
+            
             }
-
             return exprLs;
         }
 
@@ -206,7 +218,7 @@ class Parser{
                 if(auto nodeExpr = parseExpr()){
                     stmt->expr = nodeExpr.value();
                 }else{
-                    std::cerr << "Invalid Expression 1" << std::endl;
+                    std::cerr << "Invalid Expression1" << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 tryConsume(TokenType::closeParenth, "Expected `)`");
@@ -244,12 +256,14 @@ class Parser{
                 if(auto expr = parseExpr()){
                     stmt_if->expr = expr.value();
                 }else {
-                    std::cerr << "Invalid Expression 2" << std::endl;
+                    std::cerr << "Invalid Expression2" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                tryConsume(TokenType::closeParenth,"Expected ')'");
+                tryConsume(TokenType::closeParenth,"Expected ')'2");
                 if(auto scope = parseScope()){
                     stmt_if->scope = scope.value();
+                }else if(auto stms = parseStmt()){
+                    stmt_if->scope = stms.value();
                 }else {
                     std::cerr << "Invalid Scope" << std::endl;
                     exit(EXIT_FAILURE);
@@ -269,7 +283,7 @@ class Parser{
                 if(auto stmt = parseStmt()){
                     prog.stmts.push_back(stmt.value());
                 }else {
-                    std::cerr << "Invalid Expression 3" << std::endl;
+                    std::cerr << "Invalid Expression3" << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }

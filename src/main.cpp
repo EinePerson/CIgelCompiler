@@ -10,25 +10,18 @@
 #include "generator.hpp"
 #include "arena.hpp"
 
-std::string toAsm(const std::vector<Token>& tokens){
-    std::stringstream output;
-    output << "global _start\n_start:\n";
-    for(int i = 0; i < tokens.size();i++){
-        const Token& token = tokens.at(i);
-        if(token.type == TokenType::_exit){
-            if(i + 1 < tokens.size() && tokens.at(i + 1).type == TokenType::int_lit){
-                if(i + 2 < tokens.size() && tokens.at(i + 2).type == TokenType::semi){
-                    output << "     mov rax, 60\n" << "     mov rdi, " << tokens.at(i + 1).value.value() << "\n" << "   syscall";
-                }
-            }
-        }
-    }
-    return output.str();
+void write(std::string str,std::string name){
+    std::fstream file(name,std::ios::out);
+    file << str;
+    file.close();
 }
 
-void write(std::string str,std::string name){
-    std::fstream file("./build/" + name + ".asm",std::ios::out);
-    file << str;
+std::string read(std::string name){
+    std::ifstream file(name,std::ios::in);
+    std::stringstream r;
+    r << file.rdbuf();
+    file.close();
+    return r.str();
 }
 
 std::string removeExtension(const std::string& filename) {
@@ -42,39 +35,27 @@ int main(int argc,char* argv[]) {
         std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
         return EXIT_FAILURE;
     }
-
-    std::fstream input(argv[1],std::ios::in);
+    /*std::fstream input(argv[1],std::ios::in);
     std::stringstream contStream;
     contStream << input.rdbuf();
-    input.close();
-    std::string cont = contStream.str();
+    input.close();*/
+    std::string name = removeExtension(argv[1]);
+    std::string cont = read(argv[1]);
+    
 
-    //std::vector<Token> tokens = tokenise(cont);
-    /*for(Token token : tokens){
-        std::string str;
-        if(token.value)str = std::to_string(((int) token.type)) + ":" + token.value.value();
-        else str = std::to_string(((int) token.type));
-        std::cout << str <<  std::endl;
-    }*/
 
     Tokenizer tokenizer(std::move(cont));
     std::vector<Token> tokens = tokenizer.tokenize();
-    /*for(auto token : tokens){
-        std::cout << isBinOp(token.type) << ":" << ((int) token.type) << "\n";
-    }*/
-
     Parser parser(std::move(tokens));
     std::optional<NodeProgram> parsed = parser.parseProg();
-
     if(!parsed.has_value()){
         std::cerr << "Invalid Programm" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     Generator gen(parsed.value());
-
-    std::string name = removeExtension(argv[1]);
-    write(gen.gen_prog(),name);
+    write(read("./build/" + name + ".asm"),"./build/" + name + "-old.asm");
+    write(gen.gen_prog(),"./build/" + name + ".asm");
 
     std::string strs = "nasm -felf64 ./build/" + name + ".asm";
     const char* str = strs.c_str();

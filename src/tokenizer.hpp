@@ -17,21 +17,34 @@ enum class TokenType{
     _ushort = 5,
     _uint = 6,
     _ulong = 7,
+
+    equal = 8,
+    notequal = 9,
+    bigequal = 10,
+    smallequal = 11,
+    big = 12,
+    small = 13,
+
     plus,
     sub,
     div,
     mul,
     pow,
+
     _exit,
+    _if,
+
     int_lit,
+    id,
+    eq,
+
     semi,
     openParenth,
     closeParenth,
     openCurl,
     closeCurl,
-    id,
-    eq,
-    _if,
+    
+    
 };
 
 std::optional<int> prec(TokenType type){
@@ -39,15 +52,49 @@ std::optional<int> prec(TokenType type){
     {
     case TokenType::plus:
     case TokenType::sub:
-        return 0;
+        return 1;
     case TokenType::div:
     case TokenType::mul:
-        return 1;
-    case TokenType::pow:
         return 2;
-    
+    case TokenType::pow:
+        return 3;
+    case TokenType::bigequal:
+    case TokenType::equal:
+    case TokenType::notequal:
+    case TokenType::smallequal:
+    case TokenType::small:
+    case TokenType::big:
+        return 0;
     default:
         return {};
+    }
+}
+
+std::string binjump(TokenType type){
+    switch (type)
+    {
+    case TokenType::bigequal:
+        return "JNGE";
+        break;
+    case TokenType::equal:
+        return "JNE";
+        break;
+    case TokenType::notequal:
+        return "JE";
+        break;
+    case TokenType::smallequal:
+        return "JNBE";
+        break;
+    case TokenType::small:
+        return "JNL";
+        break;
+    case TokenType::big:
+        return "JNG";
+        break;
+    
+    default:
+        return "";
+        break;
     }
 }
 
@@ -67,6 +114,10 @@ class Tokenizer{
             {"ushort",TokenType::_ushort},
             {"uint",TokenType::_uint},
             {"ulong",TokenType::_ulong},
+            {"==",TokenType::equal},
+            {"!=",TokenType::notequal},
+            {">=",TokenType::bigequal},
+            {"<=",TokenType::smallequal},
         };
 
         const std::map<std::string,TokenType> FUNCTIONS = {
@@ -86,6 +137,9 @@ class Tokenizer{
             {'^',TokenType::pow},
             {'{',TokenType::openCurl},
             {'}',TokenType::closeCurl},
+            {'}',TokenType::closeCurl},
+            {'>',TokenType::big},
+            {'<',TokenType::small},
         };
 
         inline explicit Tokenizer(const std::string& src): m_src(src){
@@ -96,9 +150,75 @@ class Tokenizer{
             std::vector<Token> tokens {};
             std::string buf;
 
+            char comment = 0;
             while (peak().has_value())
             {
-                if(std::isalpha(peak().value())){
+                if(comment){
+                    if(peak().value() == '\n' && comment == 1){
+                        consume();
+                        comment = false;
+                    }else if(peak().value() == '*' && peak(1).has_value() && peak(1).value() == '/' && comment == 2){
+                        consume();
+                        consume();
+                        comment = false;
+                    }else consume();
+                    continue;
+                }
+                if(peak().value() == '/'){
+                    if(peak(1).has_value() && peak(1).value() == '/'){
+                        consume();
+                        comment = 1;
+                        continue;
+                    }else if(peak(1).has_value() && peak(1).value() == '*'){
+                        consume();
+                        comment = 2;
+                        continue;
+                    }else {
+                        std::cerr << "Expected '/' or '*'" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '!'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::notequal});
+                        consume();
+                        continue;
+                    }else {
+                        std::cerr << "Expected '='1" <<  std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '>'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::bigequal});
+                        consume();
+                        continue;
+                    }else{
+                        tokens.push_back({.type = TokenType::big});
+                        continue;
+                    }
+                }else if(peak().value() == '<'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::smallequal});
+                        consume();
+                        continue;
+                    }else{
+                        tokens.push_back({.type = TokenType::small});
+                        continue;
+                    }
+                }else if(peak().value() == '='){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::equal});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::eq});
+                        consume();
+                        continue;
+                    }
+                }else if(std::isalpha(peak().value())){
                     buf.push_back(consume());
                     while (peak().has_value() && std::isalnum(peak().value()))
                     {
@@ -148,6 +268,10 @@ class Tokenizer{
                 }
             }
             
+            if(comment == 2){
+                std::cerr << "Unclosed comment" << std::endl;
+                exit(EXIT_FAILURE);
+            }
             m_I = 0;
             return tokens;
         }

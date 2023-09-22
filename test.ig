@@ -1,3 +1,5 @@
-long x = 5L;
-long y = 3L;
-exit(x + 2L);
+int x = 2 + 2;
+if(x == 4){
+
+}
+exit(x);
