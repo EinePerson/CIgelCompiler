@@ -1,5 +1,3 @@
-int x = 2 + 2;
-if(x == 4){
-
-}
-exit(x);
+int x = 3;
+if(x == 4 && true)exit(4);
+exit(5);

@@ -5,14 +5,21 @@
             "name": "debugger",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/eine_person/igel_compiler/compiler/build/igel.exe",
-            "externalConsole": true,
-            "logging": {
-                "moduleLoad": false,
-                "trace": true
-            },
+            "program": "${workspaceFolder}/build/igel.exe",
             "args":["./igel.ig"],
-            "cwd": "${workspaceFolder}"
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build"
         }
     ],
     

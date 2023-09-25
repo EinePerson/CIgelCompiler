@@ -89,7 +89,8 @@ struct  NodeStmtScope
 };
 
 struct NodeStmtIf{
-    NodeExpr* expr;
+    std::vector<NodeExpr*> expr;
+    std::vector<TokenType> exprCond;
     std::variant<NodeStmtScope*,NodeStmt*> scope;
 };
 
@@ -253,9 +254,16 @@ class Parser{
             }else if(auto _if = tryConsume(TokenType::_if)){
                 tryConsume(TokenType::openParenth,"Expected '('");
                 auto stmt_if = m_alloc.alloc<NodeStmtIf>();
-                if(auto expr = parseExpr()){
-                    stmt_if->expr = expr.value();
-                }else {
+                int i = 0;
+
+                while(auto expr = parseExpr()){
+                    i++;
+                    stmt_if->expr.push_back(expr.value());
+                    if(auto cond = tryConsume(TokenType::_and))stmt_if->exprCond.push_back(cond.value().type);
+                    else if(auto cond = tryConsume(TokenType::_or))stmt_if->exprCond.push_back(cond.value().type);
+                    else if(auto cond = tryConsume(TokenType::_xor))stmt_if->exprCond.push_back(cond.value().type);
+                }
+                if(!i){
                     std::cerr << "Invalid Expression2" << std::endl;
                     exit(EXIT_FAILURE);
                 }

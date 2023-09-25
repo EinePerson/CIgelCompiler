@@ -31,6 +31,10 @@ enum class TokenType{
     mul,
     pow,
 
+    _and,
+    _or,
+    _xor,
+
     _exit,
     _if,
 
@@ -125,6 +129,11 @@ class Tokenizer{
             {"if",TokenType::_if},
         };
 
+        const std::map<std::string,Token> REPLACE = {
+            {"false",Token{.type = TokenType::int_lit,.value = "0"}},
+            {"true",Token{.type = TokenType::int_lit,.value = "1"}}
+        };
+
         const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
             {';',TokenType::semi},
             {'(',TokenType::openParenth},
@@ -183,7 +192,11 @@ class Tokenizer{
                         tokens.push_back({.type = TokenType::notequal});
                         consume();
                         continue;
-                    }else {
+                    }else if(peak().has_value() && peak().value() == '|'){
+                        tokens.push_back({.type = TokenType::_xor});
+                        consume();
+                        continue;
+                    }else{
                         std::cerr << "Expected '='1" <<  std::endl;
                         exit(EXIT_FAILURE);
                     }
@@ -218,6 +231,26 @@ class Tokenizer{
                         consume();
                         continue;
                     }
+                }else if(peak().value() == '&'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '&'){
+                        tokens.push_back({.type = TokenType::_and});
+                        consume();
+                        continue;
+                    }else{
+                        std::cerr << "Expected '&'" <<  std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '|'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '|'){
+                        tokens.push_back({.type = TokenType::_or});
+                        consume();
+                        continue;
+                    }else{
+                        std::cerr << "Expected '|'" <<  std::endl;
+                        exit(EXIT_FAILURE);
+                    }
                 }else if(std::isalpha(peak().value())){
                     buf.push_back(consume());
                     while (peak().has_value() && std::isalnum(peak().value()))
@@ -239,6 +272,10 @@ class Tokenizer{
                         }
                     }else if(IGEL_TOKENS.count(buf)){
                         tokens.push_back({.type = IGEL_TOKENS.at(buf)});
+                        buf.clear();
+                        continue;
+                    }else if(REPLACE.count(buf)){
+                        tokens.push_back(REPLACE.at(buf));
                         buf.clear();
                         continue;
                     }else {

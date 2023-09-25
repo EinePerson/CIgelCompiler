@@ -35,10 +35,7 @@ int main(int argc,char* argv[]) {
         std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
         return EXIT_FAILURE;
     }
-    /*std::fstream input(argv[1],std::ios::in);
-    std::stringstream contStream;
-    contStream << input.rdbuf();
-    input.close();*/
+
     std::string name = removeExtension(argv[1]);
     std::string cont = read(argv[1]);
     
@@ -52,11 +49,9 @@ int main(int argc,char* argv[]) {
         std::cerr << "Invalid Programm" << std::endl;
         exit(EXIT_FAILURE);
     }
-
     Generator gen(parsed.value());
-    write(read("./build/" + name + ".asm"),"./build/" + name + "-old.asm");
+    //write(read("./build/" + name + ".asm"),"./build/" + name + "-old.asm");
     write(gen.gen_prog(),"./build/" + name + ".asm");
-
     std::string strs = "nasm -felf64 ./build/" + name + ".asm";
     const char* str = strs.c_str();
     system(str);

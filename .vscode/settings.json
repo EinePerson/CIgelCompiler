@@ -49,5 +49,6 @@
         "typeinfo": "cpp",
         "map": "cpp",
         "variant": "cpp"
-    }
+    },
+    "cmake.loggingLevel": "debug"
 }

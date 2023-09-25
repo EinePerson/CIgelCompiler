@@ -93,10 +93,15 @@ int sizeToReg(uint size){
             }
         }
 
+enum class GenSyn{
+
+};
+
 class Generator {
 
     struct Var;
     struct SizeAble;
+    struct GenTokSyn;
     public:
         inline explicit Generator(NodeProgram prog) : m_prog(prog){}
 
@@ -106,16 +111,14 @@ class Generator {
             for (const NodeStmt* stmt : m_prog.stmts) {
                 gen_stmt(stmt);
             }
-
             m_output << "   mov rax, 60\n";
             m_output << "   mov rdi, 0\n";
             m_output << "   syscall\n";
-            std::cout << m_instruction << "A\n";
             return m_output.str();
         }
 
         int genBinExpr(const NodeBinExpr* binExpr,std::optional<SizeAble> dest = {}){
-            static int i;
+            static int i = -1;
             struct BinExprVisitor{
                 Generator* gen;
                 std::optional<SizeAble> dest;
@@ -179,7 +182,7 @@ class Generator {
                     gen->pop(j,0);
                     gen->pop(k,1);
                     
-                    gen->m_lables.push_back(gen->m_labelI++);
+                    gen->m_lables.back() =gen->m_labelI;
                     gen-> m_output << "   cmp " << regs[i][0] << ", " << regs[k][1] << "\n";
                     gen->m_output << "   " << binjump(areth->type) << " lable" << gen->m_lables.back() << "\n";
                     gen->m_instruction += 9;
@@ -257,7 +260,7 @@ class Generator {
             struct StmtVisitor{
                 Generator* gen;
                 void operator()(const NodeStmtExit* stmt_exit){
-                    std::optional<SizeAble> o = RegIns(3,4);
+                    std::optional<SizeAble> o = RegIns(0,4);
                     gen->genExpr(stmt_exit->expr,o);
                     gen->m_output << "   mov rax, 60\n";
                     gen->m_output << "   syscall\n";
@@ -281,25 +284,43 @@ class Generator {
                     gen->genScope(scope);
                 }
                 void operator()(const NodeStmtIf* _if) const{
-                    int i = gen->genExpr(_if->expr);
-                    if(i == -1){
-                        gen->pop(8,0);
-                        
-                        std::string lable = gen->createLabel();
-                        gen->m_output << "   test rax, rax \n";
-                        gen->m_output << "   jz " << lable << "\n";
-                        ScopeStmtVisitor vis{.gen = gen};
-                        std::visit(vis,_if->scope);
-                        gen->m_output << lable << ":\n";
-                        //Check if 6 or 4
-                        gen->m_instruction += 4;
+                    for(int i = 0;i < _if->expr.size() - 1;i++){
+                        auto expr = _if->expr.at(i);
+                        auto cond = _if->exprCond.at(i);
+                        std::cout << "A\n";
+                        gen->m_lables.push_back(-1);
+                        gen->genExpr(expr);
+                        if(gen->m_lables.back() == -1){
+                            gen->pop(2,0);
+                            size_t lable = gen->m_labelI;
+                            gen->m_output << "   test rax, rax \n";
+                            gen->m_output << "   jz lable" << lable << "\n";
+                            gen->m_lables.back() = lable;
+                            gen->m_instruction += 4;
+                        }
+                        if(cond == TokenType::_and){
+                            gen->m_output << "lable" << gen->m_labelI++ << ":\n";
+                        }
                     }
+                    auto expr = _if->expr.back();
+                        auto cond = _if->exprCond.back();
+                        std::cout << "A\n";
+                        gen->m_lables.push_back(-1);
+                        gen->genExpr(expr);
+                        if(gen->m_lables.back() == -1){
+                            gen->pop(2,0);
+                            size_t lable = gen->m_labelI;
+                            gen->m_output << "   test rax, rax \n";
+                            gen->m_output << "   jz lable" << lable << "\n";
+                            gen->m_lables.back() = lable;
+                            gen->m_instruction += 4;
+                        }
+                    gen->m_labelI++;
+                    
                     
                     ScopeStmtVisitor vis{.gen = gen};
                     std::visit(vis,_if->scope);
                     gen->m_output << "lable" << gen->m_lables.back() << ":\n";
-                    //Check if is instruction
-                    //gen->m_instruction += 2;
                     gen->m_lables.pop_back();
                 }
             };
@@ -343,44 +364,12 @@ class Generator {
         }
 
         void writeRam(SizeAble var,long val){
-            switch (var.sid){
-            case 0:
-                m_output << "   mov BYTE [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-                break;
-            case 1:
-                m_output << "   mov WORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-                break;
-            case 2:
-                m_output << "   mov DWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-                break;
-            case 3:
-                m_output << "   mov QWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
-                break;
-            
-            default:
-                break;
-            }
+            m_output << "   mov " << regIDSize(var.sid) << " [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
             m_instruction += 4;
         }
 
         void readRam(SizeAble var,int reg){
-            switch (var.sid){
-            case 0:
-                m_output << "   mov " << regs[var.sid][reg] << ",BYTE [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            case 1:
-                m_output << "   mov " << regs[var.sid][reg] << ",WORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            case 2:
-                m_output << "   mov " << regs[var.sid][reg] << ",DWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "],\n";
-                break;
-            case 3:
-                m_output << "   mov " << regs[var.sid][reg] << ",QWORD [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "],\n";
-                break;
-            
-            default:
-                break;
-            }
+            m_output << "   mov " << regs[var.sid][reg] << "," << regIDSize(var.sid) << " [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
             m_instruction += 4;
         }
 
@@ -399,7 +388,7 @@ class Generator {
         void push(std::optional<SizeAble> dest,char i){
             if(dest.has_value()){
                         if(dest.value().mem){
-                            m_output << "  mov " << sidType(dest.value().sid) << "[rsp - " << dest.value().stackPos << "]," << regs[dest.value().sid][0] << "\n";
+                            m_output << "   mov " << sidType(dest.value().sid) << " [rsp - " << dest.value().stackPos << "]," << regs[dest.value().sid][0] << "\n";
                             m_instruction += 4;
                         }else{
                             m_output << "   mov " << regs[dest.value().sid][dest.value().stackPos] << "," << regs[dest.value().sid][0] << "\n";
@@ -409,96 +398,25 @@ class Generator {
         }
 
         void push(int sid,int reg){
-            switch (sid){
-            case 0:
-                m_output << "   mov BYTE [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
-                break;
-            case 1:
-                m_output << "   mov WORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
-                break;
-            case 2:
-                m_output << "   mov DWORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
-                break;
-            case 3:
-                m_output << "   mov QWORD [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
-                break;
-            
-            default:
-                break;
-            }
-            m_varsI++;
             m_stackPos += regIDSize(sid);
+            m_output << "   mov "<< sidType(sid) <<" [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+            m_varsI++;
+            
             m_instruction += 4;
         }
         
         void copFVar(Var var){
-            switch (var.sid)
-            {
-            case 0:
-                m_output << "   mov al,BYTE [rsp - " << var.stackPos << "]\n";
-                m_output << "   mov BYTE [rsp - " << m_stackPos << "],al\n";
-                break;
-            case 1:
-                m_output << "   mov ax,WORD [rsp - " << var.stackPos << "]\n";
-                m_output << "   mov WORD [rsp - " << m_stackPos << "],ax\n";
-                break;
-            case 2:
-                m_output << "   mov eax,DWORD [rsp - " << var.stackPos << "]\n";
-                m_output << "   mov DWORD [rsp - " << m_stackPos << "],eax\n";
-                break;
-            case 3:
-                m_output << "   mov rax,QWORD [rsp - " << var.stackPos << "]\n";
-                m_output << "   mov QWORD [rsp - " << m_stackPos << "],rax\n";
-                break;
-            default:
-                break;
-            }
-            m_varsI++;
             m_stackPos += regIDSize(var.sid);
+            m_output << "   mov " << regs[var.sid][0] << ","<< sidType(var.sid) <<" [rsp - " << var.stackPos << "]\n";
+            m_output << "   mov "<< sidType(var.sid) <<" [rsp - " << m_stackPos << "]," << regs[var.sid][0] << "\n";
+            m_varsI++;
             m_instruction += 8;
         }
 
         void pop(int sid,int reg){
             m_varsI--;
+            m_output << "   mov " << regs[sid][reg] << ","<< sidType(sid) <<" [rsp - " << m_stackPos << "]\n";
             m_stackPos -= regIDSize(sid);
-            switch (sid){
-            case 0:
-                m_output << "   mov " << regs[sid][reg] << ",BYTE [rsp - " << m_stackPos << "]\n";
-                break;
-            case 1:
-                m_output << "   mov " << regs[sid][reg] << ",WORD [rsp - " << m_stackPos << "]\n";
-                break;
-            case 2:
-                m_output << "   mov " << regs[sid][reg] << ",DWORD [rsp - " << m_stackPos << "]\n";
-                break;
-            case 3:
-                m_output << "   mov " << regs[sid][reg] << ",QWORD [rsp - " << m_stackPos << "]\n";
-                break;
-            
-            default:
-                break;
-            }
-            m_instruction += 4;
-        }
-
-        void readRam(Var var,uint reg){
-            switch (var.sid){
-            case 0:
-                m_output << "   mov " << regs[0][reg] << ", BYTE PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            case 1:
-                m_output << "   mov " << regs[1][reg] << ", WORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            case 2:
-                m_output << "   mov " << regs[2][reg] << ", DWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            case 3:
-                m_output << "   mov " << regs[3][reg] << ", QWORD PTR [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
-                break;
-            
-            default:
-                break;
-            }
             m_instruction += 4;
         }
 
@@ -524,6 +442,11 @@ class Generator {
             size_t var;
         };
 
+        struct GenTokSyn{
+            GenSyn gen;
+            std::optional<std::string> val;
+        };
+
         const NodeProgram m_prog;
         std::stringstream m_output;
         size_t m_stackPos = 0;
@@ -532,5 +455,5 @@ class Generator {
         std::vector<Scope> m_scopes;
         std::vector<int> m_lables;
         size_t m_labelI = 0;
-        size_t m_instruction = 0;
+        size_t m_instruction = 0x401000;
 };
