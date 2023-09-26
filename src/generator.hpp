@@ -1,6 +1,7 @@
 #pragma once
 
 #include "parser.hpp"
+#include "preGenerator.hpp"
 
 #include <sstream>
 #include <map>
@@ -93,23 +94,79 @@ int sizeToReg(uint size){
             }
         }
 
-enum class GenSyn{
+        std::string binjump(TokenType type){
+            switch (type)
+            {
+                case TokenType::bigequal:
+                    return "JNGE";
+                    break;
+                case TokenType::equal:
+                    return "JNE";
+                    break;
+                case TokenType::notequal:
+                    return "JE";
+                    break;
+                case TokenType::smallequal:
+                    return "JNBE";
+                    break;
+                case TokenType::small:
+                    return "JNL";
+                    break;
+                case TokenType::big:
+                    return "JNG";
+                    break;
+    
+                default:
+                    return "";
+                    break;
+            }
+        }
 
-};
+        std::string binnotjump(TokenType type){
+            switch (type)
+            {
+                case TokenType::bigequal:
+                    return "JGE";
+                    break;
+                case TokenType::equal:
+                    return "JE";
+                    break;
+                case TokenType::notequal:
+                    return "JNE";
+                    break;
+                case TokenType::smallequal:
+                    return "JBE";
+                    break;
+                case TokenType::small:
+                    return "JL";
+                    break;
+                case TokenType::big:
+                    return "JG";
+                    break;
+    
+                default:
+                    return "";
+                    break;
+            }
+        }
 
 class Generator {
 
     struct Var;
     struct SizeAble;
-    struct GenTokSyn;
     public:
-        inline explicit Generator(NodeProgram prog) : m_prog(prog){}
+        inline explicit Generator(NodeProgram prog) : m_prog(prog){
+            m_pre_gen = new PreGen(m_prog);
+        }
 
         std::string gen_prog(){
             m_output << "global _start\n_start:\n";
 
-            for (const NodeStmt* stmt : m_prog.stmts) {
+            m_stmtI = 0;
+            while (m_stmtI < m_prog.stmts.size()){
+                const NodeStmt* stmt = m_prog.stmts.at(m_stmtI);
                 gen_stmt(stmt);
+                m_stmtI++;
             }
             m_output << "   mov rax, 60\n";
             m_output << "   mov rdi, 0\n";
@@ -184,7 +241,7 @@ class Generator {
                     
                     gen->m_lables.back() =gen->m_labelI;
                     gen-> m_output << "   cmp " << regs[i][0] << ", " << regs[k][1] << "\n";
-                    gen->m_output << "   " << binjump(areth->type) << " lable" << gen->m_lables.back() << "\n";
+                    i = (int) areth->type;
                     gen->m_instruction += 9;
                 }
             };
@@ -284,12 +341,16 @@ class Generator {
                     gen->genScope(scope);
                 }
                 void operator()(const NodeStmtIf* _if) const{
+                    std::cout << gen->m_pre_gen->preGen(_if->scope) << "A\n";
+                    int m = gen->m_labelI;
+                    int j = gen->m_pre_gen->preGen(_if->scope) + 1;
+                    int k = gen->m_labelI + j;
+                    std::cout << k << ":" << gen->m_labelI << "\n";
                     for(int i = 0;i < _if->expr.size() - 1;i++){
                         auto expr = _if->expr.at(i);
                         auto cond = _if->exprCond.at(i);
-                        std::cout << "A\n";
                         gen->m_lables.push_back(-1);
-                        gen->genExpr(expr);
+                        int l = gen->genExpr(expr);
                         if(gen->m_lables.back() == -1){
                             gen->pop(2,0);
                             size_t lable = gen->m_labelI;
@@ -297,31 +358,43 @@ class Generator {
                             gen->m_output << "   jz lable" << lable << "\n";
                             gen->m_lables.back() = lable;
                             gen->m_instruction += 4;
+                        }else {
+                            if(cond == TokenType::_and){
+                                gen->m_output << "   " << binjump((TokenType) l) << " lable" << k << "\n";
+                            }else if(cond == TokenType::_or){
+                                gen->m_output << "   " << binjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
+                            }
                         }
-                        if(cond == TokenType::_and){
-                            gen->m_output << "lable" << gen->m_labelI++ << ":\n";
-                        }
+                        gen->m_lables.pop_back();
                     }
                     auto expr = _if->expr.back();
-                        auto cond = _if->exprCond.back();
-                        std::cout << "A\n";
-                        gen->m_lables.push_back(-1);
-                        gen->genExpr(expr);
-                        if(gen->m_lables.back() == -1){
-                            gen->pop(2,0);
-                            size_t lable = gen->m_labelI;
-                            gen->m_output << "   test rax, rax \n";
-                            gen->m_output << "   jz lable" << lable << "\n";
-                            gen->m_lables.back() = lable;
-                            gen->m_instruction += 4;
+                    gen->m_lables.push_back(-1);
+                    int l = gen->genExpr(expr);
+                    if(gen->m_lables.back() == -1){
+                        gen->pop(2,0);
+                        size_t lable = gen->m_labelI;
+                        gen->m_output << "   test rax, rax \n";
+                        gen->m_output << "   jz lable" << lable << "\n";
+                        gen->m_lables.back() = lable;
+                        gen->m_instruction += 4;
+                    }else {
+                        if(_if->exprCond.size() > 0 && _if->exprCond.back() == TokenType::_and){
+                            gen->m_output << "   " << binnotjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
+                        }else{
+                            gen->m_output << "   " << binnotjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
                         }
-                    gen->m_labelI++;
+                    }
+                    gen->m_lables.pop_back();
                     
+                    gen->m_output << "   jmp lable" << k << "\n";
+                    gen->m_output << "lable" << gen->m_labelI << ":\n";
+                    gen->m_labelI++;
                     
                     ScopeStmtVisitor vis{.gen = gen};
                     std::visit(vis,_if->scope);
-                    gen->m_output << "lable" << gen->m_lables.back() << ":\n";
-                    gen->m_lables.pop_back();
+                    gen->m_output << "lable" << gen->m_labelI << ":\n";
+                    gen->m_labelI++;
+                    std::cout << k << ":" << gen->m_labelI << ":" << m << "\n";
                 }
             };
 
@@ -442,11 +515,6 @@ class Generator {
             size_t var;
         };
 
-        struct GenTokSyn{
-            GenSyn gen;
-            std::optional<std::string> val;
-        };
-
         const NodeProgram m_prog;
         std::stringstream m_output;
         size_t m_stackPos = 0;
@@ -455,5 +523,7 @@ class Generator {
         std::vector<Scope> m_scopes;
         std::vector<int> m_lables;
         size_t m_labelI = 0;
+        size_t m_stmtI;
         size_t m_instruction = 0x401000;
+        PreGen* m_pre_gen;
 };

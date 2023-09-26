@@ -37,6 +37,7 @@ enum class TokenType{
 
     _exit,
     _if,
+    _else,
 
     int_lit,
     id,
@@ -74,34 +75,6 @@ std::optional<int> prec(TokenType type){
     }
 }
 
-std::string binjump(TokenType type){
-    switch (type)
-    {
-    case TokenType::bigequal:
-        return "JNGE";
-        break;
-    case TokenType::equal:
-        return "JNE";
-        break;
-    case TokenType::notequal:
-        return "JE";
-        break;
-    case TokenType::smallequal:
-        return "JNBE";
-        break;
-    case TokenType::small:
-        return "JNL";
-        break;
-    case TokenType::big:
-        return "JNG";
-        break;
-    
-    default:
-        return "";
-        break;
-    }
-}
-
 struct Token{
     TokenType type;
     std::optional<std::string> value;
@@ -122,6 +95,7 @@ class Tokenizer{
             {"!=",TokenType::notequal},
             {">=",TokenType::bigequal},
             {"<=",TokenType::smallequal},
+            {"else",TokenType::_else},
         };
 
         const std::map<std::string,TokenType> FUNCTIONS = {
@@ -183,8 +157,9 @@ class Tokenizer{
                         comment = 2;
                         continue;
                     }else {
-                        std::cerr << "Expected '/' or '*'" << std::endl;
-                        exit(EXIT_FAILURE);
+                        tokens.push_back({.type = TokenType::div});
+                        consume();
+                        continue;
                     }
                 }else if(peak().value() == '!'){
                     consume();
