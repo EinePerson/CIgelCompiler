@@ -341,60 +341,7 @@ class Generator {
                     gen->genScope(scope);
                 }
                 void operator()(const NodeStmtIf* _if) const{
-                    std::cout << gen->m_pre_gen->preGen(_if->scope) << "A\n";
-                    int m = gen->m_labelI;
-                    int j = gen->m_pre_gen->preGen(_if->scope) + 1;
-                    int k = gen->m_labelI + j;
-                    std::cout << k << ":" << gen->m_labelI << "\n";
-                    for(int i = 0;i < _if->expr.size() - 1;i++){
-                        auto expr = _if->expr.at(i);
-                        auto cond = _if->exprCond.at(i);
-                        gen->m_lables.push_back(-1);
-                        int l = gen->genExpr(expr);
-                        if(gen->m_lables.back() == -1){
-                            gen->pop(2,0);
-                            size_t lable = gen->m_labelI;
-                            gen->m_output << "   test rax, rax \n";
-                            gen->m_output << "   jz lable" << lable << "\n";
-                            gen->m_lables.back() = lable;
-                            gen->m_instruction += 4;
-                        }else {
-                            if(cond == TokenType::_and){
-                                gen->m_output << "   " << binjump((TokenType) l) << " lable" << k << "\n";
-                            }else if(cond == TokenType::_or){
-                                gen->m_output << "   " << binjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
-                            }
-                        }
-                        gen->m_lables.pop_back();
-                    }
-                    auto expr = _if->expr.back();
-                    gen->m_lables.push_back(-1);
-                    int l = gen->genExpr(expr);
-                    if(gen->m_lables.back() == -1){
-                        gen->pop(2,0);
-                        size_t lable = gen->m_labelI;
-                        gen->m_output << "   test rax, rax \n";
-                        gen->m_output << "   jz lable" << lable << "\n";
-                        gen->m_lables.back() = lable;
-                        gen->m_instruction += 4;
-                    }else {
-                        if(_if->exprCond.size() > 0 && _if->exprCond.back() == TokenType::_and){
-                            gen->m_output << "   " << binnotjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
-                        }else{
-                            gen->m_output << "   " << binnotjump((TokenType) l) << " lable" << gen->m_labelI << "\n";
-                        }
-                    }
-                    gen->m_lables.pop_back();
-                    
-                    gen->m_output << "   jmp lable" << k << "\n";
-                    gen->m_output << "lable" << gen->m_labelI << ":\n";
-                    gen->m_labelI++;
-                    
-                    ScopeStmtVisitor vis{.gen = gen};
-                    std::visit(vis,_if->scope);
-                    gen->m_output << "lable" << gen->m_labelI << ":\n";
-                    gen->m_labelI++;
-                    std::cout << k << ":" << gen->m_labelI << ":" << m << "\n";
+                    gen->gen_if(_if);
                 }
             };
 
@@ -403,6 +350,81 @@ class Generator {
         }
 
     private:
+
+        void gen_if(const NodeStmtIf* _if){
+            int m = m_labelI;
+                    int j = m_pre_gen->preGen(_if->scope) + 1;
+                    int k = m_labelI + j;
+                    std::cout << k << ":" << m_labelI << "\n";
+                    for(int i = 0;i < _if->expr.size() - 1;i++){
+                        auto expr = _if->expr.at(i);
+                        auto cond = _if->exprCond.at(i);
+                        m_lables.push_back(-1);
+                        int l = genExpr(expr);
+                        if(m_lables.back() == -1){
+                            pop(2,0);
+                            size_t lable = m_labelI;
+                            m_output << "   test rax, rax \n";
+                            m_output << "   jz lable" << lable << "\n";
+                            m_lables.back() = lable;
+                            m_instruction += 4;
+                        }else {
+                            if(cond == TokenType::_and){
+                                m_output << "   " << binjump((TokenType) l) << " lable" << k << "\n";
+                            }else if(cond == TokenType::_or){
+                                m_output << "   " << binjump((TokenType) l) << " lable" << m_labelI << "\n";
+                            }
+                        }
+                        m_lables.pop_back();
+                    }
+                    auto expr = _if->expr.back();
+                    m_lables.push_back(-1);
+                    int l = genExpr(expr);
+                    if(m_lables.back() == -1){
+                        pop(2,0);
+                        size_t lable = m_labelI;
+                        m_output << "   test rax, rax \n";
+                        m_output << "   jz lable" << lable << "\n";
+                        m_lables.back() = lable;
+                        m_instruction += 4;
+                    }else {
+                        if(_if->exprCond.size() > 0 && _if->exprCond.back() == TokenType::_and){
+                            m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
+                        }else{
+                            m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
+                        }
+                    }
+                    m_lables.pop_back();
+                    
+                    m_output << "   jmp lable" << k << "\n";
+                    m_output << "lable" << m_labelI << ":\n";
+                    m_labelI++;
+                    
+                    ScopeStmtVisitor vis{.gen = this};
+                    std::visit(vis,_if->scope);
+
+                    if(_if->scope_else.has_value()){
+                        k += m_pre_gen->preGen(_if->scope_else.value());
+                        m_output << "  jmp lable" << k << "\n";
+                        m_output << "lable" << m_labelI << ":\n";
+                        m_labelI++;
+                        std::visit(vis,_if->scope_else.value());
+                        m_output << "lable" << m_labelI << ":\n";
+                        m_labelI++;
+                    }else if(_if->else_if.has_value()){
+                        k += m_pre_gen->preGen(_if->else_if.value()->scope);
+                        m_output << "  jmp lable" << k << "\n";
+                        m_output << "lable" << m_labelI << ":\n";
+                        m_labelI++;
+                        gen_if(_if->else_if.value());
+                        m_output << "lable" << m_labelI << ":\n";
+                        m_labelI++;
+                    }else{
+                        m_output << "lable" << m_labelI << ":\n";
+                        m_labelI++;
+                    }
+                    std::cout << k << ":" << m_labelI << ":" << m << "\n";
+        }
 
         struct ScopeStmtVisitor{
             Generator* gen;

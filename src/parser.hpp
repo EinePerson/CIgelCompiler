@@ -92,6 +92,8 @@ struct NodeStmtIf{
     std::vector<NodeExpr*> expr;
     std::vector<TokenType> exprCond;
     std::variant<NodeStmtScope*,NodeStmt*> scope;
+    std::optional<std::variant<NodeStmtScope*,NodeStmt*>> scope_else;
+    std::optional<NodeStmtIf*> else_if;
 };
 
 struct NodeStmt{
@@ -207,6 +209,7 @@ class Parser{
             while(auto stmt = parseStmt()){
                 scope->stmts.push_back(stmt.value());
             }
+            std::cout << (int) peak().value().type << "\n";
             tryConsume(TokenType::closeCurl,"Expected '}'");
             return scope;
         }
@@ -252,36 +255,53 @@ class Parser{
                 stmt->var = scope.value();
                 return stmt;
             }else if(auto _if = tryConsume(TokenType::_if)){
-                tryConsume(TokenType::openParenth,"Expected '('");
-                auto stmt_if = m_alloc.alloc<NodeStmtIf>();
-                int i = 0;
-
-                while(auto expr = parseExpr()){
-                    i++;
-                    stmt_if->expr.push_back(expr.value());
-                    if(auto cond = tryConsume(TokenType::_and))stmt_if->exprCond.push_back(cond.value().type);
-                    else if(auto cond = tryConsume(TokenType::_or))stmt_if->exprCond.push_back(cond.value().type);
-                    else if(auto cond = tryConsume(TokenType::_xor))stmt_if->exprCond.push_back(cond.value().type);
-                }
-                if(!i){
-                    std::cerr << "Invalid Expression2" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                tryConsume(TokenType::closeParenth,"Expected ')'2");
-                if(auto scope = parseScope()){
-                    stmt_if->scope = scope.value();
-                }else if(auto stms = parseStmt()){
-                    stmt_if->scope = stms.value();
-                }else {
-                    std::cerr << "Invalid Scope" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
                 auto stmt = m_alloc.alloc<NodeStmt>();
-                stmt->var = stmt_if;
+                stmt->var = parseIf();
                 return stmt;
             } else {
                 return {};
             }
+        }
+
+        NodeStmtIf* parseIf(){
+            tryConsume(TokenType::openParenth,"Expected '('");
+            auto stmt_if = m_alloc.alloc<NodeStmtIf>();
+            int i = 0;
+
+            while(auto expr = parseExpr()){
+                i++;
+                stmt_if->expr.push_back(expr.value());
+                if(auto cond = tryConsume(TokenType::_and))stmt_if->exprCond.push_back(cond.value().type);
+                else if(auto cond = tryConsume(TokenType::_or))stmt_if->exprCond.push_back(cond.value().type);
+                else if(auto cond = tryConsume(TokenType::_xor))stmt_if->exprCond.push_back(cond.value().type);
+            }
+            if(!i){
+                std::cerr << "Invalid Expression2" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            tryConsume(TokenType::closeParenth,"Expected ')'2");
+            if(auto scope = parseScope()){
+                stmt_if->scope = scope.value();
+            }else if(auto stms = parseStmt()){
+                stmt_if->scope = stms.value();
+            }else {
+                std::cerr << "Invalid Scope" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+                
+            if(tryConsume(TokenType::_else)){
+                if(tryConsume(TokenType::_if)){
+                    stmt_if->else_if = parseIf();
+                }else if(auto scope = parseScope()){
+                    stmt_if->scope_else = scope.value();
+                }else if(auto stms = parseStmt()){
+                    stmt_if->scope_else = stms.value();
+                }else {
+                    std::cerr << "Invalid else Scope" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
+            return stmt_if;
         }
 
         std::optional<NodeProgram> parseProg(){
