@@ -160,7 +160,7 @@ class Generator {
         }
 
         std::string gen_prog(){
-            m_output << "global _start\n_start:\n";
+            m_output << "global _start\n_start:\npush rbp\nmov rbp,rsp\n";
 
             m_stmtI = 0;
             while (m_stmtI < m_prog.stmts.size()){
@@ -168,6 +168,7 @@ class Generator {
                 gen_stmt(stmt);
                 m_stmtI++;
             }
+            m_output << "pop rbp\n";
             m_output << "   mov rax, 60\n";
             m_output << "   mov rdi, 0\n";
             m_output << "   syscall\n";
@@ -239,7 +240,7 @@ class Generator {
                     gen->pop(j,0);
                     gen->pop(k,1);
                     
-                    gen->m_lables.back() =gen->m_labelI;
+                    gen->m_lables.back() = gen->m_labelI;
                     gen-> m_output << "   cmp " << regs[i][0] << ", " << regs[k][1] << "\n";
                     i = (int) areth->type;
                     gen->m_instruction += 9;
@@ -343,6 +344,41 @@ class Generator {
                 void operator()(const NodeStmtIf* _if) const{
                     gen->gen_if(_if);
                 }
+                void operator()(const NodeStmtReassign* reassign){
+                    auto it = std::find_if(gen->m_vars.cbegin(), gen->m_vars.cend(), [&](const Var& var) {
+                        return var.name == reassign->id.value.value();
+                    });
+                    if(it == gen->m_vars.cend()){
+                        std::cerr << "Undeclared identifier: " << reassign->id.value.value() << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    const auto& var = *it;
+                    gen->genExpr(reassign->expr,RegIns(var.sid,1));
+                    if(reassign->op == TokenType::eq){
+                        gen->move(var,1);
+                    }else{
+                        gen->move(0,var);
+                        switch (reassign->op)
+                        {
+                        case TokenType::plus_eq:
+                            gen->m_output << "   add " << regs[var.sid][0] << "," << regs[var.sid][1] << "\n";
+                            break;
+                        case TokenType::sub_eq:
+                            gen->m_output << "   sub " << regs[var.sid][0] << "," << regs[var.sid][1] << "\n";
+                            break;
+                        case TokenType::mul_eq:
+                            gen->m_output << "   mul " << regs[var.sid][1] << "\n";
+                            break;
+                        case TokenType::div_eq:
+                            gen->m_output << "   div " << regs[var.sid][1] << "\n";
+                            break;
+                        
+                        default:
+                            break;
+                        }
+                        gen->move(var,0);
+                    }
+                }
             };
 
             StmtVisitor vis{.gen = this};
@@ -353,77 +389,68 @@ class Generator {
 
         void gen_if(const NodeStmtIf* _if){
             int m = m_labelI;
-                    int j = m_pre_gen->preGen(_if->scope) + 1;
-                    int k = m_labelI + j;
-                    std::cout << k << ":" << m_labelI << "\n";
-                    for(int i = 0;i < _if->expr.size() - 1;i++){
-                        auto expr = _if->expr.at(i);
-                        auto cond = _if->exprCond.at(i);
-                        m_lables.push_back(-1);
-                        int l = genExpr(expr);
-                        if(m_lables.back() == -1){
-                            pop(2,0);
-                            size_t lable = m_labelI;
-                            m_output << "   test rax, rax \n";
-                            m_output << "   jz lable" << lable << "\n";
-                            m_lables.back() = lable;
-                            m_instruction += 4;
-                        }else {
-                            if(cond == TokenType::_and){
-                                m_output << "   " << binjump((TokenType) l) << " lable" << k << "\n";
-                            }else if(cond == TokenType::_or){
-                                m_output << "   " << binjump((TokenType) l) << " lable" << m_labelI << "\n";
-                            }
-                        }
-                        m_lables.pop_back();
+            int j = m_pre_gen->preGen(_if->scope) + 1;
+            int k = m_labelI + j;
+            for(int i = 0;i < _if->expr.size() - 1;i++){
+                auto expr = _if->expr.at(i);
+                auto cond = _if->exprCond.at(i);
+                m_lables.push_back(-1);
+                int l = genExpr(expr);
+                if(m_lables.back() == -1){
+                    pop(2,0);
+                    size_t lable = m_labelI;
+                    m_output << "   test rax, rax \n";
+                    m_output << "   jnz lable" << lable << "\n";
+                    m_lables.back() = lable;
+                    m_instruction += 4;
+                }else {
+                    if(cond == TokenType::_and){
+                        m_output << "   " << binjump((TokenType) l) << " lable" << k << "\n";
+                    }else if(cond == TokenType::_or){
+                        m_output << "   " << binjump((TokenType) l) << " lable" << m_labelI << "\n";
                     }
-                    auto expr = _if->expr.back();
-                    m_lables.push_back(-1);
-                    int l = genExpr(expr);
-                    if(m_lables.back() == -1){
-                        pop(2,0);
-                        size_t lable = m_labelI;
-                        m_output << "   test rax, rax \n";
-                        m_output << "   jz lable" << lable << "\n";
-                        m_lables.back() = lable;
-                        m_instruction += 4;
-                    }else {
-                        if(_if->exprCond.size() > 0 && _if->exprCond.back() == TokenType::_and){
-                            m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
-                        }else{
-                            m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
-                        }
-                    }
-                    m_lables.pop_back();
+                }
+                m_lables.pop_back();
+            }
+            auto expr = _if->expr.back();
+            m_lables.push_back(-1);
+            int l = genExpr(expr);
+            if(m_lables.back() == -1){
+                pop(2,0);
+                size_t lable = m_labelI;
+                m_output << "   test rax, rax \n";
+                m_output << "   jnz lable" << lable << "\n";
+                m_lables.back() = lable;
+                m_instruction += 4;
+            }else {
+                if(_if->exprCond.size() > 0 && _if->exprCond.back() == TokenType::_and){
+                    m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
+                }else{
+                    m_output << "   " << binnotjump((TokenType) l) << " lable" << m_labelI << "\n";
+                }
+            }
+            m_lables.pop_back();
                     
-                    m_output << "   jmp lable" << k << "\n";
-                    m_output << "lable" << m_labelI << ":\n";
-                    m_labelI++;
+            m_output << "   jmp lable" << k << "\n";
+            m_output << "lable" << m_labelI << ":\n";
+            m_labelI++;
                     
-                    ScopeStmtVisitor vis{.gen = this};
-                    std::visit(vis,_if->scope);
+            ScopeStmtVisitor vis{.gen = this};
+            std::visit(vis,_if->scope);
 
-                    if(_if->scope_else.has_value()){
-                        k += m_pre_gen->preGen(_if->scope_else.value());
-                        m_output << "  jmp lable" << k << "\n";
-                        m_output << "lable" << m_labelI << ":\n";
-                        m_labelI++;
-                        std::visit(vis,_if->scope_else.value());
-                        m_output << "lable" << m_labelI << ":\n";
-                        m_labelI++;
-                    }else if(_if->else_if.has_value()){
-                        k += m_pre_gen->preGen(_if->else_if.value()->scope);
-                        m_output << "  jmp lable" << k << "\n";
-                        m_output << "lable" << m_labelI << ":\n";
-                        m_labelI++;
-                        gen_if(_if->else_if.value());
-                        m_output << "lable" << m_labelI << ":\n";
-                        m_labelI++;
-                    }else{
-                        m_output << "lable" << m_labelI << ":\n";
-                        m_labelI++;
-                    }
-                    std::cout << k << ":" << m_labelI << ":" << m << "\n";
+            if(_if->scope_else.has_value()){
+                m_output << "  jmp lable" << k << "\n";
+                m_output << "lable" << m_labelI << ":\n";
+                m_labelI++;
+                std::visit(vis,_if->scope_else.value());
+            }else if(_if->else_if.has_value()){
+                m_output << "  jmp lable" << k << "\n";
+                m_output << "lable" << m_labelI << ":\n";
+                m_labelI++;
+                gen_if(_if->else_if.value());
+            }
+            m_output << "lable" << m_labelI << ":\n";
+            m_labelI++;
         }
 
         struct ScopeStmtVisitor{
@@ -443,7 +470,7 @@ class Generator {
 
         void endScope() {
             Scope scope = m_scopes.back();
-            m_stackPos -= scope.stack;
+            m_stackPos = scope.stack;
             size_t i = m_varsI - scope.var;
             for(int j = 0;j < i;j++){
                 m_vars.pop_back();
@@ -459,31 +486,41 @@ class Generator {
         }
 
         void writeRam(SizeAble var,long val){
-            m_output << "   mov " << regIDSize(var.sid) << " [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
+            m_output << "   mov " << regIDSize(var.sid) << " [rbp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]," << val << "\n";
             m_instruction += 4;
         }
 
         void readRam(SizeAble var,int reg){
-            m_output << "   mov " << regs[var.sid][reg] << "," << regIDSize(var.sid) << " [rsp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
+            m_output << "   mov " << regs[var.sid][reg] << "," << regIDSize(var.sid) << " [rbp - " << m_stackPos - var.stackPos  - regIDSize(var.sid) << "]\n";
             m_instruction += 4;
         }
 
         void push(Var var,std::optional<SizeAble> dest){
             if(dest.has_value() && dest.value().mem == false){
                 if(dest.value().sid > var.sid){
-                    m_output << "   movsx " << regs[dest.value().sid][dest.value().stackPos] << ", " << sidType(var.sid) << " [rsp - " << var.stackPos << "]\n";
+                    m_output << "   movsx " << regs[dest.value().sid][dest.value().stackPos] << ", " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
                     m_instruction += 5;
                 }else{
-                    m_output << "   mov " << regs[var.sid][dest.value().stackPos] << ", " << sidType(var.sid) << " [rsp - " << var.stackPos << "]\n";
+                    m_output << "   mov " << regs[var.sid][dest.value().stackPos] << ", " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
                     m_instruction += 4;
                 }
             }else copFVar(var);
         }
 
+        void move(Var var,char regId){
+            m_output << "   mov " << sidType(var.sid) << " [rbp - " << var.stackPos << "]," << regs[var.sid][regId] << "\n";
+            m_instruction += 4;
+        }
+
+        void move(char regId,Var var){
+            m_output << "   mov " << regs[var.sid][regId] << "," << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
+            m_instruction += 4;
+        }
+
         void push(std::optional<SizeAble> dest,char i){
             if(dest.has_value()){
                         if(dest.value().mem){
-                            m_output << "   mov " << sidType(dest.value().sid) << " [rsp - " << dest.value().stackPos << "]," << regs[dest.value().sid][0] << "\n";
+                            m_output << "   mov " << sidType(dest.value().sid) << " [rbp - " << dest.value().stackPos << "]," << regs[dest.value().sid][0] << "\n";
                             m_instruction += 4;
                         }else{
                             m_output << "   mov " << regs[dest.value().sid][dest.value().stackPos] << "," << regs[dest.value().sid][0] << "\n";
@@ -494,7 +531,7 @@ class Generator {
 
         void push(int sid,int reg){
             m_stackPos += regIDSize(sid);
-            m_output << "   mov "<< sidType(sid) <<" [rsp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
+            m_output << "   mov "<< sidType(sid) <<" [rbp - " << m_stackPos << "]," << regs[sid][reg] << "\n";
             m_varsI++;
             
             m_instruction += 4;
@@ -502,15 +539,15 @@ class Generator {
         
         void copFVar(Var var){
             m_stackPos += regIDSize(var.sid);
-            m_output << "   mov " << regs[var.sid][0] << ","<< sidType(var.sid) <<" [rsp - " << var.stackPos << "]\n";
-            m_output << "   mov "<< sidType(var.sid) <<" [rsp - " << m_stackPos << "]," << regs[var.sid][0] << "\n";
+            m_output << "   mov " << regs[var.sid][0] << ","<< sidType(var.sid) <<" [rbp - " << var.stackPos << "]\n";
+            m_output << "   mov "<< sidType(var.sid) <<" [rbp - " << m_stackPos << "]," << regs[var.sid][0] << "\n";
             m_varsI++;
             m_instruction += 8;
         }
 
         void pop(int sid,int reg){
             m_varsI--;
-            m_output << "   mov " << regs[sid][reg] << ","<< sidType(sid) <<" [rsp - " << m_stackPos << "]\n";
+            m_output << "   mov " << regs[sid][reg] << ","<< sidType(sid) <<" [rbp - " << m_stackPos << "]\n";
             m_stackPos -= regIDSize(sid);
             m_instruction += 4;
         }
@@ -539,7 +576,7 @@ class Generator {
 
         const NodeProgram m_prog;
         std::stringstream m_output;
-        size_t m_stackPos = 0;
+        size_t m_stackPos = 8;
         size_t m_varsI = 0;
         std::vector<Var> m_vars {};
         std::vector<Scope> m_scopes;

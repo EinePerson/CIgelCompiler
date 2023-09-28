@@ -18,12 +18,23 @@ enum class TokenType{
     _uint = 6,
     _ulong = 7,
 
+    //Double equal sign '=='
     equal = 8,
     notequal = 9,
     bigequal = 10,
     smallequal = 11,
     big = 12,
     small = 13,
+
+    //Single equal sign '='
+    eq = 14,
+    plus_eq = 15,
+    sub_eq = 16,
+    div_eq = 17,
+    mul_eq = 18,
+    pow_eq = 19,
+    int_lit,
+    id,
 
     plus,
     sub,
@@ -38,10 +49,6 @@ enum class TokenType{
     _exit,
     _if,
     _else,
-
-    int_lit,
-    id,
-    eq,
 
     semi,
     openParenth,
@@ -91,7 +98,7 @@ class Tokenizer{
             {"ushort",TokenType::_ushort},
             {"uint",TokenType::_uint},
             {"ulong",TokenType::_ulong},
-            {"==",TokenType::equal},
+            //{"==",TokenType::equal},
             {"!=",TokenType::notequal},
             {">=",TokenType::bigequal},
             {"<=",TokenType::smallequal},
@@ -112,7 +119,7 @@ class Tokenizer{
             {';',TokenType::semi},
             {'(',TokenType::openParenth},
             {')',TokenType::closeParenth},
-            {'=',TokenType::eq},
+            //{'=',TokenType::eq},
             {'+',TokenType::plus},
             {'-',TokenType::sub},
             {'/',TokenType::div},
@@ -155,6 +162,11 @@ class Tokenizer{
                     }else if(peak(1).has_value() && peak(1).value() == '*'){
                         consume();
                         comment = 2;
+                        continue;
+                    }else if(peak(1).has_value() && peak(1).value() == '='){
+                        tokens.push_back({.type = TokenType::div_eq});
+                        consume();
+                        consume();
                         continue;
                     }else {
                         tokens.push_back({.type = TokenType::div});
@@ -225,6 +237,61 @@ class Tokenizer{
                     }else{
                         std::cerr << "Expected '|'" <<  std::endl;
                         exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '+'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::plus_eq});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::plus});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '-'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::sub_eq});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::sub});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '*'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::mul_eq});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::mul});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '/'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::div_eq});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::div});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '*'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::pow_eq});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::pow});
+                        consume();
+                        continue;
                     }
                 }else if(std::isalpha(peak().value())){
                     buf.push_back(consume());

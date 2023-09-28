@@ -102,17 +102,17 @@ class PreGen{
                     gen->genScope(scope);
                 }
                 void operator()(const NodeStmtIf* _if) const{
-                    for(int i = 0;i < _if->expr.size() - 1;i++){
+                    /*for(int i = 0;i < _if->expr.size() - 1;i++){
                         auto expr = _if->expr.at(i);
                         gen->genExpr(expr);
                         gen->m_labelI++;
-                    }
-                    auto expr = _if->expr.back();
-                    gen->genExpr(expr);
-                    gen->m_labelI++;
-                    gen->m_labelI++;
-                    
-                    ScopeStmtVisitor vis{.gen = gen};
+                    }*/
+                    //auto expr = _if->expr.back();
+                    //gen->genExpr(expr);
+                    gen->pregen_if(_if);
+                }
+                void operator()(const NodeStmtReassign* reassign){
+
                 }
             };
 
@@ -121,6 +121,21 @@ class PreGen{
         }
 
     private:
+
+        void pregen_if(const NodeStmtIf* _if){
+            m_labelI++;
+            m_labelI++;
+                    
+            ScopeStmtVisitor vis{.gen = this};
+            std::visit(vis,_if->scope);
+            if(_if->else_if.has_value()){
+                pregen_if(_if->else_if.value());
+                m_labelI++;
+            }else if(_if->scope_else.has_value()){
+                std::visit(vis,_if->scope_else.value());
+                m_labelI++;
+            }
+        };
 
         struct ScopeStmtVisitor{
             PreGen* gen;

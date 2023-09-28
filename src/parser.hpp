@@ -96,8 +96,14 @@ struct NodeStmtIf{
     std::optional<NodeStmtIf*> else_if;
 };
 
+struct NodeStmtReassign{
+    Token id;
+    NodeExpr* expr;
+    TokenType op;
+};
+
 struct NodeStmt{
-    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*> var;
+    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*,NodeStmtReassign*> var;
 };
 
 struct NodeProgram
@@ -209,7 +215,6 @@ class Parser{
             while(auto stmt = parseStmt()){
                 scope->stmts.push_back(stmt.value());
             }
-            std::cout << (int) peak().value().type << "\n";
             tryConsume(TokenType::closeCurl,"Expected '}'");
             return scope;
         }
@@ -243,7 +248,7 @@ class Parser{
                 consume();
                 if(auto expr = parseExpr())stmt->expr = expr.value();
                 else {
-                    std::cerr << "Unexpected expression" << std::endl;
+                    std::cerr << "Unexpected expression1" << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 tryConsume(TokenType::semi,"Expected ';'");
@@ -258,7 +263,24 @@ class Parser{
                 auto stmt = m_alloc.alloc<NodeStmt>();
                 stmt->var = parseIf();
                 return stmt;
-            } else {
+            } else if(auto id = tryConsume(TokenType::id)){
+                auto reassign = m_alloc.alloc<NodeStmtReassign>();
+                reassign->id = id.value();
+                if(peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq)reassign->op = consume().type;
+                else {
+                    std::cerr << "Expected Assignment Operator" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                if(auto expr = parseExpr())reassign->expr = expr.value();
+                else {
+                    std::cerr << "Unexpected expression2" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                auto stmt = m_alloc.alloc<NodeStmt>();
+                stmt->var = reassign;
+                tryConsume(TokenType::semi,"Expected ';'");
+                return stmt;
+            }else {
                 return {};
             }
         }
