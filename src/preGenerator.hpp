@@ -7,9 +7,33 @@
 #include <algorithm>
 #include <math.h>
 
+int charToReg(char c){
+    switch (c)
+    {
+    case 'b':
+        return 0;
+        break;
+    case 's':
+        return 1;
+        break;
+    case 'L':
+        return 3;
+        break;
+            
+    default:
+        return 2;
+        break;
+    }
+}
+
+
+/**
+ * This is used to derermin values that are generated after they have been used,by the generator
+*/
 class PreGen{
     public:
-        PreGen(NodeProgram prog) : m_prog(prog){}
+        struct Var;
+        PreGen(NodeProgram prog) : m_prog(prog) {}
 
     int preGen(std::variant<NodeStmtScope*,NodeStmt*> scope){
         m_labelI = 0;
@@ -18,67 +42,92 @@ class PreGen{
         return m_labelI;
     }
 
-    int genBinExpr(const NodeBinExpr* binExpr){
+    int genBinExpr(const NodeBinExpr* binExpr,std::optional<std::vector<Var>> vars = {}){
             static int i = -1;
             struct BinExprVisitor{
                 PreGen* gen;
+                std::optional<std::vector<Var>> vars;
                 void operator()(const NodeBinExprSub* sub){
-                    int j = gen->genExpr(sub->rs);
-                    int k = gen->genExpr(sub->ls);
+                    int j = gen->genExpr(sub->rs,vars);
+                    int k = gen->genExpr(sub->ls,vars);
+                    i = std::max(j,k);
                 }
                 void operator()(const NodeBinExprMul* mul){
-                    int j = gen->genExpr(mul->rs);
-                    int k = gen->genExpr(mul->ls);
+                    int j = gen->genExpr(mul->rs,vars);
+                    int k = gen->genExpr(mul->ls,vars);
+                    i = std::max(j,k);
                 }
                 void operator()(const NodeBinExprDiv* div){
-                    int j = gen->genExpr(div->rs);
-                    int k = gen->genExpr(div->ls);
+                    int j = gen->genExpr(div->rs,vars);
+                    int k = gen->genExpr(div->ls,vars);
+                    i = std::max(j,k);
                 }
                 void operator()(const NodeBinExprAdd* add){
-                    int j = gen->genExpr(add->rs);
-                    int k = gen->genExpr(add->ls);
+                    int j = gen->genExpr(add->rs,vars);
+                    int k = gen->genExpr(add->ls,vars);
+                    i = std::max(j,k);
                 }
                 void operator()(const NodeBinAreth* areth){
-                    int j = gen->genExpr(areth->rs);
-                    int k = gen->genExpr(areth->ls);
+                    int j = gen->genExpr(areth->rs,vars);
+                    int k = gen->genExpr(areth->ls,vars);
+                    i = std::max(j,k);
                 }
             };
-            BinExprVisitor visitor{.gen = this};
+            BinExprVisitor visitor{.gen = this,.vars = vars};
             std::visit(visitor,binExpr->var);
             return i;
         }
 
-        int genExpr(const NodeExpr* expr) {
+        int genExpr(const NodeExpr* expr,std::optional<std::vector<Var>> vars = {}) {
             static int i = -1;
             struct ExprVisitor{
                 PreGen* gen;
+                std::optional<std::vector<Var>> vars;
                 void operator()(const NodeTerm* term){
-                    i = gen->genTerm(term);
+                    i = gen->genTerm(term,vars);
                 }
                 void operator()(const NodeBinExpr* binExpr) const {
-                    i = gen->genBinExpr(binExpr);
+                    i = gen->genBinExpr(binExpr,vars);
                 }
             };
-            ExprVisitor visitor{.gen = this};
+            ExprVisitor visitor{.gen = this,.vars = vars};
             std::visit(visitor,expr->var);
             return i;
         }
 
-        int genTerm(const NodeTerm* term){
+        int genTerm(const NodeTerm* term,std::optional<std::vector<Var>> vars = {}){
             static int i = -1;
             struct TermVisitor
             {
                 PreGen* gen;
+                std::optional<std::vector<Var>> vars;
                 void operator()(const NodeTermIntLit* intLit) const {
-
+                    std::string s = intLit->int_lit.value.value();
+                    i = 2;
+                    if(std::isalpha(s.back())){
+                        i = charToReg(s.back());
+                    }
                 }
                 void operator()(const NodeTermId* id) const {
+                    if(vars.has_value()){
+                        auto it = std::find_if(vars.value().cbegin(), vars.value().cend(), [&](const Var& var) {
+                            return var.name == id->id.value.value();
+                        });
+                        if(it == vars.value().cend()){
+                            std::cerr << "Undeclared identifier: " << id->id.value.value() << std::endl;
+                            exit(EXIT_FAILURE);
+                        }
+                        const auto& var = *it;
+                        i = var.sid;
+                    }
                 }
                 void operator()(const NodeTermParen* paren) const {
                     i = gen->genExpr(paren->expr);
                 }
+                void operator()(const FuncCall* call){
+                }
             };
-            TermVisitor visitor({.gen = this});
+            TermVisitor visitor({.gen = this,.vars = vars});
             std::visit(visitor,term->var);
             return i;
         }
@@ -102,16 +151,14 @@ class PreGen{
                     gen->genScope(scope);
                 }
                 void operator()(const NodeStmtIf* _if) const{
-                    /*for(int i = 0;i < _if->expr.size() - 1;i++){
-                        auto expr = _if->expr.at(i);
-                        gen->genExpr(expr);
-                        gen->m_labelI++;
-                    }*/
-                    //auto expr = _if->expr.back();
-                    //gen->genExpr(expr);
                     gen->pregen_if(_if);
                 }
                 void operator()(const NodeStmtReassign* reassign){
+
+                }
+                void operator()(const FuncCall* call){
+                }
+                void operator()(const _Return* _return){
 
                 }
             };
@@ -119,6 +166,25 @@ class PreGen{
             StmtVisitor vis{.gen = this};
             std::visit(vis,stmt->var);
         }
+
+    public:
+
+        struct SizeAble{
+            char sid;
+            size_t stackPos;
+            const bool mem;
+            SizeAble(bool m,char sid,size_t stackPos) : mem(m),sid(sid),stackPos(stackPos) {};
+        };
+
+        struct RegIns : SizeAble{
+            RegIns(char sid,size_t stackPos): SizeAble(false,sid,stackPos) {};
+        };
+
+        struct Var : SizeAble{
+            Var(char sid,size_t stackPos,bool _signed,std::string name) : SizeAble(true,sid,stackPos), _signed(_signed),name(name) {};
+            bool _signed;
+            std::string name;
+        };
 
     private:
 
@@ -149,5 +215,4 @@ class PreGen{
 
     const NodeProgram m_prog;
     size_t m_labelI;
-
 };

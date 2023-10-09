@@ -1,14 +1,17 @@
 int x = 4;
-int y = 4;
-x /= 2;
-exit(x);
-if(x == 6 && y == 4){
-    if(false){
-        if(false)exit(25);
-        if(y == 4)exit(20);
-        exit(10);
-    }else if(x == 4){
-        exit(15);
-    }
+int z = 0;
+z++;
+long a = 0;
+long b = 0;
+long c = sus(3);
+int i = test(5b);
+exit(i);
+
+int test(byte y){
+    return y;
 }
-exit(5);
+
+long sus(int y) {
+    y++;
+    return y;
+}
