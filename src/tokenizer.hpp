@@ -18,6 +18,7 @@ enum class TokenType{
     _uint = 6,
     _ulong = 7,
 
+    //Double equal sign '=='
     equal = 8,
     notequal = 9,
     bigequal = 10,
@@ -25,31 +26,60 @@ enum class TokenType{
     big = 12,
     small = 13,
 
+    //Single equal sign '='
+    eq = 14,
+    plus_eq = 15,
+    sub_eq = 16,
+    div_eq = 17,
+    mul_eq = 18,
+    pow_eq = 19,
+    inc = 20,
+    dec = 21,
+    int_lit,
+    id,
+
     plus,
     sub,
     div,
     mul,
     pow,
 
+    _and,
+    _or,
+    //Not implemented and not directly planed to do so
+    _xor,
+
+    //DEPRECATED
     _exit,
     _if,
-
-    int_lit,
-    id,
-    eq,
+    _else,
 
     semi,
+    comma,
     openParenth,
     closeParenth,
     openCurl,
     closeCurl,
+    openBracket,
+    closeBracket,
     
-    
+    _void,
+    _return,
+
+    use,
+    grab,
 };
 
 std::optional<int> prec(TokenType type){
     switch (type)
     {
+    case TokenType::bigequal:
+    case TokenType::equal:
+    case TokenType::notequal:
+    case TokenType::smallequal:
+    case TokenType::small:
+    case TokenType::big:
+        return 0;    
     case TokenType::plus:
     case TokenType::sub:
         return 1;
@@ -58,49 +88,15 @@ std::optional<int> prec(TokenType type){
         return 2;
     case TokenType::pow:
         return 3;
-    case TokenType::bigequal:
-    case TokenType::equal:
-    case TokenType::notequal:
-    case TokenType::smallequal:
-    case TokenType::small:
-    case TokenType::big:
-        return 0;
     default:
         return {};
-    }
-}
-
-std::string binjump(TokenType type){
-    switch (type)
-    {
-    case TokenType::bigequal:
-        return "JNGE";
-        break;
-    case TokenType::equal:
-        return "JNE";
-        break;
-    case TokenType::notequal:
-        return "JE";
-        break;
-    case TokenType::smallequal:
-        return "JNBE";
-        break;
-    case TokenType::small:
-        return "JNL";
-        break;
-    case TokenType::big:
-        return "JNG";
-        break;
-    
-    default:
-        return "";
-        break;
     }
 }
 
 struct Token{
     TokenType type;
     std::optional<std::string> value;
+    uint line;
 };
 
 class Tokenizer{
@@ -118,6 +114,15 @@ class Tokenizer{
             {"!=",TokenType::notequal},
             {">=",TokenType::bigequal},
             {"<=",TokenType::smallequal},
+            {"&&",TokenType::_and},
+            {"||",TokenType::_or},
+            {"!|",TokenType::_xor},
+            {"else",TokenType::_else},
+            {"void",TokenType::_void},
+            {"return",TokenType::_return},
+            {"use",TokenType::use},
+            {"using",TokenType::use},
+            {"grab",TokenType::grab},
         };
 
         const std::map<std::string,TokenType> FUNCTIONS = {
@@ -125,8 +130,14 @@ class Tokenizer{
             {"if",TokenType::_if},
         };
 
+        const std::map<std::string,Token> REPLACE = {
+            {"false",Token{.type = TokenType::int_lit,.value = "0"}},
+            {"true",Token{.type = TokenType::int_lit,.value = "1"}}
+        };
+
         const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
             {';',TokenType::semi},
+            {',',TokenType::comma},
             {'(',TokenType::openParenth},
             {')',TokenType::closeParenth},
             {'=',TokenType::eq},
@@ -140,6 +151,8 @@ class Tokenizer{
             {'}',TokenType::closeCurl},
             {'>',TokenType::big},
             {'<',TokenType::small},
+            {'[',TokenType::openBracket},
+            {']',TokenType::closeBracket},
         };
 
         inline explicit Tokenizer(const std::string& src): m_src(src){
@@ -151,8 +164,10 @@ class Tokenizer{
             std::string buf;
 
             char comment = 0;
+            uint lineCount = 1;
             while (peak().has_value())
             {
+                if(peak().value() == '\n')lineCount++;
                 if(comment){
                     if(peak().value() == '\n' && comment == 1){
                         consume();
@@ -173,48 +188,141 @@ class Tokenizer{
                         consume();
                         comment = 2;
                         continue;
+                    }else if(peak(1).has_value() && peak(1).value() == '='){
+                        tokens.push_back({.type = TokenType::div_eq,.line = lineCount});
+                        consume();
+                        consume();
+                        continue;
                     }else {
-                        std::cerr << "Expected '/' or '*'" << std::endl;
-                        exit(EXIT_FAILURE);
+                        tokens.push_back({.type = TokenType::div,.line = lineCount});
+                        consume();
+                        continue;
                     }
                 }else if(peak().value() == '!'){
                     consume();
                     if(peak().has_value() && peak().value() == '='){
-                        tokens.push_back({.type = TokenType::notequal});
+                        tokens.push_back({.type = TokenType::notequal,.line = lineCount});
                         consume();
                         continue;
-                    }else {
+                    }else if(peak().has_value() && peak().value() == '|'){
+                        tokens.push_back({.type = TokenType::_xor,.line = lineCount});
+                        consume();
+                        continue;
+                    }else{
                         std::cerr << "Expected '='1" <<  std::endl;
                         exit(EXIT_FAILURE);
                     }
                 }else if(peak().value() == '>'){
                     consume();
                     if(peak().has_value() && peak().value() == '='){
-                        tokens.push_back({.type = TokenType::bigequal});
+                        tokens.push_back({.type = TokenType::bigequal,.line = lineCount});
                         consume();
                         continue;
                     }else{
-                        tokens.push_back({.type = TokenType::big});
+                        tokens.push_back({.type = TokenType::big,.line = lineCount});
                         continue;
                     }
                 }else if(peak().value() == '<'){
                     consume();
                     if(peak().has_value() && peak().value() == '='){
-                        tokens.push_back({.type = TokenType::smallequal});
+                        tokens.push_back({.type = TokenType::smallequal,.line = lineCount});
                         consume();
                         continue;
                     }else{
-                        tokens.push_back({.type = TokenType::small});
+                        tokens.push_back({.type = TokenType::small,.line = lineCount});
                         continue;
                     }
                 }else if(peak().value() == '='){
                     consume();
                     if(peak().has_value() && peak().value() == '='){
-                        tokens.push_back({.type = TokenType::equal});
+                        tokens.push_back({.type = TokenType::equal,.line = lineCount});
                         consume();
                         continue;
                     }else {
-                        tokens.push_back({.type = TokenType::eq});
+                        tokens.push_back({.type = TokenType::eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '&'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '&'){
+                        tokens.push_back({.type = TokenType::_and,.line = lineCount});
+                        consume();
+                        continue;
+                    }else{
+                        std::cerr << "Expected '&'" <<  std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '|'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '|'){
+                        tokens.push_back({.type = TokenType::_or,.line = lineCount});
+                        consume();
+                        continue;
+                    }else{
+                        std::cerr << "Expected '|'" <<  std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }else if(peak().value() == '+'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::plus_eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }else if(peak().has_value() && peak().value() == '+'){
+                        tokens.push_back({.type = TokenType::inc,.line = lineCount});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::plus,.line = lineCount});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '-'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::sub_eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }else if(peak().has_value() && peak().value() == '-'){
+                        tokens.push_back({.type = TokenType::dec,.line = lineCount});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::sub,.line = lineCount});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '*'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::mul_eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::mul,.line = lineCount});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '/'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::div_eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::div,.line = lineCount});
+                        consume();
+                        continue;
+                    }
+                }else if(peak().value() == '*'){
+                    consume();
+                    if(peak().has_value() && peak().value() == '='){
+                        tokens.push_back({.type = TokenType::pow_eq,.line = lineCount});
+                        consume();
+                        continue;
+                    }else {
+                        tokens.push_back({.type = TokenType::pow,.line = lineCount});
                         consume();
                         continue;
                     }
@@ -234,15 +342,20 @@ class Tokenizer{
                             buf.clear();
                             continue;
                         }else {
-                            std::cerr << "Unkown function reference " << buf << std::endl;
-                            exit(EXIT_FAILURE);
+                            tokens.push_back({.type = TokenType::id,.value = buf,.line = lineCount});
+                            buf.clear();
+                            continue;
                         }
                     }else if(IGEL_TOKENS.count(buf)){
-                        tokens.push_back({.type = IGEL_TOKENS.at(buf)});
+                        tokens.push_back({.type = IGEL_TOKENS.at(buf),.line = lineCount});
+                        buf.clear();
+                        continue;
+                    }else if(REPLACE.count(buf)){
+                        tokens.push_back(REPLACE.at(buf));
                         buf.clear();
                         continue;
                     }else {
-                        tokens.push_back({.type = TokenType::id,.value = buf});
+                        tokens.push_back({.type = TokenType::id,.value = buf,.line = lineCount});
                         buf.clear();
                         continue;
                     }
@@ -253,11 +366,11 @@ class Tokenizer{
                         buf.push_back(consume());
                     }
                     if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
-                    tokens.push_back({.type = TokenType::int_lit,.value = buf});
+                    tokens.push_back({.type = TokenType::int_lit,.value = buf,.line = lineCount});
                     buf.clear();
                     continue;
                 }else if(IGEL_TOKEN_CHAR.count(peak().value())){
-                    tokens.push_back({.type = IGEL_TOKEN_CHAR.at(consume())});
+                    tokens.push_back({.type = IGEL_TOKEN_CHAR.at(consume()),.line = lineCount});
                     continue;
                 }else if(std::isspace(peak().value())){
                     consume();

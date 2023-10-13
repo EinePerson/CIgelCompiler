@@ -3,7 +3,6 @@
 #include <sstream>
 #include <optional>
 #include <vector>
-#include <map>
 
 #include "tokenizer.hpp"
 #include "parser.hpp"
@@ -34,29 +33,31 @@ int main(int argc,char* argv[]) {
     if(argc != 2){
         std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
         return EXIT_FAILURE;
-    }
-    /*std::fstream input(argv[1],std::ios::in);
-    std::stringstream contStream;
-    contStream << input.rdbuf();
-    input.close();*/
+    }   
+
     std::string name = removeExtension(argv[1]);
     std::string cont = read(argv[1]);
     
-
-
     Tokenizer tokenizer(std::move(cont));
     std::vector<Token> tokens = tokenizer.tokenize();
+
+    if(!tokens.size()){
+        std::cerr << "Invalid Programm" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     Parser parser(std::move(tokens));
     std::optional<NodeProgram> parsed = parser.parseProg();
+
     if(!parsed.has_value()){
         std::cerr << "Invalid Programm" << std::endl;
         exit(EXIT_FAILURE);
     }
 
     Generator gen(parsed.value());
-    write(read("./build/" + name + ".asm"),"./build/" + name + "-old.asm");
-    write(gen.gen_prog(),"./build/" + name + ".asm");
 
+    std::string prog = gen.gen_prog();
+    write(prog,"./build/" + name + ".asm");
     std::string strs = "nasm -felf64 ./build/" + name + ".asm";
     const char* str = strs.c_str();
     system(str);
