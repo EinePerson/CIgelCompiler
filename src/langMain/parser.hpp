@@ -4,178 +4,41 @@
 #include <variant>
 #include <iostream>
 
-#include "tokenizer.hpp"
-#include "arena.hpp"
-
-struct NodeExpr;
-struct NodeStmt;
-struct FuncCall;
-
-struct Expression{
-    Token token;
-};
-
-struct NodeTermIntLit{
-    Token int_lit;
-};
-
-struct NodeTermId{
-    Token id;
-};
-
-struct NodeTermParen {
-    NodeExpr* expr;
-};
-
-struct NodeExprId{
-    Token id;
-};
-
-struct NodeBinExprAdd{
-    NodeExpr* ls;
-    NodeExpr* rs;
-};
-
-struct NodeBinExprSub{
-    NodeExpr* ls;
-    NodeExpr* rs;
-};
-
-struct NodeBinExprMul{
-    NodeExpr* ls;
-    NodeExpr* rs;
-};
-
-struct NodeBinExprDiv{
-    NodeExpr* ls;
-    NodeExpr* rs;
-};
-
-struct NodeBinAreth{
-    NodeExpr* ls;
-    NodeExpr* rs;
-    TokenType type;
-};
-
-
-
-struct NodeBinExpr {
-    std::variant<NodeBinExprAdd*,NodeBinExprMul*,NodeBinExprSub*,NodeBinExprDiv*,NodeBinAreth*> var;
-};
-
-struct NodeTerm{
-    std::variant<NodeTermIntLit*,NodeTermId*,NodeTermParen*,FuncCall*> var;
-};
-
-struct NodeIntLit{
-    Token int_lit;
-};
-
-struct NodeExpr{
-    std::variant<NodeTerm*,NodeBinExpr*> var;
-};
-
-struct FuncCall{
-    std::string name;
-    std::vector<NodeExpr*> exprs;
-};
-
-struct NodeStmtLet {
-    char sid;
-    bool _signed;
-    Token ident;
-    NodeExpr* expr;
-};
-
-struct NodeStmtExit {
-    NodeExpr* expr;
-};
-
-struct  NodeStmtScope 
-{
-    std::vector<NodeStmt*> stmts;
-};
-
-struct NodeStmtIf{
-    std::vector<NodeExpr*> expr;
-    std::vector<TokenType> exprCond;
-    std::variant<NodeStmtScope*,NodeStmt*> scope;
-    std::optional<std::variant<NodeStmtScope*,NodeStmt*>> scope_else;
-    std::optional<NodeStmtIf*> else_if;
-};
-
-struct NodeStmtReassign{
-    Token id;
-    std::optional<NodeExpr*> expr;
-    TokenType op;
-};
-
-struct Function{
-    std::string fullName;
-    std::string name;
-    std::vector<TokenType> paramType;
-    std::vector<std::string> paramName;
-    TokenType _return;
-    NodeStmtScope * scope; 
-};
-
-struct _Return{
-    std::optional<NodeExpr*> val;
-};
-
-struct NodeStmt{
-    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*,NodeStmtReassign*,FuncCall*,_Return*> var;
-};
-
-struct NodeProgram
-{
-    std::vector<NodeStmt*> stmts;
-    std::vector<Function*> funcs;
-};
+//#include "../tokenizer.h"
+//#include "../util/arena.hpp"
+//#include "../CompilerInfo/CompilerInfo.hpp"
 
 char charType(TokenType type){
     switch (type)
     {
     case TokenType::_byte:
         return 'b';
-        break;
     case TokenType::_short:
         return 's';
-        break;
     case TokenType::_int:
         return 'i';
-        break;
     case TokenType::_long:
         return 'l';
-        break;
     case TokenType::_ubyte:
         return 'B';
-        break;
     case TokenType::_ushort:
         return 'S';
-        break;
     case TokenType::_uint:
         return 'I';
-        break;
     case TokenType::_ulong:
         return 'L';
-        break;
     case TokenType::_void:
         return 'V';
-        break;
-            
+
     default:
         std::cerr << "Expected Data Type but found" << (int) type << std::endl;
         exit(EXIT_FAILURE);
-        break;
     }
 }
 
 class Parser{
     public:
-        inline explicit Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)),m_alloc(1024 * 1024 * 4){
-            
-        }
+        inline explicit Parser() : m_alloc(1024 * 1024 * 4){}
 
         std::optional<NodeTerm*> parseTerm(){
             if(auto int_lit = tryConsume(TokenType::int_lit)){
@@ -388,7 +251,7 @@ class Parser{
                 return stmt;
             }else if(peak().has_value() && peak().value().type == TokenType::_return){
                 consume();
-                auto _return = m_alloc.alloc<_Return>();
+                auto _return = m_alloc.alloc<Return>();
                 if(auto expr = parseExpr()){
                     _return->val = expr.value();
                 }
@@ -483,20 +346,23 @@ class Parser{
             return func;
         }
 
-        std::optional<NodeProgram> parseProg(){
-            NodeProgram prog;
+        SrcFile* parseProg(SrcFile* file){
+            m_tokens = file->tokens;
+            m_I = file->tokenPtr;
             while ((peak().has_value()))
             {
                 if(auto stmt = parseStmt()){
-                    prog.stmts.push_back(stmt.value());
+                    file->stmts.push_back(stmt.value());
                 }else if(auto func = parseFunc()){
-                    prog.funcs.push_back(func.value());
+                    file->funcs.reserve(1);
+                    file->funcs.insert(std::pair(func.value()->name,func.value()));
                 }else {
                     std::cerr << "Invalid Expression3" << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
-            return prog;
+            file->tokenPtr = m_I;
+            return file;
         }
 
         inline std::optional<Token> peak(int count = 0) const{
@@ -523,7 +389,7 @@ class Parser{
         }
 
     private:
-        const std::vector<Token> m_tokens;
+        std::vector<Token> m_tokens;
         size_t m_I = 0;
         ArenaAlocator m_alloc;
 };

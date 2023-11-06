@@ -5,3 +5,4 @@ buildWin/
 buildAsmWin64.sh
 out.exe
 testasm.sh
+/cmake-build-debug/
