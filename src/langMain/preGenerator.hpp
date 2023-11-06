@@ -28,12 +28,12 @@ int charToReg(char c){
 
 
 /**
- * This is used to derermin values that are generated after they have been used,by the generator
+ * This is used to derermin values that are generated after they have been used by the generator
 */
 class PreGen{
     public:
         struct Var;
-        PreGen(NodeProgram prog) : m_prog(prog) {}
+        PreGen(){}
 
     int preGen(std::variant<NodeStmtScope*,NodeStmt*> scope){
         m_labelI = 0;
@@ -158,7 +158,7 @@ class PreGen{
                 }
                 void operator()(const FuncCall* call){
                 }
-                void operator()(const _Return* _return){
+                void operator()(const Return* _return){
 
                 }
             };
@@ -213,6 +213,5 @@ class PreGen{
             }
         };
 
-    const NodeProgram m_prog;
     size_t m_labelI;
 };

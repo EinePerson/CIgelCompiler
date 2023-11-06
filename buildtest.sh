@@ -1,5 +1,5 @@
 echo "--Compiling Test--"
-./build/igel.exe ./test.ig
+sudo ./build/igel.exe ./build.igc
 exit_code=$?
 echo "Exit code:" $exit_code
 if [ $exit_code -ne 0 ]; then

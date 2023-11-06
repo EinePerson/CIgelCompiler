@@ -1,12 +1,12 @@
 #pragma once
 
-#include "parser.hpp"
 #include "preGenerator.hpp"
 
 #include <sstream>
 #include <map>
-#include <math.h>
+#include <cmath>
 #include <unordered_map>
+#include <filesystem>
 
 int sizeToReg(uint size){
     switch (size)
@@ -24,7 +24,7 @@ int sizeToReg(uint size){
     case 8:
         return 3;
     default:
-        std::cerr << "Size has to be at least 1 and not bigger then 8, but is: " << size;
+        std::cerr << "Size has to be at least 1 and not bigger then 8, but is: " << size << std::endl;
         exit(EXIT_FAILURE);
     }
 }
@@ -158,41 +158,55 @@ std::string reg(int i,int j){
 class Generator {
 
     public:
-        inline explicit Generator(NodeProgram prog) : m_prog(prog){
-            m_pre_gen = new PreGen(m_prog);
-        }
 
-        std::string gen_prog(){
-            m_output << "section .text\n     global _start\n_start:\npush rbp\nmov rbp,rsp\n";
+        void gen_prog(SrcFile* file){
+            m_output.str(std::string());
+            m_fileOut.str(std::string());
+            m_file = file;
+            if(m_file->isMain) m_output << "section .text\n     global _start\n_start:\npush rbp\nmov rbp,rsp\n";
 
-            m_funcs.reserve(m_prog.funcs.size());
-            m_vars.push_back({});
-            m_stackPos.push_back(0);
-            for(auto func : m_prog.funcs){
-                m_funcs.insert(std::pair(func->name,func));
-            }
             m_stmtI = 0;
-            while (m_stmtI < m_prog.stmts.size()){
-                const NodeStmt* stmt = m_prog.stmts.at(m_stmtI);
+            m_vars.emplace_back();
+            m_stackPos.push_back(0);
+            m_stmts = file->stmts;
+            while (m_stmtI < m_stmts.size()){
+                const NodeStmt* stmt = m_stmts.at(m_stmtI);
                 gen_stmt(stmt);
                 m_stmtI++;
             }
-            m_output << "pop rbp\n";
-            m_output << "   mov rax, 60\n";
-            m_output << "   mov rdi, 0\n";
-            m_output << "   syscall\n";
-            auto value_selector = [](auto pair){return pair.second;};
-            std::vector<Function*> funcs(m_funcs.size());
-            transform(m_funcs.begin(), m_funcs.end(), funcs.begin(), value_selector);
+            m_vars.pop_back();
+            m_stackPos.pop_back();
 
-            for(auto func : funcs){
-                genfunc(func);
+            if(m_file->isMain) {
+                m_output << "pop rbp\n";
+                m_output << "   mov rax, 60\n";
+                m_output << "   mov rdi, 0\n";
+                m_output << "   syscall\n";
             }
 
-            return m_output.str();
+            for(const auto& pair : file->funcs){
+                genfunc(pair.second);
+            }
+
+            for(auto include:file->includes){
+                m_fileOut << "%include " << '"' << "./build/cmp/" << include->fullName << ".asm" << '"' << "\n";
+            }
+            for(const auto& ext:m_externFunc){
+                m_fileOut << "extern " << ext << "\n";
+            }
+
+            m_fileOut << m_output.str();
+
+            write(m_fileOut.str(),"./build/cmp/" + file->fullName + ".asm");
+            m_output.clear();
+            m_fileOut.clear();
         }
 
-        
+        static void write(const std::string& str,const std::string& name){
+            std::fstream file(name,std::ios::out);
+            file << str;
+            file.close();
+        }
 
         int genBinExpr(const NodeBinExpr* binExpr,std::optional<PreGen::PreGen::SizeAble> dest = {}){
             static int i = -1;
@@ -414,7 +428,7 @@ class Generator {
                         }
                     }
                 }
-                void operator()(const _Return* _return){
+                void operator()(const Return* _return){
                     if(_return->val.has_value()){
                         //TODO Add reference to check if return type is correct
                         int i = gen->m_pre_gen->genExpr(_return->val.value());
@@ -523,11 +537,14 @@ class Generator {
                 sids.push_back(m_pre_gen->genExpr(expr,m_vars.back()));
             }
             std::string name = getName(call->name,sids);
-            if(!m_funcs.contains(name)){
+            Function* func;
+            if(auto fun = m_file->findFunc(name)){
+                func = fun.value().func;
+                if(fun.value().state == FunctionState::_use)m_externFunc.push_back(fun.value().func->fullName);
+            }else{
                 std::cerr << "Unkown function: " << name << std::endl;
                 exit(EXIT_FAILURE);
             }
-            Function* func = m_funcs.at(name);
             callMod();
             size_t buf_stackPos = m_stackPos.back();
             for(int i = 0;i < call->exprs.size();i++){
@@ -697,15 +714,17 @@ class Generator {
             size_t var;
         };
 
-        const NodeProgram m_prog;
+        SrcFile* m_file;
         std::stringstream m_output;
+        std::stringstream m_fileOut;
         std::vector<size_t> m_stackPos {};
         size_t m_rsp = 0;
         size_t m_varsI = 0;
         std::vector<std::vector<PreGen::Var>> m_vars {};
+        std::vector<std::string> m_externFunc;
         std::vector<Scope> m_scopes;
         std::vector<int> m_lables;
-        std::unordered_map<std::string,Function*> m_funcs = {};
+        std::vector<NodeStmt*> m_stmts;
         size_t m_labelI = 0;
         size_t m_stmtI;
         size_t m_instruction = 0x401000;
