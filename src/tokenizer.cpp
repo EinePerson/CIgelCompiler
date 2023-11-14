@@ -28,6 +28,7 @@ typedef unsigned int uint;
 
      std::vector<Token> Tokenizer::tokenize(std::string file){
         m_src = read(file);
+        m_I = 0;
         std::vector<Token> tokens {};
         std::string buf;
 
@@ -204,7 +205,19 @@ typedef unsigned int uint;
                 tokens.push_back({.type = TokenType::str,.value = buf,.line = lineCount,.file = file});
                 buf.clear();
                 continue;
-            }else if(std::isalpha(peak().value())){
+            }else if(peak().value() == '#'){
+                consume();
+                while (peak().has_value() && std::isalnum(peak().value()))
+                {
+                    buf.push_back(consume());
+                }
+                while(peak().has_value() && std::isspace(peak().value())){
+                    consume();
+                }
+                tokens.push_back({.type = TokenType::info,.value = buf});
+                buf.clear();
+                continue;
+            } else if(std::isalpha(peak().value())){
                 buf.push_back(consume());
                 while (peak().has_value() && std::isalnum(peak().value()))
                 {

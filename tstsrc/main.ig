@@ -1,15 +1,7 @@
-using "test.ig";
+int[5][5] arr;
 
-int x = 4;
-int z = 0;
-z++;
-long a = 0;
-long b = 0;
-long c = sus(3);
-int i = test(5b);
-exit(i);
+arr[2][1] = 10;
+arr[2][1] *= 2;
+arr[4][4] = 2;
 
-long sus(int y) {
-    y++;
-    return y;
-}
+exit(arr[2][1]);

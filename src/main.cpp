@@ -6,6 +6,7 @@
 #include "langMain/langMain.hpp"
 #include "util/arena.hpp"
 #include "CompilerInfo/CompilerInfo.hpp"
+#include "CompilerInfo/OptionsParser.h"
 
 typedef unsigned int uint;
 
@@ -24,53 +25,29 @@ std::string read(const std::string& name){
 }
 
 int main(int argc,char* argv[]) {
+
     if(argc < 2){
-        std::cerr << "Incorrect arguments: expected an Igel source file as second argument" << std::endl;
+        std::cerr << "Incorrect arguments, type -help for more information" << std::endl;
         return EXIT_FAILURE;
-    }   
+    }
 
     if(strcmp(argv[1], "help" ) == 0 ){
         std::cout << "Help:\n   First arg should be igel Compiler file(.igc)\n";
         return EXIT_SUCCESS;
     }
-
     ArenaAlocator alloc(1024 * 1024 * 4);
-    CompilerInfo cmpinfo(argv[1],&alloc);
-    Info* info = cmpinfo.getInfo();
-    LangMain main(info);
+    OptionsParser optParser(argc,argv,&alloc);
+    Options* options = optParser.getOptions();
+
+    Info *info;
+    if(options->infoFile) {
+        CompilerInfo cmpinfo(options->infoFile.value(), &alloc);
+        info = cmpinfo.getInfo();
+    }
+    optParser.modify(info);
+
+    LangMain main(info,options);
     main.compile();
-
-    /*std::string name = removeExtension(argv[1]);
-    std::string cont = read(argv[1]);
-    
-    Tokenizer tokenizer(std::move(cont));
-    std::vector<Token> tokens = tokenizer.tokenize();
-
-    if(!tokens.size()){
-        std::cerr << "Invalid Programm" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    Parser InfoParser(std::move(tokens));
-    std::optional<NodeProgram> parsed = InfoParser.parseProg();
-
-    if(!parsed.has_value()){
-        std::cerr << "Invalid Programm" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-
-    Generator gen(parsed.value());
-
-    std::string prog = gen.gen_prog();
-    write(prog,"./build/" + name + ".asm");
-    std::string strs = "nasm -felf64 ./build/" + name + ".asm";
-    const char* str = strs.c_str();
-    system(str);
-    std::string strs1 = "ld -o out.exe ./build/" + name + ".o";
-    const char* str1 = strs1.c_str();
-    system(str1);*/
 
     return EXIT_SUCCESS;
 }
-
-//#include "tokenizer.cpp"

@@ -12,5 +12,7 @@ add_executable(igel
         src/parsed.h
         src/CompilerInfo/InfoParser.cpp
         src/CompilerInfo/InfoParser.h
+        src/CompilerInfo/OptionsParser.h
+        src/CompilerInfo/OptionsParser.cpp
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igel.exe")

@@ -126,9 +126,12 @@ class PreGen{
                 }
                 void operator()(const FuncCall* call){
                 }
+                void operator()(const NodeTermArrayAcces* arrAcc) const{
+                }
             };
             TermVisitor visitor({.gen = this,.vars = vars});
             std::visit(visitor,term->var);
+            if(term->outer.has_value())i = genTerm(term->outer.value());
             return i;
         }
 
@@ -145,7 +148,8 @@ class PreGen{
 
                 }
                 void operator()(const NodeStmtLet* stmt_let){
-                    gen->genExpr(stmt_let->expr);
+                    //TODO add pre gen for expressions
+                    //gen->genExpr(stmt_let->expr);
                 }
                 void operator()(const NodeStmtScope* scope){
                     gen->genScope(scope);
@@ -154,6 +158,9 @@ class PreGen{
                     gen->pregen_if(_if);
                 }
                 void operator()(const NodeStmtReassign* reassign){
+
+                }
+                void operator()(const NodeStmtArrReassign* reassign){
 
                 }
                 void operator()(const FuncCall* call){
@@ -170,20 +177,36 @@ class PreGen{
     public:
 
         struct SizeAble{
-            char sid;
+            uint sid;
             size_t stackPos;
             const bool mem;
-            SizeAble(bool m,char sid,size_t stackPos) : mem(m),sid(sid),stackPos(stackPos) {};
+            const bool primitive;
+            SizeAble(bool m,char sid,size_t stackPos,bool primitive) : mem(m),sid(sid),stackPos(stackPos),primitive(primitive) {};
         };
 
+        /**
+         * sid: size id
+         * stackPos: Register Id
+         * mem: false(Is register)
+         * primitive: false(Is a primitive)
+         */
         struct RegIns : SizeAble{
-            RegIns(char sid,size_t stackPos): SizeAble(false,sid,stackPos) {};
+            RegIns(char sid,size_t stackPos): SizeAble(false,sid,stackPos, true) {};
         };
 
+        /**
+         * sid: size id(8 for not primitive)
+         * stackPos: position on the stack
+         * _signed: if primitive weather it has signage else
+         * name: name of the variable
+         * primitive: weather it is primitive
+         * size: the size in bytes OR the dimensions for Arrays, if primitive shall be 0
+         */
         struct Var : SizeAble{
-            Var(char sid,size_t stackPos,bool _signed,std::string name) : SizeAble(true,sid,stackPos), _signed(_signed),name(name) {};
+            Var(char sid,size_t stackPos,bool _signed,std::string name,size_t size) : SizeAble(true,sid,stackPos,size == 0), _signed(_signed),name(name),size(size) {};
             bool _signed;
             std::string name;
+            size_t size;
         };
 
     private:
