@@ -200,6 +200,7 @@ class Generator {
             write(m_fileOut.str(),"./build/cmp/" + file->fullName + ".asm");
             m_output.clear();
             m_fileOut.clear();
+            m_externFunc.clear();
         }
 
         static void write(const std::string& str,const std::string& name){
@@ -209,7 +210,7 @@ class Generator {
         }
 
         int genBinExpr(const NodeBinExpr* binExpr,std::optional<PreGen::PreGen::SizeAble> dest = {}){
-            static int i = -1;
+            static uint i = -1;
             struct BinExprVisitor{
                 Generator* gen;
                 std::optional<PreGen::SizeAble> dest;
@@ -217,7 +218,7 @@ class Generator {
                     int j = gen->genExpr(sub->rs);
                     int k = gen->genExpr(sub->ls);
                     i = std::max(j,k);
-                    if(dest.has_value())i = std::max((char) i,dest.value().sid);
+                    if(dest.has_value())i = std::max(i,dest.value().sid);
                     gen->m_output << "   mov " << reg(i,0) << ",0\n";
                     gen->pop(i,j,0);
                     gen->pop(i,k,1);
@@ -229,7 +230,7 @@ class Generator {
                     int j = gen->genExpr(mul->rs);
                     int k = gen->genExpr(mul->ls);
                     i = std::max(j,k);
-                    if(dest.has_value())i = std::max((char) i,dest.value().sid);
+                    if(dest.has_value())i = std::max(i,dest.value().sid);
                     gen->m_output << "   mov " << reg(i,0) << ",0\n";
                     gen->pop(i,j,0);
                     gen->pop(i,k,1);
@@ -242,7 +243,7 @@ class Generator {
                     int j = gen->genExpr(div->rs);
                     int k = gen->genExpr(div->ls);
                     i = std::max(j,k);
-                    if(dest.has_value())i = std::max((char) i,dest.value().sid);
+                    if(dest.has_value())i = std::max(i,dest.value().sid);
                     gen->m_output << "   mov " << reg(i,0) << ",0\n";
                     gen->pop(i,j,0);
                     gen->pop(i,k,1);
@@ -255,7 +256,7 @@ class Generator {
                     int j = gen->genExpr(add->rs);
                     int k = gen->genExpr(add->ls);
                     i = std::max(j,k);
-                    if(dest.has_value())i = std::max((char) i,dest.value().sid);
+                    if(dest.has_value())i = std::max(i,dest.value().sid);
                     gen->m_output << "   mov " << reg(i,0) << ",0\n";
                     gen->pop(i,j,0);
                     gen->pop(i,k,1);
@@ -268,7 +269,7 @@ class Generator {
                     int j = gen->genExpr(areth->rs);
                     int k = gen->genExpr(areth->ls);
                     i = std::max(j,k);
-                    if(dest.has_value())i = std::max((char) i,dest.value().sid);
+                    if(dest.has_value())i = std::max(i,dest.value().sid);
                     gen->m_output << "   mov " << reg(i,0) << ",0\n";
                     gen->pop(j,0);
                     gen->pop(k,1);
@@ -333,13 +334,37 @@ class Generator {
                 void operator()(const NodeTermParen* paren) const {
                     i = gen->genExpr(paren->expr,dest);
                 }
-                void operator()(const FuncCall* call){
+                void operator()(const FuncCall* call) const{
                     i = gen->genFuncCall(call);
                     gen->push(dest,i);
+                }
+
+                void operator()(const NodeTermArrayAcces* arrAcc) const{
+                    auto it = std::find_if(gen->m_vars.back().cbegin(), gen->m_vars.back().cend(), [&](const PreGen::Var& var) {
+                        return var.name == arrAcc->id.value.value();
+                    });
+                    if(it == gen->m_vars.back().cend()){
+                        std::cerr << "Undeclared identifier: " << arrAcc->id.value.value() << "\nat line: " << arrAcc->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    const auto& var = *it;
+                    if(var.primitive){
+                        std::cerr << "Cannot acces pirimitive variables \nat " << arrAcc->id.file << ":" << arrAcc->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    if(var.size != arrAcc->exprs.size()){
+                        std::cerr << "Expected " << var.size << " Elements but found " << arrAcc->exprs.size() << "\nat:" << arrAcc->id.file << ":" << arrAcc->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    gen->arrAdr(var,arrAcc->exprs);
+                    gen->m_output << "  mov " << reg(var.sid,1) << ", " << sidType(var.sid) << "[rcx]\n";
+                    //gen->push(dest,ss.str(),var.sid);
+                    gen->moveInto(dest.value(),1);
                 }
             };
             TermVisitor visitor({.gen = this,.dest = dest});
             std::visit(visitor,term->var);
+            if(term->outer.has_value())i = genTerm(term->outer.value());
             return i;
         }
 
@@ -362,18 +387,8 @@ class Generator {
                     gen->m_instruction += 7;
                 }
                 void operator()(const NodeStmtLet* stmt_let){
-                    auto it = std::find_if(gen->m_vars.back().cbegin(), gen->m_vars.back().cend(), [&](const PreGen::Var& var) {
-                        return var.name == stmt_let->ident.value.value();
-                    });
-                    if (it != gen->m_vars.back().cend()){
-                        std::cerr << "Identifier already used: " << stmt_let->ident.value.value() << "\nat line: " << stmt_let->ident.line << std::endl;
-                        exit(EXIT_FAILURE);
-                    }
-                    gen->m_varsI++;
-                    gen->m_stackPos.back() += regIDSize(stmt_let->sid);
-                    PreGen::Var var(stmt_let->sid,gen->m_stackPos.back(),stmt_let->_signed,stmt_let->ident.value.value());
-                    gen->m_vars.back().push_back(var);
-                    gen->genExpr(stmt_let->expr,var);
+                    gen->genLet(stmt_let);
+
                 }
                 void operator()(const NodeStmtScope* scope){
                     gen->genScope(scope);
@@ -394,44 +409,40 @@ class Generator {
                     if(reassign->op == TokenType::eq){
                         gen->move(var,1);
                     }else{
-                        switch (reassign->op)
-                        {
-                        case TokenType::plus_eq:
-                            gen->move(0,var);
-                            gen->m_output << "   add " << reg(var.sid,0) << "," << reg(var.sid,1) << "\n";
-                            gen->move(var,0);
-                            break;
-                        case TokenType::sub_eq:
-                            gen->move(0,var);
-                            gen->m_output << "   sub " << reg(var.sid,0) << "," << reg(var.sid,1) << "\n";
-                            gen->move(var,0);
-                            break;
-                        case TokenType::mul_eq:
-                            gen->move(0,var);
-                            gen->m_output << "   mul " << reg(var.sid,1) << "\n";
-                            gen->move(var,0);
-                            break;
-                        case TokenType::div_eq:
-                            gen->move(0,var);
-                            gen->m_output << "   div " << reg(var.sid,1) << "\n";
-                            gen->move(var,0);
-                            break;
-                        case TokenType::inc:
-                            gen->m_output << "  inc " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
-                            break;
-                        case TokenType::dec:
-                            gen->m_output << "  dec " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
-                            break;
-                        
-                        default:
-                            break;
-                        }
+                        gen->areth(var,reassign->op);
                     }
+                }
+                void operator()(const NodeStmtArrReassign* reassign){
+                    auto it = std::find_if(gen->m_vars.back().cbegin(), gen->m_vars.back().cend(), [&](const PreGen::Var& var) {
+                        return var.name == reassign->id.value.value();
+                    });
+                    if(it == gen->m_vars.back().cend()){
+                        std::cerr << "Undeclared identifier: " << reassign->id.value.value() << "\nat line: " << reassign->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    const auto& var = *it;
+                    if(var.primitive){
+                        std::cerr << "Cannot acces pirimitive variables \nat " << reassign->id.file << ":" << reassign->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    if(var.size != reassign->exprs.size()){
+                        std::cerr << "Expected " << var.size << " Elements but found " << reassign->exprs.size() << "\nat:" << reassign->id.file << ":" << reassign->id.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    gen->arrAdr(var,reassign->exprs);
+                    if(reassign->expr.has_value())gen->genExpr(reassign->expr.value(),PreGen::RegIns(var.sid,1));
+                    if(reassign->op == TokenType::eq){
+                        gen->m_output << "   mov " << sidType(var.sid % 4) << " [rcx]," << reg(var.sid % 4,1) << "\n";
+                    }else{
+                        gen->areth(var,reassign->op, 2);
+                    }
+                    //gen->m_output << "mov rax,0\n";
+                    //gen->m_output << "mov DWORD [rax],5\n";
                 }
                 void operator()(const Return* _return){
                     if(_return->val.has_value()){
                         //TODO Add reference to check if return type is correct
-                        int i = gen->m_pre_gen->genExpr(_return->val.value());
+                        int i = gen->genExpr(_return->val.value());
                         PreGen::RegIns var(i,0);
                         gen->genExpr(_return->val.value(),var);
                     }
@@ -447,6 +458,92 @@ class Generator {
         }
 
     private:
+
+        /**
+         * Flattens the array and returns the addres in rcx
+         * Throwing errors is not possible so the amount of Expressions HAS to match the dimensions of the array
+         * @param var The array in question
+         * @param eprs the expressions for every dimension
+         */
+        void arrAdr(PreGen::Var var,std::vector<NodeExpr*> exprs){
+            /*if(var.size != exprs.size()){
+                std::cerr << "Expected " << var.size << " Elements but found " << exprs.size() << "\nat:" << var. << ":" << id.line << std::endl;
+                exit(EXIT_FAILURE);
+            }*/
+            //gen->m_output << "mov rcx,0\n";
+            m_output << "mov rdx,0\n";
+            m_output << "mov edx,DWORD [rbp - " << var.stackPos + 4 * (var.size - 1) << "]\n";
+            //gen->m_output << "mov rdx," << "DWORD [rbp - " << var.stackPos + (arrAcc->exprs.size() * 4) << "]\n";
+            genExpr(exprs.back(),PreGen::RegIns(3,2));
+            for(size_t j = exprs.size() - 2;j < exprs.size();j--){
+                genExpr(exprs[j],PreGen::RegIns(3,0));
+                m_output << "movsx rbx,DWORD [rbp - " << var.stackPos + 4 * j << "]\n";
+                m_output << "imul rax,rdx\n";
+                m_output << "add rcx,rax\n";
+                m_output << "imul rdx,rbx\n";
+                //gen->m_output << "add rcx,rax\n";
+                //gen->m_output << "imul rdx,rbx\n";
+            }
+            m_output << "  lea rax,[rbp - " << var.stackPos << "]\n";
+            m_output << "  imul rcx," << regIDSize(var.size) << "\n";
+            m_output << "  add rcx,rax\n";
+            m_output << "  add rcx," << var.size * 4 << "\n";
+        }
+
+        void genLet(const NodeStmtLet* let){
+            struct LetGen{
+                Generator* gen;
+                Token ident;
+
+                void operator()(NodeStmtPirimitiv* pirim){
+                    auto it = std::find_if(gen->m_vars.back().cbegin(), gen->m_vars.back().cend(), [&](const PreGen::Var& var) {
+                        return var.name == ident.value.value();
+                    });
+                    if (it != gen->m_vars.back().cend()){
+                        std::cerr << "Identifier already used: " << ident.value.value() << "\nat line: " << ident.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    gen->m_varsI++;
+                    gen->m_stackPos.back() += regIDSize(pirim->sid);
+                    PreGen::Var var(pirim->sid,gen->m_stackPos.back(),pirim->_signed,ident.value.value(), false);
+                    gen->m_vars.back().push_back(var);
+                    gen->genExpr(pirim->expr,var);
+                }
+
+                void operator()(NodeStmtArr* newStmt) const{
+                    auto it = std::find_if(gen->m_vars.back().cbegin(), gen->m_vars.back().cend(), [&](const PreGen::Var& var) {
+                        return var.name == ident.value.value();
+                    });
+                    if (it != gen->m_vars.back().cend()){
+                        std::cerr << "Identifier already used: " << ident.value.value() << "\nat line: " << ident.line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    size_t pos = gen->m_stackPos.back() + 4;
+                    size_t size = -1;
+                    if(newStmt->fixed){
+                        size = 1;
+                        for (const auto &item: newStmt->size) {
+                            if (item <= 0) {
+                                std::cerr << "Size of Array has to be bigger 0" << std::endl;
+                                exit(EXIT_FAILURE);
+                            }
+                            gen->pushLit(2,item);
+                            size *= item;
+                        }
+                        //gen->m_stackPos.back() += size;
+                    } else{
+                        //TODO add dynamic sized Arrays
+                    }
+                    gen->m_varsI++;
+                    PreGen::Var var(newStmt->sid,pos, newStmt->_signed,ident.value.value(),newStmt->size.size());
+                    gen->m_stackPos.back() += size;
+                    gen->m_vars.back().push_back(var);
+                }
+            };
+
+            LetGen gen{.gen = this,.ident = let->ident};
+            std::visit(gen,let->type);
+        }
 
         void gen_if(const NodeStmtIf* _if){
             int m = m_labelI;
@@ -519,7 +616,7 @@ class Generator {
             m_stackPos.push_back(0);
             for(int i = 0;i < func->paramName.size();i++){
                 m_stackPos.back() += regIDSize((int) func->paramType.at(i));
-                PreGen::Var var((int) func->paramType.at(i),m_stackPos.back(),false,func->paramName.at(i));
+                PreGen::Var var((int) func->paramType.at(i),m_stackPos.back(),false,func->paramName.at(i), false);
                 m_vars.back().push_back(var);
             }
             m_output << func->fullName << ":\n  push rbp\n  mov rbp,rsp\n";
@@ -549,7 +646,7 @@ class Generator {
             size_t buf_stackPos = m_stackPos.back();
             for(int i = 0;i < call->exprs.size();i++){
                 m_stackPos.back() += regIDSize((int) func->paramType.at(i));
-                PreGen::Var var((int) sids.at(i),m_stackPos.back(),false,func->paramName.at(i));
+                PreGen::Var var((int) sids.at(i),m_stackPos.back(),false,func->paramName.at(i), false);
                 genExpr(call->exprs.at(i),var);
             }
             m_stackPos.back() = buf_stackPos;
@@ -620,6 +717,49 @@ class Generator {
             m_instruction += 4;
         }
 
+        void areth(PreGen::SizeAble var,TokenType op,char regP = -1){
+            switch (op)
+            {
+                case TokenType::plus_eq:
+                    if(regP == -1)move(0,var);
+                    else m_output << "   mov " << reg(var.sid % 4,0) << "," << sidType(var.sid) << " [" << reg(3,regP) << "]\n";
+                    m_output << "   add " << reg(var.sid,0) << "," << reg(var.sid,1) << "\n";
+                    if(regP == -1)move(var,0);
+                    else m_output << "   mov " << sidType(var.sid % 4) << " [" << reg(3,regP) << "]," << reg(var.sid % 4,0) << "\n";
+                    break;
+                case TokenType::sub_eq:
+                    if(regP == -1)move(0,var);
+                    else m_output << "   mov " << reg(var.sid % 4,0) << "," << sidType(var.sid) << " [" << reg(3,regP) << "]\n";
+                    m_output << "   sub " << reg(var.sid,0) << "," << reg(var.sid,1) << "\n";
+                    if(regP == -1)move(var,0);
+                    else m_output << "   mov " << sidType(var.sid % 4) << " [" << reg(3,regP) << "]," << reg(var.sid % 4,0) << "\n";
+                    break;
+                case TokenType::mul_eq:
+                    if(regP == -1)move(0,var);
+                    else m_output << "   mov " << reg(var.sid % 4,0) << "," << sidType(var.sid) << " [" << reg(3,regP) << "]\n";
+                    m_output << "   mul " << reg(var.sid,1) << "\n";
+                    if(regP == -1)move(var,0);
+                    else m_output << "   mov " << sidType(var.sid % 4) << " [" << reg(3,regP) << "]," << reg(var.sid % 4,0) << "\n";
+                    break;
+                case TokenType::div_eq:
+                    if(regP == -1)move(0,var);
+                    else m_output << "   mov " << reg(var.sid % 4,0) << "," << sidType(var.sid) << " [" << reg(3,regP) << "]\n";
+                    m_output << "   div " << reg(var.sid,1) << "\n";
+                    if(regP == -1)move(var,0);
+                    else m_output << "   mov " << sidType(var.sid % 4) << " [" << reg(3,regP) << "]," << reg(var.sid % 4,0) << "\n";
+                    break;
+                case TokenType::inc:
+                    m_output << "  inc " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
+                    break;
+                case TokenType::dec:
+                    m_output << "  dec " << sidType(var.sid) << " [rbp - " << var.stackPos << "]\n";
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
         void push(PreGen::Var var,std::optional<PreGen::SizeAble> dest){
             
             if(dest.has_value()){
@@ -637,7 +777,7 @@ class Generator {
             }else copFVar(var);
         }
 
-        void move(PreGen::SizeAble var,char regId){
+        void move(PreGen::SizeAble var,u_char regId){
             if(!var.mem){
                 std::cerr << "Expected Variable but found Register Inserter" << std::endl;
                 exit(EXIT_FAILURE);
@@ -646,7 +786,7 @@ class Generator {
             m_instruction += 4;
         }
 
-        void move(char regId,PreGen::SizeAble var){
+        void move(u_char regId,PreGen::SizeAble var){
             if(!var.mem){
                 std::cerr << "Expected Variable but found Register Inserter" << std::endl;
                 exit(EXIT_FAILURE);
@@ -655,7 +795,15 @@ class Generator {
             m_instruction += 4;
         }
 
-        void push(std::optional<PreGen::SizeAble> dest,char i){
+        void moveInto(PreGen::SizeAble var,u_char srcId){
+            if(var.mem){
+                m_output << "   mov " << sidType(var.sid) << "[rbp - " << var.stackPos << "]," << reg(var.sid,srcId) << "\n";
+            }else{
+                m_output << "   mov " << reg(var.sid,var.stackPos) << "," << reg(var.sid,srcId) << "\n";
+            }
+        }
+
+        void push(std::optional<PreGen::SizeAble> dest,u_char i){
             if(dest.has_value()){
                         if(dest.value().mem){
                             m_output << "   mov " << sidType(dest.value().sid % 4) << " [rbp - " << dest.value().stackPos << "]," << reg(dest.value().sid % 4,0) << "\n";
@@ -667,11 +815,18 @@ class Generator {
             }else push(i,0);
         }
 
-        void push(int sid,int regi){
+        void push(uint sid,int regi){
             m_stackPos.back() += regIDSize(sid % 4);
             m_output << "   mov "<< sidType(sid % 4) <<" [rbp - " << m_stackPos.back() << "]," << reg(sid % 4,regi) << "\n";
             m_varsI++;
             
+            m_instruction += 4;
+        }
+
+        void pushLit(uint sid,long val){
+            m_stackPos.back() += regIDSize(sid % 4);
+            m_output << "   mov "<< sidType(sid % 4) <<" [rbp - " << m_stackPos.back() << "]," << val << "\n";
+
             m_instruction += 4;
         }
         
@@ -682,6 +837,28 @@ class Generator {
             m_varsI++;
             m_instruction += 8;
         }
+
+        void push(std::optional<PreGen::SizeAble> dest,std::string expr,u_char sid){
+            if(dest.has_value()){
+                if(dest.value().mem){
+                    m_output << "   mov " << sidType(dest.value().sid % 4) << " [rbp - " << dest.value().stackPos << "],[rbp - " << expr << "]\n";
+                    m_instruction += 4;
+                }else{
+                    m_output << "   mov " << reg(dest.value().sid % 4,dest.value().stackPos) << ",[rbp - " << expr << "]\n";
+                    m_instruction += 2;
+                }
+            }else copFVar(sid,expr);
+        }
+
+        void copFVar(char sid,std::string expr){
+            m_stackPos.back() += regIDSize(sid);
+            m_output << "   mov " << reg(sid % 4,0) << ","<< sidType(sid % 4) <<" [rbp - " << expr << "]\n";
+            m_output << "   mov "<< sidType(sid % 4) <<" [rbp - " << m_stackPos.back() << "]," << reg(sid % 4,0) << "\n";
+            m_varsI++;
+            m_instruction += 8;
+        }
+
+
 
         void copFVar(PreGen::SizeAble dest,PreGen::SizeAble src){
             if(!dest.mem || !src.mem){
@@ -694,14 +871,14 @@ class Generator {
             m_instruction += 8;
         }
 
-        void pop(int sid,int regi){
+        void pop(uint sid,int regi){
             m_varsI--;
             m_output << "   mov " << reg(sid % 4,regi) << ","<< sidType(sid % 4) <<" [rbp - " << m_stackPos.back() << "]\n";
             m_stackPos.back() -= regIDSize(sid);
             m_instruction += 4;
         }
 
-        void pop(int regsid,int sid,int regi){
+        void pop(uint regsid,int sid,int regi){
             m_varsI--;
             if(regsid > sid)m_output << "   movsx " << reg(regsid,regi) << ","<< sidType(sid) <<" [rbp - " << m_stackPos.back() << "]\n";
             else m_output << "   mov " << reg(regsid,regi) << ","<< sidType(sid) <<" [rbp - " << m_stackPos.back() << "]\n";

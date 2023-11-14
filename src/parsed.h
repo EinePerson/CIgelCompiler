@@ -63,8 +63,14 @@ struct NodeBinExpr {
     std::variant<NodeBinExprAdd*,NodeBinExprMul*,NodeBinExprSub*,NodeBinExprDiv*,NodeBinAreth*> var;
 };
 
+struct NodeTermArrayAcces{
+    Token id;
+    std::vector<NodeExpr*> exprs;
+};
+
 struct NodeTerm{
-    std::variant<NodeTermIntLit*,NodeTermId*,NodeTermParen*,FuncCall*> var;
+    std::variant<NodeTermIntLit*,NodeTermId*,NodeTermParen*,FuncCall*,NodeTermArrayAcces*> var;
+    std::optional<NodeTerm*> outer;
 };
 
 struct NodeIntLit{
@@ -80,12 +86,31 @@ struct FuncCall{
     std::vector<NodeExpr*> exprs;
 };
 
-struct NodeStmtLet {
+struct NodeStmtPirimitiv {
     char sid;
     bool _signed;
-    Token ident;
     NodeExpr* expr;
 };
+
+struct NodeStmtNew{
+    TokenType id;
+    std::vector<NodeExpr*> exprs;
+};
+
+struct NodeStmtArr{
+    char sid;
+    bool _signed;
+    bool fixed;
+    std::vector<uint> size;
+    std::optional<NodeStmtNew*> create;
+};
+
+struct NodeStmtLet {
+    Token ident;
+    std::variant<NodeStmtPirimitiv*,NodeStmtArr*> type;
+};
+
+
 
 struct NodeStmtExit {
     NodeExpr* expr;
@@ -110,6 +135,13 @@ struct NodeStmtReassign{
     TokenType op;
 };
 
+struct NodeStmtArrReassign{
+    Token id;
+    std::optional<NodeExpr*> expr;
+    TokenType op;
+    std::vector<NodeExpr*> exprs;
+};
+
 struct Function{
     std::string fullName;
     std::string name;
@@ -124,7 +156,7 @@ struct Return{
 };
 
 struct NodeStmt{
-    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*,NodeStmtReassign*,FuncCall*,Return*> var;
+    std::variant<NodeStmtExit*, NodeStmtLet*,NodeStmtScope*,NodeStmtIf*,NodeStmtReassign*,FuncCall*,Return*,NodeStmtArrReassign*> var;
 };
 
 struct NodeProgram

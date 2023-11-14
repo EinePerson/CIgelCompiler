@@ -37,10 +37,11 @@
         m_info = m_alloc->alloc<Info>();
         std::string main = "";
         FileItterator it;
-        while (auto call = parseFuncCall())
-        {
-            call.value().func(this,call.value().args);
-            m_info->calls.push_back(call.value());
+        while (peak().has_value()){
+            if(auto call = parseFuncCall()){
+                call.value().func(this,call.value().args);
+                m_info->calls.push_back(call.value());
+            }else consume();
         }
         /*std::unordered_map<std::string,size_t> file_I;
         m_info->files = it.files;

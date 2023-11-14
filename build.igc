@@ -1,2 +1,4 @@
+#info
+
 setSourceDirectory("tstsrc");
 setMain("tstsrc/main.ig");

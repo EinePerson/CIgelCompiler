@@ -7,14 +7,16 @@
 #include "preParser.hpp"
 #include "parser.hpp"
 #include "generator.hpp"
+#include "../CompilerInfo/OptionsParser.h"
 
 class LangMain{
     public:
-        explicit LangMain(Info* info): m_info(info), m_tokenizer(), m_parser(info), m_gen(){}
+        explicit LangMain(Info* info,Options* options): m_info(info),m_options(options), m_tokenizer(), m_parser(info), m_gen(){}
 
         void compile(){
             for(int i = 0;i < m_info->files.size();i++){
                 auto file = m_info->files.at(i);
+                if(!file->tokens.empty())continue;
                 auto tokens = m_tokenizer.tokenize(file->fullName);
                 file->tokens = tokens;
             }
@@ -31,7 +33,7 @@ class LangMain{
             outFiles << "ld -o out ";
             for(auto file:m_info->files){
                 m_gen.gen_prog(file);
-                std::string strs = "nasm -felf64 ./build/cmp/" + file->fullName + ".asm";
+                std::string strs = "nasm -felf64 -F dwarf -g ./build/cmp/" + file->fullName + ".asm";
                 outFiles << " ./build/cmp/" << file->fullName << ".o";
                 const char* str = strs.c_str();
                 system(str);
@@ -57,6 +59,7 @@ private:
 
     std::stringstream outFiles;
     Info* m_info;
+    Options* m_options;
     Tokenizer m_tokenizer;
     PreParser m_parser;
     Generator m_gen;

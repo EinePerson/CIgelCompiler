@@ -44,6 +44,8 @@ enum class TokenType{
     int_lit,
     id,
 
+    _new,
+
     plus,
     sub,
     div,
@@ -82,6 +84,9 @@ enum class TokenType{
     _protected,
 
     externFunc,
+    info,
+
+    connector
 };
 
 std::optional<int> prec(TokenType type);
@@ -134,6 +139,7 @@ class Tokenizer{
             {"public",TokenType::_public},
             {"private",TokenType::_private},
             {"protected",TokenType::_protected},
+            {"new",TokenType::_new},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {
@@ -166,6 +172,7 @@ class Tokenizer{
             {'<',TokenType::small},
             {'[',TokenType::openBracket},
             {']',TokenType::closeBracket},
+            {'.',TokenType::connector},
     };
 
    //std::vector<Token> tokenize(std::string file);
