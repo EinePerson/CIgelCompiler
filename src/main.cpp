@@ -4,7 +4,6 @@
 #include <cstring>
 
 #include "langMain/langMain.hpp"
-#include "util/arena.hpp"
 #include "CompilerInfo/CompilerInfo.hpp"
 #include "CompilerInfo/OptionsParser.h"
 
@@ -25,7 +24,6 @@ std::string read(const std::string& name){
 }
 
 int main(int argc,char* argv[]) {
-
     if(argc < 2){
         std::cerr << "Incorrect arguments, type -help for more information" << std::endl;
         return EXIT_FAILURE;
@@ -35,13 +33,12 @@ int main(int argc,char* argv[]) {
         std::cout << "Help:\n   First arg should be igel Compiler file(.igc)\n";
         return EXIT_SUCCESS;
     }
-    ArenaAlocator alloc(1024 * 1024 * 4);
-    OptionsParser optParser(argc,argv,&alloc);
+    OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 
     Info *info;
     if(options->infoFile) {
-        CompilerInfo cmpinfo(options->infoFile.value(), &alloc);
+        CompilerInfo cmpinfo(options->infoFile.value());
         info = cmpinfo.getInfo();
     }
     optParser.modify(info);

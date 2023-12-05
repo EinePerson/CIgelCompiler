@@ -4,9 +4,6 @@
 #include <variant>
 #include <iostream>
 
-//#include "../tokenizer.h"
-//#include "../util/arena.hpp"
-//#include "../CompilerInfo/CompilerInfo.hpp"
 
 char charType(TokenType type){
     switch (type)
@@ -38,19 +35,18 @@ char charType(TokenType type){
 
 class Parser{
     public:
-        inline explicit Parser() : m_alloc(1024 * 1024 * 4){}
+        inline explicit Parser(){}
 
         std::optional<NodeTerm*> parseTerm(){
             if(auto int_lit = tryConsume(TokenType::int_lit)){
-                auto nodeInt = m_alloc.alloc<NodeTermIntLit>();
+                auto nodeInt = new NodeTermIntLit;
                 nodeInt->int_lit = int_lit.value();
-                auto expr = m_alloc.alloc<NodeTerm>();
-                expr->var = nodeInt;
-                return expr;
+                nodeInt->sid = 2;//m_sidFlag;
+                return nodeInt;
             }
             else if(auto id = tryConsume(TokenType::id)){
                 if(tryConsume(TokenType::openParenth)){
-                    auto call = m_alloc.alloc<FuncCall>();
+                    auto call = new TermFuncCall;
                     call->name = id.value().value.value();
                     char i = 0;
                     while(auto expr = parseExpr()){
@@ -59,12 +55,10 @@ class Parser{
                         if(!tryConsume(TokenType::comma))i = 1;
                     }
                     tryConsume(TokenType::closeParenth,"Expected ')'");
-                    auto expr = m_alloc.alloc<NodeTerm>();
-                    expr->var = call;
-                    return expr;
+                    return call;
                 }else{
                     if(peak().value().type == TokenType::openBracket){
-                        auto arrAcc = m_alloc.alloc<NodeTermArrayAcces>();
+                        auto arrAcc = new NodeTermArrayAcces;
                         arrAcc->id = id.value();
                         std::vector<NodeExpr*> ids {};
                         while (tryConsume(TokenType::openBracket)){
@@ -76,15 +70,11 @@ class Parser{
                             tryConsume(TokenType::closeBracket,"Expected ']'");
                         }
                         arrAcc->exprs = ids;
-                        auto expr = m_alloc.alloc<NodeTerm>();
-                        expr->var = arrAcc;
-                        return expr;
+                        return arrAcc;
                     }else {
-                        auto *nodeId = m_alloc.alloc<NodeTermId>();
+                        auto *nodeId = new NodeTermId;
                         nodeId->id = id.value();
-                        auto expr = m_alloc.alloc<NodeTerm>();
-                        expr->var = nodeId;
-                        return expr;
+                        return nodeId;
                     }
                 }
             }else if(auto paren = tryConsume(TokenType::openParenth)){
@@ -94,19 +84,16 @@ class Parser{
                     exit(EXIT_FAILURE);
                 }
                 tryConsume(TokenType::closeParenth,"Expected ')'");
-                auto term_paren = m_alloc.alloc<NodeTermParen>();
+                auto term_paren = new NodeTermParen;
                 term_paren->expr = expr.value();
-                auto term = m_alloc.alloc<NodeTerm>();
-                term->var = term_paren;
-                return term;
+                return term_paren;
             }else return {};
         }
 
         std::optional<NodeExpr*> parseExpr(int minPrec = 0){
             std::optional<NodeTerm*> termLs = parseTerm();
             if(!termLs.has_value())return {};
-            auto exprLs = m_alloc.alloc<NodeExpr>();
-            exprLs->var = termLs.value();
+            NodeExpr* expr = termLs.value();
 
             while(true){
                 std::optional<Token> token = peak();
@@ -122,52 +109,43 @@ class Parser{
                     std::cerr << "Unable to parse" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                auto expr = m_alloc.alloc<NodeBinExpr>();
-                auto exprLs2 = m_alloc.alloc<NodeExpr>();
                 if(op.type == TokenType::plus){
-                    auto add = m_alloc.alloc<NodeBinExprAdd>();
-                    exprLs2->var = exprLs->var;
-                    add->ls = exprLs2;
+                    auto add = new NodeBinExprAdd;
+                    add->ls = expr;
                     add->rs = exprR.value();
-                    expr->var = add;
+                    expr = add;
                 }else if(op.type == TokenType::mul){
-                    auto mul = m_alloc.alloc<NodeBinExprMul>();
-                    exprLs2->var = exprLs->var;
-                    mul->ls = exprLs2;
+                    auto mul = new NodeBinExprMul;
+                    mul->ls = expr;
                     mul->rs = exprR.value();
-                    expr->var = mul;
+                    expr = mul;
                 }else if(op.type == TokenType::div){
-                    auto div = m_alloc.alloc<NodeBinExprDiv>();
-                    exprLs2->var = exprLs->var;
-                    div->ls = exprLs2;
+                    auto div = new NodeBinExprDiv;
+                    div->ls = expr;
                     div->rs = exprR.value();
-                    expr->var = div;
+                    expr = div;
                 }else if(op.type == TokenType::sub){
-                    auto sub = m_alloc.alloc<NodeBinExprSub>();
-                    exprLs2->var = exprLs->var;
-                    sub->ls = exprLs2;
+                    auto sub = new NodeBinExprSub;
+                    sub->ls = expr;
                     sub->rs = exprR.value();
-                    expr->var = sub;
+                    expr = sub;
                 }else if(op.type >= TokenType::equal && op.type <= TokenType::small){
-                    auto areth = m_alloc.alloc<NodeBinAreth>();
-                    exprLs2->var = exprLs->var;
-                    areth->ls = exprLs2;
+                    auto areth = new NodeBinAreth;
+                    areth->ls = expr;
                     areth->rs = exprR.value();
                     areth->type = op.type;
-                    expr->var = areth;
+                    expr = areth;
                 }else{
                     std::cerr << "Unkown operator" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                exprLs->var = expr;
-            
             }
-            return exprLs;
+            return expr;
         }
 
         std::optional<NodeStmtScope*> parseScope(){
             if(!tryConsume(TokenType::openCurl).has_value())return {};
-            auto scope = m_alloc.alloc<NodeStmtScope>();
+            auto scope = new NodeStmtScope;
             while(auto stmt = parseStmt()){
                 scope->stmts.push_back(stmt.value());
             }
@@ -179,7 +157,7 @@ class Parser{
             if(peak().value().type == TokenType::_exit && peak(1).has_value() && peak(1).value().type == TokenType::openParenth){
                 consume();
                 consume();
-                NodeStmtExit* stmt = m_alloc.alloc<NodeStmtExit>();
+                NodeStmtExit* stmt = new NodeStmtExit;
                 if(auto nodeExpr = parseExpr()){
                     stmt->expr = nodeExpr.value();
                 }else{
@@ -188,29 +166,24 @@ class Parser{
                 }
                 tryConsume(TokenType::closeParenth, "Expected `)`");
                 tryConsume(TokenType::semi,"Expected ';'");
-                auto stmtR = m_alloc.alloc<NodeStmt>();
-                stmtR->var = stmt;
-                return stmtR;
+                return stmt;
             }else if(peak().has_value() && peak().value().type <= TokenType::_ulong){
                 if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
                 && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
-                    auto stmt = m_alloc.alloc<NodeStmtLet>();
-                    auto pirim = m_alloc.alloc<NodeStmtPirimitiv>();
+                    auto pirim = new NodeStmtPirimitiv;
                     pirim->sid = (char) peak().value().type;
+                    m_sidFlag = pirim->sid;
                     pirim->_signed = consume().type <= TokenType::_long;
-                    stmt->ident = consume();
+                    pirim->ident = consume();
                     if(!peak().has_value()){
                         //TODO Exit on error
                     }
                     if(peak().value().type == TokenType::semi){
                         consume();
-                        auto term = m_alloc.alloc<NodeTerm>();
-                        auto intLit = m_alloc.alloc<NodeTermIntLit>();
-                        auto termExpr = m_alloc.alloc<NodeExpr>();
-                        intLit->int_lit = Token{.value = "0"};
-                        term->var = intLit;
-                        termExpr->var = term;
-                        pirim->expr = termExpr;
+                        auto intLit = new NodeTermIntLit;
+                        Token tok{.type = TokenType::int_lit,.value = "0"};
+                        intLit->int_lit = tok;
+                        pirim->expr = intLit;
                     } else {
                         tryConsume(TokenType::eq,"Expected '='");
                         if (auto expr = parseExpr())
@@ -221,13 +194,9 @@ class Parser{
                         }
                         tryConsume(TokenType::semi, "Expected ';'");
                     }
-                    stmt->type = pirim;
-                    auto stmtR = m_alloc.alloc<NodeStmt>();
-                    stmtR->var = stmt;
-                    return stmtR;
+                    return pirim;
                 }else if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket){
-                    auto stmt = m_alloc.alloc<NodeStmtLet>();
-                    auto arr = m_alloc.alloc<NodeStmtArr>();
+                    auto arr = new NodeStmtArr;
                     arr->sid = (char) peak().value().type;
                     arr->_signed = consume().type <= TokenType::_long;
                     if(peak(1).has_value() && peak(1).value().type == TokenType::int_lit){
@@ -247,9 +216,9 @@ class Parser{
                         arr->fixed = false;
                     }
 
-                    stmt->ident = consume();
+                    arr->ident = consume();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
-                        auto newStmt = m_alloc.alloc<NodeStmtNew>();
+                        auto newStmt = new NodeStmtNew;
                         tryConsume(TokenType::_new, "Expected 'new'");
 
                         for(int i = 0;i < arr->size.size();i++){
@@ -264,22 +233,15 @@ class Parser{
                         arr->create = newStmt;
                     }
                     tryConsume(TokenType::semi, "Expected ';'");
-                    stmt->type = arr;
-                    auto stmtR = m_alloc.alloc<NodeStmt>();
-                    stmtR->var = stmt;
-                    return stmtR;
+                    return arr;
                 }
             }else if(auto scope = parseScope()){
-                auto stmt = m_alloc.alloc<NodeStmt>();
-                stmt->var = scope.value();
-                return stmt;
+                return scope.value();
             }else if(auto _if = tryConsume(TokenType::_if)){
-                auto stmt = m_alloc.alloc<NodeStmt>();
-                stmt->var = parseIf();
-                return stmt;
+                return parseIf();
             } else if(auto id = tryConsume(TokenType::id)){
                 if(tryConsume(TokenType::openParenth)){
-                    auto call = m_alloc.alloc<FuncCall>();
+                    auto call = new StmtFuncCall;
                     call->name = id.value().value.value();
                     char i = 0;
                     while(auto expr = parseExpr()){
@@ -289,14 +251,11 @@ class Parser{
                     }
                     tryConsume(TokenType::closeParenth,"Expected ')'");
                     tryConsume(TokenType::semi,"Expected ';'");
-                    auto stmt = m_alloc.alloc<NodeStmt>();
-                    stmt->var = call;
-                    return stmt;
+                    return call;
                 }else{
                     if(peak().value().type == TokenType::openBracket){
-                        auto reassign = m_alloc.alloc<NodeStmtArrReassign>();
+                        auto reassign = new NodeStmtArrReassign;
                         reassign->id = id.value();
-                        auto stmt = m_alloc.alloc<NodeStmt>();
                         while (tryConsume(TokenType::openBracket)){
                             if(auto expr = parseExpr())reassign->exprs.push_back(expr.value());
                             else{
@@ -320,13 +279,11 @@ class Parser{
                             std::cerr << "Expected Assignment Operator" << std::endl;
                             exit(EXIT_FAILURE);
                         }
-                        stmt->var = reassign;
                         tryConsume(TokenType::semi, "Expected ';'");
-                        return stmt;
+                        return reassign;
                     }else {
-                        auto reassign = m_alloc.alloc<NodeStmtReassign>();
+                        auto reassign = new NodeStmtReassign;
                         reassign->id = id.value();
-                        auto stmt = m_alloc.alloc<NodeStmt>();
                         if (peak().has_value() && peak().value().type >= TokenType::eq &&
                             peak().value().type <= TokenType::pow_eq) {
                             reassign->op = consume().type;
@@ -343,13 +300,12 @@ class Parser{
                             std::cerr << "Expected Assignment Operator" << std::endl;
                             exit(EXIT_FAILURE);
                         }
-                        stmt->var = reassign;
                         tryConsume(TokenType::semi, "Expected ';'");
-                        return stmt;
+                        return reassign;
                     }
                 }
             }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
-                auto reassign = m_alloc.alloc<NodeStmtReassign>();
+                auto reassign = new NodeStmtReassign;
                 reassign->op = peak().value().type;
                 consume();
                 if(auto id = tryConsume(TokenType::id)){
@@ -360,19 +316,15 @@ class Parser{
                 }
                 
                 tryConsume(TokenType::semi,"Expected ';'");
-                auto stmt = m_alloc.alloc<NodeStmt>();
-                stmt->var = reassign;
-                return stmt;
+                return  reassign;
             }else if(peak().has_value() && peak().value().type == TokenType::_return){
                 consume();
-                auto _return = m_alloc.alloc<Return>();
+                auto _return = new Return;
                 if(auto expr = parseExpr()){
                     _return->val = expr.value();
                 }
-                auto stmt = m_alloc.alloc<NodeStmt>();
-                stmt->var = _return;
                 tryConsume(TokenType::semi,"Expected ';'");
-                return stmt;
+                return _return;
             }{
                 return {};
             }
@@ -380,7 +332,7 @@ class Parser{
 
         NodeStmtIf* parseIf(){
             tryConsume(TokenType::openParenth,"Expected '('");
-            auto stmt_if = m_alloc.alloc<NodeStmtIf>();
+            auto stmt_if = new NodeStmtIf;
             int i = 0;
 
             while(auto expr = parseExpr()){
@@ -419,21 +371,19 @@ class Parser{
             return stmt_if;
         }
 
-        std::optional<Function*> parseFunc(){
-            auto func = m_alloc.alloc<Function>();
-            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void))func->_return = consume().type;
+        std::optional<IgFunction*> parseFunc(){
+            auto func = new IgFunction;
+            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void))func->_return = getType(consume().type);
             else return {};
 
             auto hname = tryConsume(TokenType::id,"Expected identifier").value;
-
-            
 
             tryConsume(TokenType::openParenth,"Expected '('");
             char i = 0;
             while (peak().has_value() && peak().value().type <= TokenType::_ulong)
             {
                 if(i)tryConsume(TokenType::comma,"Expected ','");
-                func->paramType.push_back(consume().type);
+                func->paramType.push_back(getType(consume().type));
                 func->paramName.push_back(tryConsume(TokenType::id,"Expected identifier").value.value());
                 if(!tryConsume(TokenType::comma))i = 1;
             }
@@ -445,17 +395,17 @@ class Parser{
                 exit(EXIT_FAILURE);
             }
 
-            std::stringstream ss;
+            /*std::stringstream ss;
             ss << hname.value();
             for(auto type : func->paramType){
                 ss << charType(type);
-            }
-            charType(func->_return);
-            std::string name = ss.str();
-            func->name = name;
-            charType(func->_return);
-            func->fullName = charType(func->_return);
-            func->fullName += name;
+            }*/
+            //charType(func->_return);
+            //std::string name = ss.str();
+            func->name = hname.value();
+            //charType(func->_return);
+            //func->fullName = charType(func->_return);
+            //func->fullName += name;
 
             return func;
         }
@@ -468,8 +418,8 @@ class Parser{
                 if(auto stmt = parseStmt()){
                     file->stmts.push_back(stmt.value());
                 }else if(auto func = parseFunc()){
-                    file->funcs.reserve(1);
-                    file->funcs.insert(std::pair(func.value()->name,func.value()));
+                    //file->funcs.reserve(1);
+                    file->funcs.insert(std::pair(FuncSig(func.value()->name,func.value()->paramType),func.value()));
                 }else {
                     std::cerr << "Invalid Expression3" << std::endl;
                     exit(EXIT_FAILURE);
@@ -505,5 +455,5 @@ class Parser{
     private:
         std::vector<Token> m_tokens;
         size_t m_I = 0;
-        ArenaAlocator m_alloc;
+        char m_sidFlag;
 };

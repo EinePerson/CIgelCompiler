@@ -11,7 +11,7 @@ std::string getName(const std::string &filename) {
     return filename.substr(lastdot,filename.length());
 }
 
-OptionsParser::OptionsParser(int argc, char* argv[],ArenaAlocator* alloc) : m_alloc(alloc) {
+OptionsParser::OptionsParser(int argc, char* argv[]){
     for (int i = 1; i < argc; ++i){
         if(strlen(argv[i]) <= 0)continue;
         if(argv[i][0] == '-'){
@@ -23,7 +23,7 @@ OptionsParser::OptionsParser(int argc, char* argv[],ArenaAlocator* alloc) : m_al
 }
 
 Options *OptionsParser::getOptions() {
-    auto opts = m_alloc->alloc<Options>();
+    auto opts = new Options;
     Tokenizer tokenizer;
     for (const auto &item: m_files){
         std::vector<Token> tokens = tokenizer.tokenize(item);
@@ -43,7 +43,7 @@ Options *OptionsParser::getOptions() {
 void OptionsParser::modify(Info *info) {
     if(info == nullptr)return;
     for (const auto &item: m_files){
-        auto file = m_alloc->alloc<SrcFile>();
+        auto file = new SrcFile;
         file->tokenPtr = 0;
         file->name += removeExtension(getName(item));
         file->fullName = item;
@@ -51,7 +51,6 @@ void OptionsParser::modify(Info *info) {
         info->file_table.reserve(1);
         info->file_table[file->fullName] = file;
     }
-    return;
 }
 
 

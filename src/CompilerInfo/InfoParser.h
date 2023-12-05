@@ -10,8 +10,7 @@
 #include <vector>
 #include <functional>
 #include <sys/stat.h>
-#include "../parsed.h"
-#include "../util/arena.hpp"
+#include "../types.h"
 
 class InfoParser;
 
@@ -26,15 +25,47 @@ enum class FunctionState{
     _inside,
 };
 
-struct FuncRet{
-    Function* func;
+/*struct FuncRet{
+    IgFunction* func;
     FunctionState state;
+};*/
+
+struct FuncSig {
+    FuncSig(const std::string&name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}
+    FuncSig(const std::string&name, const std::vector<llvm::Type*>&types,llvm::Type* _return) : name(name),types(types),_return(_return){}
+    std::string name;
+    std::vector<llvm::Type*> types;
+    llvm::Type* _return;
+
+    bool operator==(const FuncSig& sig) const {
+        if(!(name == sig.name))return false;
+        if(!(types.size() == sig.types.size()))return false;
+        for(size_t i = 0;i < types.size();i++) {
+            if(!(types[i] == sig.types[i]))return false;
+        }
+        if(_return != nullptr && sig._return != nullptr)return _return == sig._return;
+        return true;
+    }
+};
+
+struct FuncSigHash {
+    ulong operator()(const FuncSig& sig) const {
+        ulong hash = std::hash<std::string>{}(sig.name);
+        for (auto type : sig.types)hash += reinterpret_cast<ulong>(type);
+        return hash;
+    }
+};
+
+struct Header {
+    std::string fullName;
+    std::vector<FuncSig*> funcs;
+    std::optional<llvm::FunctionCallee> findFunc(std::string name,std::vector<llvm::Type*> types);
 };
 
 struct SrcFile{
     bool isMain = false;
     bool isGen = false;
-    std::vector<SrcFile*> includes;
+    std::vector<Header*> includes;
     std::vector<SrcFile*> _using;
     std::string name;
     //This is with the path
@@ -43,26 +74,31 @@ struct SrcFile{
     std::vector<Token> tokens;
     size_t tokenPtr;
     std::vector<NodeStmt*> stmts;
-    std::unordered_map<std::string,Function*> funcs;
+    std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
 
-    std::optional<FuncRet> findFunc(std::string name);
+    std::optional<llvm::FunctionCallee> findFunc(std::string name, std::vector<llvm::Type*> types);
 };
 
 struct Directory{
     std::vector<SrcFile*> files;
+    std::vector<Header*> headers;
     std::vector<Directory*> sub_dirs;
+    std::vector<Directory*> includes;
     std::string name;
 
     void genFile(std::string path);
 };
 
 struct Info{
-    std::unordered_map<std::string,SrcFile*> file_table;
     std::vector<SrcFile*> files;
-    Directory* src;
+    std::vector<Header*> headers;
+    std::vector<Directory*> src;
+    std::vector<Directory*> include;
     std::vector<Func> calls;
     SrcFile* main;
-    std::string* m_name;
+    std::string m_name;
+    std::unordered_map<std::string,SrcFile*> file_table;
+    std::unordered_map<std::string,Header*> header_table;
 };
 
 struct FileItterator{
@@ -70,16 +106,23 @@ struct FileItterator{
     Directory* dir{};
 };
 
+struct HeaderItterator {
+    std::vector<Header*> files;
+    Directory* dir{};
+};
+
 std::string removeExtension(const std::string& filename);
 class InfoParser {
 public:
-    InfoParser(std::vector<Token> tokens,ArenaAlocator* alloc);
+    InfoParser(std::vector<Token> tokens);
 
     static std::map<std::string,std::function<void(InfoParser*,std::vector<std::string>)>> funcs;
 
     Info* parse();
 
     std::optional<Func> parseFuncCall();
+
+    HeaderItterator listHeaders(std::string path,const std::string& name);
 
     FileItterator listFiles(std::string path,const std::string& name);
 
@@ -109,7 +152,6 @@ private:
 
     std::vector<Token> m_tokens;
     size_t m_I = 0;
-    ArenaAlocator* m_alloc;
     std::string m_main;
     Info* m_info;
 };

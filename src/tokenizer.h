@@ -22,24 +22,26 @@ enum class TokenType{
     _ushort = 5,
     _uint = 6,
     _ulong = 7,
+    _float = 8,
+    _double = 9,
 
-    //Double equal sign '=='
-    equal = 8,
-    notequal = 9,
-    bigequal = 10,
-    smallequal = 11,
-    big = 12,
-    small = 13,
+    ///Double equal sign '=='
+    equal = 10,
+    notequal = 11,
+    bigequal = 12,
+    smallequal = 13,
+    big = 14,
+    small = 15,
 
-    //Single equal sign '='
-    eq = 14,
-    plus_eq = 15,
-    sub_eq = 16,
-    div_eq = 17,
-    mul_eq = 18,
-    pow_eq = 19,
-    inc = 20,
-    dec = 21,
+    ///Single equal sign '='
+    eq = 16,
+    plus_eq = 17,
+    sub_eq = 18,
+    div_eq = 19,
+    mul_eq = 20,
+    pow_eq = 21,
+    inc = 22,
+    dec = 23,
     str,
     int_lit,
     id,
@@ -54,10 +56,10 @@ enum class TokenType{
 
     _and,
     _or,
-    //Not implemented and not directly planed to do so
+    ///Not implemented and not directly planed to do so
     _xor,
 
-    //DEPRECATED
+    ///DEPRECATED
     _exit,
 
     _if,
@@ -78,7 +80,6 @@ enum class TokenType{
     use,
     include,
 
-
     _public,
     _private,
     _protected,
@@ -86,7 +87,9 @@ enum class TokenType{
     externFunc,
     info,
 
-    connector
+    connector,
+
+    _struct,
 };
 
 std::optional<int> prec(TokenType type);
@@ -123,6 +126,8 @@ class Tokenizer{
             {"ushort",TokenType::_ushort},
             {"uint",TokenType::_uint},
             {"ulong",TokenType::_ulong},
+            {"float",TokenType::_float},
+            {"double",TokenType::_double},
             {"==",TokenType::equal},
             {"!=",TokenType::notequal},
             {">=",TokenType::bigequal},
@@ -140,6 +145,7 @@ class Tokenizer{
             {"private",TokenType::_private},
             {"protected",TokenType::_protected},
             {"new",TokenType::_new},
+            {"struct",TokenType::_struct},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {
@@ -168,6 +174,7 @@ class Tokenizer{
             {'{',TokenType::openCurl},
             {'}',TokenType::closeCurl},
             {'}',TokenType::closeCurl},
+
             {'>',TokenType::big},
             {'<',TokenType::small},
             {'[',TokenType::openBracket},

@@ -4,9 +4,9 @@
 
 #include <dirent.h>
 #include "InfoParser.h"
+#include "../langMain/codeGen/Generator.h"
 
-    InfoParser::InfoParser(std::vector<Token> tokens,ArenaAlocator* alloc) : m_tokens(std::move(tokens)) {
-        m_alloc = alloc;
+    InfoParser::InfoParser(std::vector<Token> tokens) : m_tokens(std::move(tokens)),m_info(nullptr) {
     }
 
     std::map<std::string,std::function<void(InfoParser*,std::vector<std::string>)>> InfoParser::funcs {
@@ -16,25 +16,38 @@
                     exit(EXIT_FAILURE);
                 }
                 info->m_main = args.at(0);
-                info->m_info->file_table[info->m_main]->isMain = true;
+                info->m_info->file_table.at(info->m_main)->isMain = true;
             }},
-            {"setSourceDirectory",[](InfoParser* info,std::vector<std::string> args) -> void{
+            {"SourceDirectory",[](InfoParser* info,std::vector<std::string> args) -> void{
                 FileItterator it = info->listFiles("",args[0] + "/");
-                info->m_info->files = it.files;
-                info->m_info->src = it.dir;
+                info->m_info->files.insert(info->m_info->files.cend(),it.files.cbegin(),it.files.cend());
+                info->m_info->src.push_back(it.dir);
                 info->m_info->file_table.reserve(it.files.size());
                 for(auto file:it.files){
                     file->isMain = file->fullName == info->m_main;
                     info->m_info->file_table[file->fullName] = file;
+                    //info->m_info->files.push_back(file);
+                }
+            }},
+            {"IncludeDirectiry",[](InfoParser* info,std::vector<std::string> args) -> void{
+                HeaderItterator it = info->listHeaders("",args[0] + "/");
+                info->m_info->headers.insert(info->m_info->headers.cend(),it.files.cbegin(),it.files.cend());
+                info->m_info->include.push_back(it.dir);
+                info->m_info->header_table.reserve(it.files.size());
+                for(auto file:it.files){
+                    //NOTIMPLEMENTEDEXCEPTION parsing for header files to include
+                    info->m_info->header_table[file->fullName] = file;
                 }
             }},
             {"setOutName",[](const InfoParser* info,std::vector<std::string> args) -> void{
-                info->m_info->m_name = &args.at(0);
+                info->m_info->m_name = args.at(0);
             }},
     };
 
     Info* InfoParser::parse(){
-        m_info = m_alloc->alloc<Info>();
+        m_info = new Info;
+        //std::unordered_map<std::string,SrcFile*> m;
+        //m_info->file_table = m;
         std::string main = "";
         FileItterator it;
         while (peak().has_value()){
@@ -56,6 +69,10 @@
 
     std::optional<Func> InfoParser::parseFuncCall(){
         if(peak().has_value() && peak().value().type == TokenType::externFunc){
+            if(!funcs.contains(peak().value().value.value())) {
+                std::cerr << "Cannot Find Function " << consume().value.value() << "\n";
+                exit(EXIT_FAILURE);
+            }
             Func func;
             func.func =  funcs.at(consume().value.value());
             tryConsume(TokenType::openParenth,"Expected '('");
@@ -74,14 +91,50 @@
 
     }
 
+    HeaderItterator InfoParser::listHeaders(std::string path, const std::string& name) {
+        path += name;
+        auto* direct = new Directory;
+        direct->name = name;
+        std::vector<Header*> files;
+        if (auto dir = opendir(path.c_str())) {
+            while (auto f = readdir(dir)) {
+                if (f->d_name[0] == '.')continue;
+                if (f->d_type == DT_DIR){
+                    std::string str = f->d_name;
+                    str += "/";
+                    auto it = listHeaders(path ,str);
+                    it.dir->name = f->d_name;
+                    files.insert(files.cend(),it.files.cbegin(),it.files.cend());
+                    direct->sub_dirs.push_back(it.dir);
+                }
+
+                if (f->d_type == DT_REG){
+                    auto file = new Header;
+                    file->fullName = path;
+                    file->fullName += f->d_name;
+                    direct->headers.push_back(file);
+                    files.push_back(file);
+                }
+            }
+            closedir(dir);
+        }else{
+            std::cerr << "Could not open folder:" << name << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        HeaderItterator it;
+        it.files = files;
+        it.dir = direct;
+        return it;
+    }
+
     FileItterator InfoParser::listFiles(std::string path,const std::string& name) {
         path += name;
-        Directory* direct = m_alloc->alloc<Directory>();
+        auto* direct = new Directory;
         direct->name = name;
         std::vector<SrcFile*> files;
         if (auto dir = opendir(path.c_str())) {
             while (auto f = readdir(dir)) {
-                if (!f->d_name || f->d_name[0] == '.')continue;
+                if (f->d_name[0] == '.')continue;
                 if (f->d_type == DT_DIR){
                     std::string str = f->d_name;
                     str += "/";
@@ -92,7 +145,7 @@
                 }
 
                 if (f->d_type == DT_REG){
-                    auto file = m_alloc->alloc<SrcFile>();
+                    auto file = new SrcFile();
                     file->tokenPtr = 0;
                     file->name += removeExtension(f->d_name);
                     file->fullName = path;
@@ -114,17 +167,30 @@
         return it;
     }
 
-    std::optional<FuncRet> SrcFile::findFunc(std::string name) {
-        if(funcs.contains(name))return FuncRet{.func = funcs[name],.state = FunctionState::_inside};
+    std::optional<llvm::FunctionCallee> Header::findFunc(std::string name,std::vector<llvm::Type*> types) {
+        for (auto func : funcs) {
+            if(func == new FuncSig(name,types)) {
+                llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
+                return  Generator::instance->m_module->getOrInsertFunction(func->name,type);
+            }
+        }
+        return {};
+    }
+
+
+    std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
+        if(funcs.contains(FuncSig(name,types))) {
+            IgFunction* func = funcs[FuncSig(name,types)];
+            llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
+            return  Generator::instance->m_module->getOrInsertFunction(func->name,type);
+        };
         for (const auto &item: includes){
-            if(auto ret = item->findFunc(name)){
-                ret->state = FunctionState::_include;
+            if(auto ret = item->findFunc(name,types)){
                 return ret;
             }
         }
         for (const auto &item: _using){
-            if(auto ret = item->findFunc(name)){
-                ret->state = FunctionState::_use;
+            if(auto ret = item->findFunc(name, types)){
                 return ret;
             }
         }
