@@ -8,7 +8,6 @@
 
 #include <string>
 #include <vector>
-#include "../util/arena.hpp"
 #include "InfoParser.h"
 
 struct Options{
@@ -18,7 +17,7 @@ struct Options{
 class OptionsParser {
 public:
 
-    OptionsParser(int argc,char* argv[],ArenaAlocator* alloc);
+    OptionsParser(int argc,char* argv[]);
 
     Options* getOptions();
 
@@ -27,8 +26,6 @@ public:
 private:
     std::vector<std::string> m_options;
     std::vector<std::string> m_files;
-    //std::vector<SrcFile*> m_srcFiles;
-    ArenaAlocator* m_alloc;
 };
 
 

@@ -1,4 +1,5 @@
 #info
 
-setSourceDirectory("tstsrc");
+SourceDirectory("tstsrc");
 setMain("tstsrc/main.ig");
+setOutName("out");
