@@ -87,9 +87,10 @@ enum class TokenType{
     externFunc,
     info,
 
+    ///Dot to acces vars of classes/structs
     connector,
-
     _struct,
+    null,
 };
 
 std::optional<int> prec(TokenType type);
@@ -146,6 +147,7 @@ class Tokenizer{
             {"protected",TokenType::_protected},
             {"new",TokenType::_new},
             {"struct",TokenType::_struct},
+            {"null",TokenType::null},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {

@@ -1,14 +1,16 @@
-using "test.ig";
+struct Test{
+    Test t;
+    int a;
+}
 
 int main(){
-    int[5][5] arr;
-    int i = 5;
-    if(i == 0)exit(10);
-    arr[2][1] = test(6,5);
-    arr[2][1] *= 2;
-    arr[4][4] = 223;
+    Test test = new Test;
+    test.t = new Test;
+    test.t.a = 3;
+    test.t.a *= 3;
+    test.t.b = 8;
 
-    exit(arr[2][1]);
-    //exit(i);
-    return arr[500][600];
+    exit(test.t.a);
+    exit(50);
+    return 5;
 }

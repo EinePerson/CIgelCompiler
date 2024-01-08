@@ -25,10 +25,8 @@ enum class FunctionState{
     _inside,
 };
 
-/*struct FuncRet{
-    IgFunction* func;
-    FunctionState state;
-};*/
+//Compiler Info FLAGS
+#define IS_DEBUG 0b1
 
 struct FuncSig {
     FuncSig(const std::string&name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}
@@ -59,7 +57,9 @@ struct FuncSigHash {
 struct Header {
     std::string fullName;
     std::vector<FuncSig*> funcs;
+    std::unordered_map<std::string,llvm::StructType*> structs;
     std::optional<llvm::FunctionCallee> findFunc(std::string name,std::vector<llvm::Type*> types);
+    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
 };
 
 struct SrcFile{
@@ -74,9 +74,12 @@ struct SrcFile{
     std::vector<Token> tokens;
     size_t tokenPtr;
     std::vector<NodeStmt*> stmts;
+    std::vector<IgType*> types;
     std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
+    std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
 
     std::optional<llvm::FunctionCallee> findFunc(std::string name, std::vector<llvm::Type*> types);
+    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
 };
 
 struct Directory{
@@ -99,6 +102,7 @@ struct Info{
     std::string m_name;
     std::unordered_map<std::string,SrcFile*> file_table;
     std::unordered_map<std::string,Header*> header_table;
+    uint flags;
 };
 
 struct FileItterator{

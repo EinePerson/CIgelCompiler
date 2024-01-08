@@ -104,7 +104,17 @@ void Generator::generate() {
         std::cerr << "Usage of Uninitalized Generator\n";
         exit(EXIT_FAILURE);
     }
+
     std::map<FuncSig*,Function*> funcs;
+
+    for (auto type : m_file->types) {
+        type->generateSig(m_builder.get());
+    }
+
+    for (auto type : m_file->types) {
+        type->generate(m_builder.get());
+    }
+
     for (const auto& [fst,snd] : m_file->funcs) {
         auto [func, sig] = genFuncSig(snd);
        funcs[sig] = func;
@@ -119,11 +129,12 @@ void Generator::generate() {
     }
 }
 
-Type* Generator::getType(TokenType type) const{
+Type* Generator::getType(TokenType type) {
     if(type <= TokenType::_ulong) {
         int i = static_cast<int>(type) % 4;
         int b = (i + 1) * 8 + 8 * std::max(i - 1,0) + 16 * std::max(i - 2,0);
-        return IntegerType::get(*m_contxt,b);
+        Type* t = IntegerType::get(*m_contxt,b);
+        return t;
     }
     if(type == TokenType::_void)return Type::getVoidTy(*m_contxt);
     return nullptr;
@@ -167,6 +178,8 @@ void Generator::reset(SrcFile* file) {
     m_builder.release();
     //m_contxt.release();
     m_module.release();
+    m_vars.clear();
+
 
     //m_contxt = std::make_unique<LLVMContext>();
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -219,6 +232,8 @@ void Generator::write() {
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
     MPM.run(*m_module,MAM);
 
+    //m_module->print(outs(),nullptr);
+
     std::error_code EC;
     raw_fd_ostream dest("./build/cmp/" + m_file->fullName + ".bc", EC, sys::fs::OF_None);
     if (EC) {
@@ -232,7 +247,69 @@ void Generator::write() {
 
 }
 
-Value* Generator::exitG(Value* exitCode) {
+llvm::Value* Generator::genStructVar(std::string typeName) {
+    /*if(auto structT = Generator::instance->m_file->findStruct(std::move(name))) {
+        //auto type = PointerType::get(structT.value().first,0);
+        auto type = PointerType::get(*m_contxt,0);
+        //auto type = structT.value().first;
+        AllocaInst* alloc = m_builder->CreateAlloca(type);
+        Value* gen = term->generate(m_builder.get());
+        m_builder->CreateStore(/*this->_new()*//*genllvm::ConstantPointerNull::get(PointerType::get(*m_contxt,0)),alloc);
+
+        auto var = new StructVar(alloc);
+        var->type = type;
+        var->strType = structT.value().first;
+        m_currentVar.push_back(var);
+        m_sVarId.push_back(0);
+
+        var->types.reserve(structT.value().second->vars.size());
+        /*for(size_t i = 0;i < structT.value().first->getNumElements();i++) {
+            structT.value().first->getElementType(i)->print(outs(),true);
+        }
+
+        for (auto node_stmt_let : structT.value().second->vars) {
+            Value* ptr = m_builder->CreateLoad(PointerType::get(*m_contxt,0),var->alloc);
+            //m_module->print(outs(),nullptr);
+            //std::cout << "\n\n";
+            //structT.value().first->getElementType(m_sVarId.back())->print(outs());
+            //std::cout << structT.value().first->getNumElements() << "A\n";
+            Value* val = m_builder->CreateStructGEP(structT.value().first,ptr,m_sVarId.back());
+            Value* gen = node_stmt_let->generate(m_builder.get());
+            m_builder->CreateStore(gen,val);
+            //m_varLast.back()->alloc = val;
+            //var->varPtrs[node_stmt_let->ident.value.value()] = m_varLast.back();
+            //m_varLast.pop_back();
+            var->types.push_back(gen->getType());
+            m_sVarId.back()++;
+        }
+
+        m_currentVar.pop_back();
+        m_sVarId.pop_back();
+        m_vars.back()[id.value.value()] = var;
+    }*/
+
+    if(auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
+        //m_currentVar.push_back(var);
+        m_currentVar++;
+        m_sVarId.push_back(0);
+        FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
+        FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
+        Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
+        for (auto node_stmt_let : structT.value().second->vars) {
+            Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
+            Value* gen = node_stmt_let->generate(m_builder.get());
+            m_builder->CreateStore(gen,val);
+            m_sVarId.back()++;
+        }
+        m_currentVar--;
+        m_sVarId.pop_back();
+        return var;
+    }
+    std::cerr << "Unknown type " << typeName << std::endl;
+    exit(EXIT_FAILURE);
+}
+
+auto Generator::exitG(Value* exitCode) const -> Value* {
     std::vector<Type*> params = {Type::getInt32Ty(*m_contxt)};
     FunctionType *fType = FunctionType::get(Type::getVoidTy(*m_contxt), params, false);
     FunctionCallee exitFunc = m_module->getOrInsertFunction("exit",fType);
@@ -240,6 +317,13 @@ Value* Generator::exitG(Value* exitCode) {
     //m_builder->CreateUnreachable();
     return ret;
 }
+
+Value* Generator::_new() const {
+    FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
+    FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
+    return m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
+}
+
 
 Var* Generator::getVar(std::string name, bool _this) {
     std::optional<Var*> opt = getOptVar(name,_this);
@@ -257,7 +341,6 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
     }
     auto map = std::find_if(m_vars.rbegin(), m_vars.rbegin(), [&](const std::map<std::string,Var*> mapl) {
         if(mapl.contains(name))return mapl.at(name);
-        //return map.contains(name);
     });
     if(map != m_vars.rend() && map->contains(name)) {
         return map->at(name);
@@ -265,19 +348,55 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
     return  {};
 }
 
-void Generator::createVar(const std::string&name,Type* type,Value* val) {
-    if(getOptVar(name)) {
-        std::cerr << "Identifier already used: " << name << std::endl;
+/*Var* Generator::getVar(const std::vector<std::string>&names, const bool _this) {
+    std::optional<Var*> opt = getOptVar(names,_this);
+    if(!opt.has_value()) {
+        std::cerr << "Undeclared identifier: ";
+        for (auto name : names) std::cerr << name;
+        std::cerr << std::endl;
+        exit(EXIT_FAILURE);
     }
-    AllocaInst* alloc = m_builder->CreateAlloca(type);
-    m_builder->CreateStore(val,alloc);
-    m_vars.back()[name] = new Var{alloc};
+return opt.value();
+}*/
+
+/*std::optional<Var*> Generator::getOptVar(const std::vector<std::string>&names, bool _this) {
+    if(names.empty())return {};
+    StructVar* str = nullptr;
+    if(auto var = getOptVar(names[0])) {
+        if(auto _struct = dynamic_cast<StructVar*>(var.value()))str = _struct;
+        else return {};
+    }else return {};
+    for(size_t i = 1;i < names.size() - 1;i++) {
+        if(str->varPtrs.contains(names[i]))str = dynamic_cast<StructVar*>(str->varPtrs[names[i]]);
+        else return {};
+    }
+    if(str->varPtrs.contains(names.back()))return str->varPtrs[names.back()];
+    return {};
+}*/
+
+void Generator::createVar(const std::string&name,Type* type,Value* val) {
+    if(m_currentVar == 0) {
+        if(getOptVar(name)) {
+            std::cerr << "Identifier already used: " << name << std::endl;
+        }
+        AllocaInst* alloc = m_builder->CreateAlloca(type);
+        m_builder->CreateStore(val,alloc);
+        m_vars.back()[name] = new Var{alloc};
+    }/*else {
+        m_currentVar.back()->vars[name] = m_sVarId.back();
+        //m_varLast.push_back(new Var(nullptr));
+    }*/
 }
 
 void Generator::createVar(Argument* arg) {
-    AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
-    m_builder->CreateStore(arg,alloc);
-    m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
+    //if(m_currentVar.empty()) {
+        AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
+        m_builder->CreateStore(arg,alloc);
+        m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
+    /*}else {
+        m_currentVar.back()->vars[static_cast<std::string>(arg->getName())] = m_sVarId.back();
+        //currentVar.back()->vars[static_cast<std::string>(arg->getName())] = new Var{alloc}
+    }*/
 }
 
 

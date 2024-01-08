@@ -30,7 +30,7 @@ class LangMain{
                 }
             }
 
-            outFiles << "clang -o " << m_info->m_name << " ";
+            outFiles << "clang++ -o " << m_info->m_name << " ";
             if(m_info->files.size() == 0)return;
             m_gen = new Generator(m_info->files.back());
             for(const auto file:m_info->files){

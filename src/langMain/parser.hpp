@@ -4,6 +4,11 @@
 #include <variant>
 #include <iostream>
 
+#include "codeGen/Generator.h"
+
+
+class Generator;
+struct Struct;
 
 char charType(TokenType type){
     switch (type)
@@ -33,20 +38,42 @@ char charType(TokenType type){
     }
 }
 
+
+
 class Parser{
     public:
-        inline explicit Parser(){}
+        explicit Parser(){}
+
+        /*std::optional<NodeTermId*> parseId() {
+            if(auto id = tryConsume(TokenType::id)) {
+                NodeTermId* root = new NodeTermId;
+                root->id = id.value();
+                NodeTermId* latest = root;
+                while (tryConsume(TokenType::connector)) {
+                    if(auto cont = tryConsume(TokenType::id)) {
+                        auto latestT = new NodeTermId;
+                        latestT->id = cont.value();
+                        latest->contained = latestT;
+                    }else {
+                        std::cerr << "Expected id after '.' at:" << id->file << ":" << id->line << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                }
+                return root;
+            }
+            return {};
+        }*/
 
         std::optional<NodeTerm*> parseTerm(){
+            NodeTerm* term;
             if(auto int_lit = tryConsume(TokenType::int_lit)){
                 auto nodeInt = new NodeTermIntLit;
                 nodeInt->int_lit = int_lit.value();
                 nodeInt->sid = 2;//m_sidFlag;
-                return nodeInt;
-            }
-            else if(auto id = tryConsume(TokenType::id)){
+                term = nodeInt;
+            }else if(auto id = tryConsume(TokenType::id)){
                 if(tryConsume(TokenType::openParenth)){
-                    auto call = new TermFuncCall;
+                    auto call = new NodeTermFuncCall;
                     call->name = id.value().value.value();
                     char i = 0;
                     while(auto expr = parseExpr()){
@@ -55,27 +82,32 @@ class Parser{
                         if(!tryConsume(TokenType::comma))i = 1;
                     }
                     tryConsume(TokenType::closeParenth,"Expected ')'");
-                    return call;
-                }else{
-                    if(peak().value().type == TokenType::openBracket){
-                        auto arrAcc = new NodeTermArrayAcces;
-                        arrAcc->id = id.value();
-                        std::vector<NodeExpr*> ids {};
-                        while (tryConsume(TokenType::openBracket)){
-                            if(auto expr = parseExpr())ids.push_back(expr.value());
-                            else{
-                                std::cerr << "Expected Expression at " << peak(-1).value().file << ":" << peak(-1).value().line << std::endl;
-                                exit(EXIT_FAILURE);
-                            }
-                            tryConsume(TokenType::closeBracket,"Expected ']'");
-                        }
-                        arrAcc->exprs = ids;
-                        return arrAcc;
-                    }else {
-                        auto *nodeId = new NodeTermId;
-                        nodeId->id = id.value();
-                        return nodeId;
+                    term = call;
+                }/*else if(tryConsume(TokenType::connector)) {
+                    if(peak().has_value() && peak().value().type == TokenType::id) {
+                        auto termT = new NodeTermStructAcces;
+                        termT->id = id.value();
+                        termT->acc = peak().value();
+                        term = termT;
                     }
+                }*/else if(peak().value().type == TokenType::openBracket){
+                    auto arrAcc = new NodeTermArrayAcces;
+                    arrAcc->id = id.value();
+                    std::vector<NodeExpr*> ids {};
+                    while (tryConsume(TokenType::openBracket)){
+                        if(auto expr = parseExpr())ids.push_back(expr.value());
+                        else{
+                            std::cerr << "Expected Expression at " << peak(-1).value().file << ":" << peak(-1).value().line << std::endl;
+                            exit(EXIT_FAILURE);
+                        }
+                        tryConsume(TokenType::closeBracket,"Expected ']'");
+                    }
+                    arrAcc->exprs = ids;
+                    term = arrAcc;
+                }else {
+                    auto *nodeId = new NodeTermId;
+                    nodeId->id = id.value();
+                    term = nodeId;
                 }
             }else if(auto paren = tryConsume(TokenType::openParenth)){
                 auto expr = parseExpr();
@@ -86,8 +118,32 @@ class Parser{
                 tryConsume(TokenType::closeParenth,"Expected ')'");
                 auto term_paren = new NodeTermParen;
                 term_paren->expr = expr.value();
-                return term_paren;
-            }else return {};
+                term = term_paren;
+            }else if(auto _new = tryConsume(TokenType::_new)) {
+                auto cr = new NodeTermNew;
+                cr->typeName = tryConsume(TokenType::id,"Expected Identifier").value.value();
+                return cr;
+            }else if(tryConsume(TokenType::null)) {
+                return new NodeTermNull;
+            }else
+                return {};
+            if(tryConsume(TokenType::connector)) {
+                //if(!dynamic_cast<NodeTermId*>(term))return term;
+                auto termT = new NodeTermStructAcces;
+                termT->id = dynamic_cast<NodeTermId*>(term)->id;
+                auto termF = peak();
+                if(peak(1).has_value() && peak(1).value().type != TokenType::connector)consume();
+                if(!termF)return term;
+                termT->acc = termF.value();
+                //termT->id = tryConsume(TokenType::id,"Expected Identiefier");
+                term = termT;
+            }
+            if(auto ro = parseTerm()) {
+                NodeTerm* r = ro.value();
+                r->contained = term;
+                return r;
+            }
+            return term;
         }
 
         std::optional<NodeExpr*> parseExpr(int minPrec = 0){
@@ -157,7 +213,7 @@ class Parser{
             if(peak().value().type == TokenType::_exit && peak(1).has_value() && peak(1).value().type == TokenType::openParenth){
                 consume();
                 consume();
-                NodeStmtExit* stmt = new NodeStmtExit;
+                auto* stmt = new NodeStmtExit;
                 if(auto nodeExpr = parseExpr()){
                     stmt->expr = nodeExpr.value();
                 }else{
@@ -171,10 +227,11 @@ class Parser{
                 if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
                 && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
                     auto pirim = new NodeStmtPirimitiv;
+                    pirim->type = getType(peak().value().type);
                     pirim->sid = (char) peak().value().type;
                     m_sidFlag = pirim->sid;
                     pirim->_signed = consume().type <= TokenType::_long;
-                    pirim->ident = consume();
+                    pirim->id = consume();
                     if(!peak().has_value()){
                         //TODO Exit on error
                     }
@@ -216,9 +273,10 @@ class Parser{
                         arr->fixed = false;
                     }
 
-                    arr->ident = consume();
+                    arr->id = consume();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
-                        auto newStmt = new NodeStmtNew;
+                        //TODO add new n stuff
+                        /*auto newStmt = new NodeStmtNew;
                         tryConsume(TokenType::_new, "Expected 'new'");
 
                         for(int i = 0;i < arr->size.size();i++){
@@ -230,7 +288,7 @@ class Parser{
                             }
                             tryConsume(TokenType::closeBracket,"Expected ']'");
                         }
-                        arr->create = newStmt;
+                        arr->create = newStmt;*/
                     }
                     tryConsume(TokenType::semi, "Expected ';'");
                     return arr;
@@ -239,10 +297,30 @@ class Parser{
                 return scope.value();
             }else if(auto _if = tryConsume(TokenType::_if)){
                 return parseIf();
-            } else if(auto id = tryConsume(TokenType::id)){
-                if(tryConsume(TokenType::openParenth)){
-                    auto call = new StmtFuncCall;
-                    call->name = id.value().value.value();
+            }else if(peak().has_value() && peak().value().type == TokenType::id && peak(1).has_value() && peak(1).value().type == TokenType::id &&
+                peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new*/) {
+                auto id = tryConsume(TokenType::id);
+                auto strNew = new NodeStmtStructNew;
+                strNew->typeName = id.value().value.value();
+                strNew->id = tryConsume(TokenType::id,"Expected name");
+                if(tryConsume(TokenType::eq)) {
+                    /*tryConsume(TokenType::_new,"Expected 'new'");
+                    tryConsume(TokenType::id,"Expected Type name");*/
+                    if(auto t = parseTerm())
+                        strNew->term = t.value();
+                    else {
+                        //TODO throw error
+                    }
+                }else {
+                    strNew->term = new NodeTermNull;
+                }
+                tryConsume(TokenType::semi,"Expected ';'");
+                return strNew;
+            } else if(auto id = /*tryConsume(TokenType::id)*/ parseTerm()){
+                if(/*tryConsume(TokenType::openParenth)*/auto val = dynamic_cast<NodeTermFuncCall*>(id.value())){
+                    /*auto call = new StmtFuncCall;
+
+                    call->name = static_cast<NodeTerm> id.value().value.value();
                     char i = 0;
                     while(auto expr = parseExpr()){
                         if(i)tryConsume(TokenType::comma,"Expected ','");
@@ -251,10 +329,12 @@ class Parser{
                     }
                     tryConsume(TokenType::closeParenth,"Expected ')'");
                     tryConsume(TokenType::semi,"Expected ';'");
+                    return call;*/
+                    auto* call = new NodeStmtFuncCall;
+                    call->call = val;
                     return call;
-                }else{
-                    if(peak().value().type == TokenType::openBracket){
-                        auto reassign = new NodeStmtArrReassign;
+                }else if(/*peak().value().type == TokenType::openBracket*/auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())){
+                        /*auto reassign = new NodeStmtArrReassign;
                         reassign->id = id.value();
                         while (tryConsume(TokenType::openBracket)){
                             if(auto expr = parseExpr())reassign->exprs.push_back(expr.value());
@@ -280,8 +360,35 @@ class Parser{
                             exit(EXIT_FAILURE);
                         }
                         tryConsume(TokenType::semi, "Expected ';'");
-                        return reassign;
-                    }else {
+                        return reassign;*/
+                    auto reassign = new NodeStmtArrReassign;
+                    reassign->acces = value;
+                    if (peak().has_value() && peak().value().type >= TokenType::eq &&
+                            peak().value().type <= TokenType::pow_eq) {
+                        reassign->op = consume().type;
+
+                        if (auto expr = parseExpr())reassign->expr = expr.value();
+                        else {
+                            std::cerr << "Unexpected expression2" << std::endl;
+                            exit(EXIT_FAILURE);
+                        }
+                    } else if (peak().has_value() && peak().value().type == TokenType::inc ||
+                                       peak().value().type == TokenType::dec) {
+                        reassign->op = consume().type;
+                    } else {
+                        std::cerr << "Expected Assignment Operator1" << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    tryConsume(TokenType::semi, "Expected ';'");
+                    return reassign;
+                }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
+                    auto reassign = new NodeStmtReassign;
+                    reassign->op = consume().type;
+                    reassign->id = id.value();
+
+                    tryConsume(TokenType::semi,"Expected ';'");
+                    return  reassign;
+                }else{
                         auto reassign = new NodeStmtReassign;
                         reassign->id = id.value();
                         if (peak().has_value() && peak().value().type >= TokenType::eq &&
@@ -297,26 +404,12 @@ class Parser{
                                    peak().value().type == TokenType::dec) {
                             reassign->op = consume().type;
                         } else {
-                            std::cerr << "Expected Assignment Operator" << std::endl;
+                            std::cerr << "Expected Assignment Operator2" << std::endl;
                             exit(EXIT_FAILURE);
                         }
                         tryConsume(TokenType::semi, "Expected ';'");
                         return reassign;
-                    }
                 }
-            }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
-                auto reassign = new NodeStmtReassign;
-                reassign->op = peak().value().type;
-                consume();
-                if(auto id = tryConsume(TokenType::id)){
-                    reassign->id = id.value();
-                }else {
-                    std::cerr << "Expected Identifier" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                
-                tryConsume(TokenType::semi,"Expected ';'");
-                return  reassign;
             }else if(peak().has_value() && peak().value().type == TokenType::_return){
                 consume();
                 auto _return = new Return;
@@ -325,9 +418,9 @@ class Parser{
                 }
                 tryConsume(TokenType::semi,"Expected ';'");
                 return _return;
-            }{
+            }//{
                 return {};
-            }
+            //}
         }
 
         NodeStmtIf* parseIf(){
@@ -410,6 +503,31 @@ class Parser{
             return func;
         }
 
+        std::optional<IgType*> parseType() {
+            if(peak(1).value().type != TokenType::id) return  {};
+            switch (peak().value().type) {
+                case TokenType::_struct: {
+                    auto str = new Struct;
+                    consume();
+                    str->name = consume().value.value();
+                    NodeStmtScope* scope = parseScope().value();
+                    for (auto stmt : scope->stmts) {
+                        if(auto val = dynamic_cast<NodeStmtLet *>(stmt)) {
+                            str->vars.push_back(val);
+                            str->types.push_back(val->type);
+                        }else {
+                            std::cerr << "Only Fields/Attributes/Variables are allowed in structs\n";
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                    return str;
+                }
+                //break;
+                default:
+                    return {};
+            }
+        }
+
         SrcFile* parseProg(SrcFile* file){
             m_tokens = file->tokens;
             m_I = file->tokenPtr;
@@ -417,9 +535,10 @@ class Parser{
             {
                 if(auto stmt = parseStmt()){
                     file->stmts.push_back(stmt.value());
-                }else if(auto func = parseFunc()){
-                    //file->funcs.reserve(1);
+                }else if(auto func = parseFunc()) {
                     file->funcs.insert(std::pair(FuncSig(func.value()->name,func.value()->paramType),func.value()));
+                }else if(auto type = parseType()){
+                    file->types.push_back(type.value());
                 }else {
                     std::cerr << "Invalid Expression3" << std::endl;
                     exit(EXIT_FAILURE);

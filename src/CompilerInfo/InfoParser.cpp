@@ -177,8 +177,16 @@
         return {};
     }
 
+std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::string name) {
+    if(auto type = structs.at(name)) {
+        //TODO add parsing and finding of structs from header files
+        //return type;
+    }
+    return {};
+}
 
-    std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
+
+std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
         if(funcs.contains(FuncSig(name,types))) {
             IgFunction* func = funcs[FuncSig(name,types)];
             llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
@@ -198,7 +206,24 @@
         return {};
     }
 
-    void Directory::genFile(std::string path) {
+    std::optional<std::pair<llvm::StructType*,Struct*>> SrcFile::findStruct(std::string name) {
+        if(structs.contains(name)) {
+            return structs.at(name);
+        }
+        for (const auto &item: includes){
+            if(auto ret = item->findStruct(name)){
+                return ret;
+            }
+        }
+        for (const auto &item: _using){
+            if(auto ret = item->findStruct(name)){
+                return ret;
+            }
+        }
+        return {};
+    }
+
+void Directory::genFile(std::string path) {
         if(!mkdir(path.c_str(),0777)){
         }
     }

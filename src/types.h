@@ -9,6 +9,7 @@
 #include "tokenizer.h"
 #include "types.h"
 
+struct Var;
 struct IgFunction;
 
 //#include "langMain/codeGen/Generator.h"
@@ -21,6 +22,8 @@ llvm::Type* getType(TokenType type);
 
 struct NodeStmtScope;
 struct NodeStmt;
+
+llvm::Type* getType(llvm::Type* type);
 
 llvm::Value* generateS(std::variant<NodeStmtScope*,NodeStmt*> var,llvm::IRBuilder<>* builder);
 
@@ -42,6 +45,8 @@ struct Node {
     virtual ~Node() = default;
 
     virtual llvm::Value* generate(llvm::IRBuilder<>* builder) = 0;
+
+    virtual llvm::Value* generatePointer(llvm::IRBuilder<>* builder) = 0;
 };
 
 struct NodeExpr : Node {
@@ -50,29 +55,46 @@ struct NodeExpr : Node {
     char _signed;
 };
 struct NodeStmt;
-struct TermFuncCall;
+struct NodeTermFuncCall;
 struct NodeTerm : NodeExpr{
-    std::optional<NodeTerm*> outer;
+    std::optional<NodeTerm*> contained;
 };
 
 struct NodeTermIntLit final : NodeTerm{
     Token int_lit;
-    char sid;
+    //TODO remove fixed size type sizes
+    char sid = 2;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
+
+struct NodeTermNull final : NodeTerm {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        int size = Types::getSize(static_cast<TokenType>(sid));
-        return  llvm::ConstantInt::get(llvm::IntegerType::get(builder->getContext(),size),std::stoi(int_lit.value.value()),sid <= 3);
+        return llvm::ConstantPointerNull::get(llvm::PointerType::get(builder->getContext(),0));
+    }
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
     };
 };
 
 struct NodeTermId final : NodeTerm{
     Token id;
+    std::vector<std::string> names;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeTermParen final : NodeTerm {
     NodeExpr* expr = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-
+        return expr->generate(builder);
+    };
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
     };
 };
 
@@ -80,11 +102,23 @@ struct NodeTermArrayAcces final : NodeTerm{
     Token id;
     std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeTermStructAcces final : NodeTerm {
+    Token id;
+    Token acc;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeBinExpr : NodeExpr{
     NodeExpr* ls = nullptr;
     NodeExpr* rs = nullptr;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
 };
 
 struct NodeBinExprAdd final : NodeBinExpr{
@@ -120,12 +154,17 @@ struct NodeBinAreth final : NodeBinExpr{
         //return builder->CreateStore(builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder)),ptr);
         return  builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder));
     };
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
 };
 
-struct TermFuncCall final : NodeTerm{
+struct NodeTermFuncCall final : NodeTerm{
     std::string name;
     std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        if(contained)contained.value()->generate(builder);
         std::vector<llvm::Type*> params;
         params.reserve(exprs.size());
         std::vector<llvm::Value*> vals;
@@ -139,37 +178,70 @@ struct TermFuncCall final : NodeTerm{
         llvm::Value* val =  builder->CreateCall(callee,vals);
         return val;
     };
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
+
+struct NodeTermNew final : NodeTerm {
+    std::string typeName;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
 };
 
 struct NodeStmt : Node {
-    
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
 };
 
-struct StmtFuncCall final : NodeStmt{
-    std::string name;
-    std::vector<NodeExpr*> exprs;
+struct NodeStmtFuncCall final : NodeStmt{
+    NodeTermFuncCall* call = nullptr;
+    //std::string name;
+    //std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-
+        /*std::vector<llvm::Type*> params;
+        params.reserve(exprs.size());
+        std::vector<llvm::Value*> vals;
+        vals.reserve(exprs.size());
+        for (const auto expr : exprs) {
+            llvm::Value* val = expr->generate(builder);
+            params.push_back(val->getType());
+            vals.push_back(val);
+        }
+        llvm::FunctionCallee callee = getFunction(name,params);
+        llvm::Value* val =  builder->CreateCall(callee,vals);
+        return val;*/
+        return call->generate(builder);
     };
 };
 
 struct NodeStmtLet : NodeStmt{
-    Token ident;
+    Token id;
+    llvm::Type* type = nullptr;
 };
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
-    char sid;
+    char sid = -1;
     bool _signed;
-    std::optional<NodeExpr*> expr;
+    std::optional<NodeExpr*> expr = {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
-struct NodeStmtNew final : NodeStmtLet{
-    TokenType id;
-    std::vector<NodeExpr*> exprs;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        //TODO add arrays
-    };
+struct NodeStmtNew : NodeStmtLet{
+    std::vector<NodeExpr*> exprs = {};
+    //llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtStructNew final : NodeStmtNew{
+    std::string typeName;
+    NodeTerm* term = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtArr final : NodeStmtLet{
@@ -182,7 +254,7 @@ struct NodeStmtArr final : NodeStmtLet{
 };
 
 struct NodeStmtExit final : NodeStmt{
-    NodeExpr* expr;
+    NodeExpr* expr = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -206,17 +278,18 @@ struct NodeStmtIf final : NodeStmt{
 };
 
 struct NodeStmtReassign final : NodeStmt{
-    Token id;
-    std::optional<NodeExpr*> expr;
+    NodeTerm* id = nullptr;
+    NodeExpr* expr = nullptr;
     TokenType op;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtArrReassign final : NodeStmt{
-    Token id;
+    //Token id;
     std::optional<NodeExpr*> expr;
     TokenType op;
-    std::vector<NodeExpr*> exprs;
+    //std::vector<NodeExpr*> exprs;
+    NodeTermArrayAcces* acces = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -232,6 +305,24 @@ struct IgFunction{
 struct Return final : NodeStmt{
     std::optional<NodeExpr*> val;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct IgType {
+    virtual ~IgType() = default;
+    std::string name;
+
+    virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
+    virtual void generate(llvm::IRBuilder<>* builder) = 0;
+};
+
+struct Struct final : IgType {
+    std::vector<NodeStmtLet*> vars;
+    std::vector<std::string> varIds;
+    std::vector<llvm::Type*> types {};
+
+    void generateSig(llvm::IRBuilder<>* builder) override;
+
+    void generate(llvm::IRBuilder<>* builder) override;
 };
 
 inline llvm::Value* generateS(std::variant<NodeStmtScope*,NodeStmt*> var,llvm::IRBuilder<>* builder) {

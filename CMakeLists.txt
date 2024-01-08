@@ -19,7 +19,7 @@ add_executable(igel
         src/langMain/codeGen/Generator.cpp
         src/langMain/codeGen/types.cpp
 )
-set_target_properties(igel PROPERTIES OUTPUT_NAME "igel.exe")
+set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 
 #This is the LLVM Dependency section
 
