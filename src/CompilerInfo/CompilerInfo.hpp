@@ -16,10 +16,6 @@ class CompilerInfo{
 
         Info* getInfo(){
             std::vector<Token> tokens = m_tokenizer.tokenize(m_file);
-            /*if(!tokens.size()){
-                std::cout << "Unable to tokenise Compiler info" << std::endl;
-                exit(EXIT_FAILURE);
-            }*/
     	    InfoParser parser(tokens);
             Info* info = parser.parse(); 
             return info;

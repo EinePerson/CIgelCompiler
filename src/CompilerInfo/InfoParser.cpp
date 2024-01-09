@@ -46,8 +46,6 @@
 
     Info* InfoParser::parse(){
         m_info = new Info;
-        //std::unordered_map<std::string,SrcFile*> m;
-        //m_info->file_table = m;
         std::string main = "";
         FileItterator it;
         while (peak().has_value()){
@@ -56,14 +54,6 @@
                 m_info->calls.push_back(call.value());
             }else consume();
         }
-        /*std::unordered_map<std::string,size_t> file_I;
-        m_info->files = it.files;
-        m_info->src = it.dir;
-        m_info->file_table.reserve(it.files.size());
-        for(auto file:it.files){
-            file->isMain = file->fullName == main;
-            m_info->file_table[file->fullName] = file;
-        }*/
         return m_info;
     }
 
@@ -180,7 +170,6 @@
 std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::string name) {
     if(auto type = structs.at(name)) {
         //TODO add parsing and finding of structs from header files
-        //return type;
     }
     return {};
 }

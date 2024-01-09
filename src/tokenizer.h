@@ -8,40 +8,40 @@
 #include <map>
 #include <iostream>
 #include <filesystem>
-#include <functional>
 #include <set>
 
 typedef unsigned int uint;
 
 enum class TokenType{
-    _byte = 0,
-    _short = 1,
-    _int = 2,
-    _long = 3,
-    _ubyte = 4,
-    _ushort = 5,
-    _uint = 6,
-    _ulong = 7,
-    _float = 8,
-    _double = 9,
+    uninit = 0,
+    _byte = 1,
+    _short = 2,
+    _int = 3,
+    _long = 4,
+    _ubyte = 5,
+    _ushort = 6,
+    _uint = 7,
+    _ulong = 8,
+    _float = 9,
+    _double = 10,
 
     ///Double equal sign '=='
-    equal = 10,
-    notequal = 11,
-    bigequal = 12,
-    smallequal = 13,
-    big = 14,
-    small = 15,
+    equal = 11,
+    notequal = 12,
+    bigequal = 13,
+    smallequal = 14,
+    big = 15,
+    small = 16,
 
     ///Single equal sign '='
-    eq = 16,
-    plus_eq = 17,
-    sub_eq = 18,
-    div_eq = 19,
-    mul_eq = 20,
-    pow_eq = 21,
-    inc = 22,
-    dec = 23,
+    eq = 17,
+    plus_eq = 18,
+    sub_eq = 19,
+    div_eq = 20,
+    mul_eq = 21,
+    pow_eq = 22,
+    inc = 23,
+    dec = 24,
     str,
     int_lit,
     id,
@@ -183,9 +183,6 @@ class Tokenizer{
             {']',TokenType::closeBracket},
             {'.',TokenType::connector},
     };
-
-   //std::vector<Token> tokenize(std::string file);
-
 
    std::vector<Token> tokenize(std::string file);
 

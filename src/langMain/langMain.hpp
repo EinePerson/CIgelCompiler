@@ -6,7 +6,6 @@
 #include "parser.hpp"
 #include "../CompilerInfo/OptionsParser.h"
 #include "codeGen/Generator.h"
-#include "llvm/Linker/Linker.h"
 
 class LangMain{
     public:
@@ -14,24 +13,22 @@ class LangMain{
         }
 
         void compile(){
-            for(int i = 0;i < m_info->files.size();i++){
-                auto file = m_info->files.at(i);
+            for(const auto file : m_info->files){
                 if(!file->tokens.empty())continue;
-                auto tokens = m_tokenizer.tokenize(file->fullName);
+                const auto tokens = m_tokenizer.tokenize(file->fullName);
                 file->tokens = tokens;
             }
             m_parser.parse(m_info);
-            for (auto src : m_info->src)src->genFile("./build/cmp/");
+            for (const auto src : m_info->src)src->genFile("./build/cmp/");
             if(!std::filesystem::exists("./build/cmp/")) {
-                int ret = mkdir("./build/cmp/", 0777);
-                if (ret != 0) {
+                if (const int ret = mkdir("./build/cmp/", 0777); ret != 0) {
                     std::cerr << strerror(errno);
                     exit(EXIT_FAILURE);
                 }
             }
 
             outFiles << "clang++ -o " << m_info->m_name << " ";
-            if(m_info->files.size() == 0)return;
+            if(m_info->files.empty())return;
             m_gen = new Generator(m_info->files.back());
             for(const auto file:m_info->files){
                 m_gen->setup(file);
@@ -39,25 +36,12 @@ class LangMain{
                 m_gen->write();
                 outFiles << " ./build/cmp/" << file->fullName << ".bc";
             }
-            //std::cout << "Completed Assembling\n";
             std::string temp = outFiles.str();
             const char* str1 = temp.c_str();
             system(str1);
         }
 
 private:
-    /*void genAsm(SrcFile* file) {
-        for (const auto &item: file->includes) {
-            if (item->isGen)continue;
-            genAsm(item);
-        }
-        m_gen->setup(file);
-        m_gen->generate();
-        std::string strs = "nasm -felf64 ./build/cmp/" + file->fullName + ".asm";
-        outFiles << " ./build/cmp/" << file->fullName << ".o";
-        const char *str = strs.c_str();
-        system(str);
-    }*/
 
     void genDir(Directory* dir) {
         int ret = mkdir("./build/cmp/", 0777);

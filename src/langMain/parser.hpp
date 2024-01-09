@@ -42,27 +42,7 @@ char charType(TokenType type){
 
 class Parser{
     public:
-        explicit Parser(){}
-
-        /*std::optional<NodeTermId*> parseId() {
-            if(auto id = tryConsume(TokenType::id)) {
-                NodeTermId* root = new NodeTermId;
-                root->id = id.value();
-                NodeTermId* latest = root;
-                while (tryConsume(TokenType::connector)) {
-                    if(auto cont = tryConsume(TokenType::id)) {
-                        auto latestT = new NodeTermId;
-                        latestT->id = cont.value();
-                        latest->contained = latestT;
-                    }else {
-                        std::cerr << "Expected id after '.' at:" << id->file << ":" << id->line << std::endl;
-                        exit(EXIT_FAILURE);
-                    }
-                }
-                return root;
-            }
-            return {};
-        }*/
+        explicit Parser()= default;
 
         std::optional<NodeTerm*> parseTerm(){
             NodeTerm* term;
@@ -83,14 +63,7 @@ class Parser{
                     }
                     tryConsume(TokenType::closeParenth,"Expected ')'");
                     term = call;
-                }/*else if(tryConsume(TokenType::connector)) {
-                    if(peak().has_value() && peak().value().type == TokenType::id) {
-                        auto termT = new NodeTermStructAcces;
-                        termT->id = id.value();
-                        termT->acc = peak().value();
-                        term = termT;
-                    }
-                }*/else if(peak().value().type == TokenType::openBracket){
+                }else if(peak().value().type == TokenType::openBracket){
                     auto arrAcc = new NodeTermArrayAcces;
                     arrAcc->id = id.value();
                     std::vector<NodeExpr*> ids {};
@@ -128,14 +101,12 @@ class Parser{
             }else
                 return {};
             if(tryConsume(TokenType::connector)) {
-                //if(!dynamic_cast<NodeTermId*>(term))return term;
                 auto termT = new NodeTermStructAcces;
                 termT->id = dynamic_cast<NodeTermId*>(term)->id;
                 auto termF = peak();
                 if(peak(1).has_value() && peak(1).value().type != TokenType::connector)consume();
                 if(!termF)return term;
                 termT->acc = termF.value();
-                //termT->id = tryConsume(TokenType::id,"Expected Identiefier");
                 term = termT;
             }
             if(auto ro = parseTerm()) {
@@ -276,19 +247,6 @@ class Parser{
                     arr->id = consume();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
                         //TODO add new n stuff
-                        /*auto newStmt = new NodeStmtNew;
-                        tryConsume(TokenType::_new, "Expected 'new'");
-
-                        for(int i = 0;i < arr->size.size();i++){
-                            tryConsume(TokenType::openBracket,"Expected '['");
-                            if(auto expr = parseExpr())newStmt->exprs.push_back(expr.value());
-                            else{
-                                std::cerr << "Expected expression" << std::endl;
-                                exit(EXIT_FAILURE);
-                            }
-                            tryConsume(TokenType::closeBracket,"Expected ']'");
-                        }
-                        arr->create = newStmt;*/
                     }
                     tryConsume(TokenType::semi, "Expected ';'");
                     return arr;
@@ -304,8 +262,6 @@ class Parser{
                 strNew->typeName = id.value().value.value();
                 strNew->id = tryConsume(TokenType::id,"Expected name");
                 if(tryConsume(TokenType::eq)) {
-                    /*tryConsume(TokenType::_new,"Expected 'new'");
-                    tryConsume(TokenType::id,"Expected Type name");*/
                     if(auto t = parseTerm())
                         strNew->term = t.value();
                     else {
@@ -317,50 +273,11 @@ class Parser{
                 tryConsume(TokenType::semi,"Expected ';'");
                 return strNew;
             } else if(auto id = /*tryConsume(TokenType::id)*/ parseTerm()){
-                if(/*tryConsume(TokenType::openParenth)*/auto val = dynamic_cast<NodeTermFuncCall*>(id.value())){
-                    /*auto call = new StmtFuncCall;
-
-                    call->name = static_cast<NodeTerm> id.value().value.value();
-                    char i = 0;
-                    while(auto expr = parseExpr()){
-                        if(i)tryConsume(TokenType::comma,"Expected ','");
-                        call->exprs.push_back(expr.value());
-                        if(!tryConsume(TokenType::comma))i = 1;
-                    }
-                    tryConsume(TokenType::closeParenth,"Expected ')'");
-                    tryConsume(TokenType::semi,"Expected ';'");
-                    return call;*/
+                if(auto val = dynamic_cast<NodeTermFuncCall*>(id.value())){
                     auto* call = new NodeStmtFuncCall;
                     call->call = val;
                     return call;
-                }else if(/*peak().value().type == TokenType::openBracket*/auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())){
-                        /*auto reassign = new NodeStmtArrReassign;
-                        reassign->id = id.value();
-                        while (tryConsume(TokenType::openBracket)){
-                            if(auto expr = parseExpr())reassign->exprs.push_back(expr.value());
-                            else{
-
-                            }
-                            tryConsume(TokenType::closeBracket,"Expected ']'");
-                        }
-                        if (peak().has_value() && peak().value().type >= TokenType::eq &&
-                            peak().value().type <= TokenType::pow_eq) {
-                            reassign->op = consume().type;
-
-                            if (auto expr = parseExpr())reassign->expr = expr.value();
-                            else {
-                                std::cerr << "Unexpected expression2" << std::endl;
-                                exit(EXIT_FAILURE);
-                            }
-                        } else if (peak().has_value() && peak().value().type == TokenType::inc ||
-                                   peak().value().type == TokenType::dec) {
-                            reassign->op = consume().type;
-                        } else {
-                            std::cerr << "Expected Assignment Operator" << std::endl;
-                            exit(EXIT_FAILURE);
-                        }
-                        tryConsume(TokenType::semi, "Expected ';'");
-                        return reassign;*/
+                }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())){
                     auto reassign = new NodeStmtArrReassign;
                     reassign->acces = value;
                     if (peak().has_value() && peak().value().type >= TokenType::eq &&
@@ -418,9 +335,8 @@ class Parser{
                 }
                 tryConsume(TokenType::semi,"Expected ';'");
                 return _return;
-            }//{
+            }
                 return {};
-            //}
         }
 
         NodeStmtIf* parseIf(){
@@ -488,17 +404,7 @@ class Parser{
                 exit(EXIT_FAILURE);
             }
 
-            /*std::stringstream ss;
-            ss << hname.value();
-            for(auto type : func->paramType){
-                ss << charType(type);
-            }*/
-            //charType(func->_return);
-            //std::string name = ss.str();
             func->name = hname.value();
-            //charType(func->_return);
-            //func->fullName = charType(func->_return);
-            //func->fullName += name;
 
             return func;
         }
@@ -574,5 +480,5 @@ class Parser{
     private:
         std::vector<Token> m_tokens;
         size_t m_I = 0;
-        char m_sidFlag;
+        char m_sidFlag = -1;
 };

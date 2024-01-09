@@ -36,10 +36,10 @@ struct FuncSig {
     llvm::Type* _return;
 
     bool operator==(const FuncSig& sig) const {
-        if(!(name == sig.name))return false;
-        if(!(types.size() == sig.types.size()))return false;
+        if(name != sig.name)return false;
+        if(types.size() != sig.types.size())return false;
         for(size_t i = 0;i < types.size();i++) {
-            if(!(types[i] == sig.types[i]))return false;
+            if(types[i] != sig.types[i])return false;
         }
         if(_return != nullptr && sig._return != nullptr)return _return == sig._return;
         return true;
@@ -118,7 +118,7 @@ struct HeaderItterator {
 std::string removeExtension(const std::string& filename);
 class InfoParser {
 public:
-    InfoParser(std::vector<Token> tokens);
+    explicit InfoParser(std::vector<Token> tokens);
 
     static std::map<std::string,std::function<void(InfoParser*,std::vector<std::string>)>> funcs;
 
@@ -131,27 +131,26 @@ public:
     FileItterator listFiles(std::string path,const std::string& name);
 
 private:
-    inline std::optional<Token> peak(int count = 0) const{
+    [[nodiscard]] std::optional<Token> peak(int count = 0) const{
         if(m_I + count >= m_tokens.size())return {};
-        else return m_tokens.at(m_I + count);
+        return m_tokens.at(m_I + count);
     }
 
-    inline Token consume(){
+    Token consume(){
         return m_tokens.at(m_I++);
     }
 
-    inline Token tryConsume(TokenType type,const std::string& err){
+    Token tryConsume(TokenType type,const std::string& err){
         if(peak().has_value() && peak().value().type == type)return consume();
-        else {
-            std::cerr << err << "\n" << (peak().has_value() ? peak().value().file:peak(-1).value().file) << ": " << (peak().has_value() ? peak().value().line:peak(-1).value().line) << "\n";
-            std::cerr << std::endl;
-            exit(EXIT_FAILURE);
-        }
+
+        std::cerr << err << "\n" << (peak().has_value() ? peak().value().file:peak(-1).value().file) << ": " << (peak().has_value() ? peak().value().line:peak(-1).value().line) << "\n";
+        std::cerr << std::endl;
+        exit(EXIT_FAILURE);
     }
 
-    inline std::optional<Token> tryConsume(TokenType type){
+    std::optional<Token> tryConsume(TokenType type){
         if(peak().has_value() && peak().value().type == type)return consume();
-        else return {};
+        return {};
     }
 
     std::vector<Token> m_tokens;

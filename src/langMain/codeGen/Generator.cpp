@@ -48,8 +48,7 @@
 Generator* Generator::instance = nullptr;
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 
-Generator::Generator(SrcFile* file) : m_file(file), m_target_triple(sys::getDefaultTargetTriple()) {
-    //m_contxt = std::make_unique<LLVMContext>();
+Generator::Generator(SrcFile* file) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setup();
@@ -57,42 +56,14 @@ Generator::Generator(SrcFile* file) : m_file(file), m_target_triple(sys::getDefa
     instance = this;
 }
 
-Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()) {
-    //m_contxt = std::make_unique<LLVMContext>();
+Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr) {
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setup();
 }
 
-void Generator::setup() {
-
-    /*m_module->setTargetTriple(m_target_triple);
-    std::string Error;
-    auto Target = TargetRegistry::lookupTarget(m_target_triple, Error);
-
-    // Print an error and exit if we couldn't find the requested target.
-    // This generally occurs if we've forgotten to initialise the
-    // TargetRegistry or we have a bogus target triple.
-    if (!Target) {
-        errs() << Error;
-        exit(EXIT_FAILURE);
-    }
-    auto CPU = "generic";
-    auto Features = "";
-
-    TargetOptions opt;
-    auto RM = std::optional<Reloc::Model>();
-    m_machine = Target->createTargetMachine(m_target_triple, CPU, Features, opt, RM);
-    DataLayout l = m_machine->createDataLayout();
-    m_layout = &l;
-    m_module->setDataLayout(*m_layout);*/
-}
-
 void Generator::setup(SrcFile* file) {
-    //if(setupFlag)return;
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_file = file;
-    /*m_module->setTargetTriple(m_target_triple);
-    m_module->setDataLayout(*m_layout);*/
     setupFlag = true;
     instance = this;
 }
@@ -169,7 +140,6 @@ void Generator::genFunc(IgFunction* func) {
     m_vars.pop_back();
     if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
-        //m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
     }
 }
@@ -181,7 +151,6 @@ void Generator::reset(SrcFile* file) {
     m_vars.clear();
 
 
-    //m_contxt = std::make_unique<LLVMContext>();
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
 }
@@ -232,8 +201,6 @@ void Generator::write() {
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
     MPM.run(*m_module,MAM);
 
-    //m_module->print(outs(),nullptr);
-
     std::error_code EC;
     raw_fd_ostream dest("./build/cmp/" + m_file->fullName + ".bc", EC, sys::fs::OF_None);
     if (EC) {
@@ -248,54 +215,14 @@ void Generator::write() {
 }
 
 llvm::Value* Generator::genStructVar(std::string typeName) {
-    /*if(auto structT = Generator::instance->m_file->findStruct(std::move(name))) {
-        //auto type = PointerType::get(structT.value().first,0);
-        auto type = PointerType::get(*m_contxt,0);
-        //auto type = structT.value().first;
-        AllocaInst* alloc = m_builder->CreateAlloca(type);
-        Value* gen = term->generate(m_builder.get());
-        m_builder->CreateStore(/*this->_new()*//*genllvm::ConstantPointerNull::get(PointerType::get(*m_contxt,0)),alloc);
-
-        auto var = new StructVar(alloc);
-        var->type = type;
-        var->strType = structT.value().first;
-        m_currentVar.push_back(var);
-        m_sVarId.push_back(0);
-
-        var->types.reserve(structT.value().second->vars.size());
-        /*for(size_t i = 0;i < structT.value().first->getNumElements();i++) {
-            structT.value().first->getElementType(i)->print(outs(),true);
-        }
-
-        for (auto node_stmt_let : structT.value().second->vars) {
-            Value* ptr = m_builder->CreateLoad(PointerType::get(*m_contxt,0),var->alloc);
-            //m_module->print(outs(),nullptr);
-            //std::cout << "\n\n";
-            //structT.value().first->getElementType(m_sVarId.back())->print(outs());
-            //std::cout << structT.value().first->getNumElements() << "A\n";
-            Value* val = m_builder->CreateStructGEP(structT.value().first,ptr,m_sVarId.back());
-            Value* gen = node_stmt_let->generate(m_builder.get());
-            m_builder->CreateStore(gen,val);
-            //m_varLast.back()->alloc = val;
-            //var->varPtrs[node_stmt_let->ident.value.value()] = m_varLast.back();
-            //m_varLast.pop_back();
-            var->types.push_back(gen->getType());
-            m_sVarId.back()++;
-        }
-
-        m_currentVar.pop_back();
-        m_sVarId.pop_back();
-        m_vars.back()[id.value.value()] = var;
-    }*/
-
-    if(auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
+    if(const auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
         //m_currentVar.push_back(var);
         m_currentVar++;
         m_sVarId.push_back(0);
         FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
-        FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
+        const FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
         Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
-        for (auto node_stmt_let : structT.value().second->vars) {
+        for (const auto node_stmt_let : structT.value().second->vars) {
             Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
             Value* gen = node_stmt_let->generate(m_builder.get());
             m_builder->CreateStore(gen,val);
@@ -314,19 +241,18 @@ auto Generator::exitG(Value* exitCode) const -> Value* {
     FunctionType *fType = FunctionType::get(Type::getVoidTy(*m_contxt), params, false);
     FunctionCallee exitFunc = m_module->getOrInsertFunction("exit",fType);
     Value* ret = m_builder->CreateCall(exitFunc, {exitCode});
-    //m_builder->CreateUnreachable();
     return ret;
 }
 
 Value* Generator::_new() const {
     FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
-    FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
+    const FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
     return m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
 }
 
 
-Var* Generator::getVar(std::string name, bool _this) {
-    std::optional<Var*> opt = getOptVar(name,_this);
+auto Generator::getVar(const std::string&name, bool _this){
+    const std::optional<Var*> opt = getOptVar(name,_this);
     if(!opt.has_value()) {
         std::cerr << "Undeclared identifier: " << name << std::endl;
         exit(EXIT_FAILURE);
@@ -348,32 +274,6 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
     return  {};
 }
 
-/*Var* Generator::getVar(const std::vector<std::string>&names, const bool _this) {
-    std::optional<Var*> opt = getOptVar(names,_this);
-    if(!opt.has_value()) {
-        std::cerr << "Undeclared identifier: ";
-        for (auto name : names) std::cerr << name;
-        std::cerr << std::endl;
-        exit(EXIT_FAILURE);
-    }
-return opt.value();
-}*/
-
-/*std::optional<Var*> Generator::getOptVar(const std::vector<std::string>&names, bool _this) {
-    if(names.empty())return {};
-    StructVar* str = nullptr;
-    if(auto var = getOptVar(names[0])) {
-        if(auto _struct = dynamic_cast<StructVar*>(var.value()))str = _struct;
-        else return {};
-    }else return {};
-    for(size_t i = 1;i < names.size() - 1;i++) {
-        if(str->varPtrs.contains(names[i]))str = dynamic_cast<StructVar*>(str->varPtrs[names[i]]);
-        else return {};
-    }
-    if(str->varPtrs.contains(names.back()))return str->varPtrs[names.back()];
-    return {};
-}*/
-
 void Generator::createVar(const std::string&name,Type* type,Value* val) {
     if(m_currentVar == 0) {
         if(getOptVar(name)) {
@@ -382,21 +282,13 @@ void Generator::createVar(const std::string&name,Type* type,Value* val) {
         AllocaInst* alloc = m_builder->CreateAlloca(type);
         m_builder->CreateStore(val,alloc);
         m_vars.back()[name] = new Var{alloc};
-    }/*else {
-        m_currentVar.back()->vars[name] = m_sVarId.back();
-        //m_varLast.push_back(new Var(nullptr));
-    }*/
+    }
 }
 
 void Generator::createVar(Argument* arg) {
-    //if(m_currentVar.empty()) {
-        AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
-        m_builder->CreateStore(arg,alloc);
-        m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
-    /*}else {
-        m_currentVar.back()->vars[static_cast<std::string>(arg->getName())] = m_sVarId.back();
-        //currentVar.back()->vars[static_cast<std::string>(arg->getName())] = new Var{alloc}
-    }*/
+    AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
+    m_builder->CreateStore(arg,alloc);
+    m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
 }
 
 

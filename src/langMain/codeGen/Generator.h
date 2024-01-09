@@ -27,7 +27,7 @@ struct Var {
 };
 
 struct ArrayVar : Var {
-    ArrayVar(Value* alloc) : Var(alloc) {}
+    explicit ArrayVar(Value* alloc) : Var(alloc) {}
     std::vector<Type*> types;
     std::vector<AllocaInst*> sizes;
 };
@@ -64,30 +64,22 @@ public:
     llvm::Value* genStructVar(std::string typeName);
 
     Value* exitG(Value* exitCode) const;
-    Value* _new() const;
+    [[nodiscard]] Value* _new() const;
 
-    Var* getVar(std::string name, bool _this = false);
+    Var* getVar(const std::string&name, bool _this = false);
     std::optional<Var*> getOptVar(std::string name, bool _this = false);
-
-    //Var* getVar(const std::vector<std::string>&names, bool _this = false);
-
-    //std::optional<Var*> getOptVar(const std::vector<std::string>&names, bool _this = false);
 
     void createVar(const std::string&name,Type* type,Value* val);
     void createVar(Argument* arg);
 private:
-    void setup();
-
 
     std::unique_ptr<IRBuilder<>> m_builder;
     bool setupFlag = false;
     std::string m_target_triple;
     DataLayout* m_layout;
     TargetMachine* m_machine;
-    //std::vector<StructVar*> m_currentVar;
     uint m_currentVar = 0;
     std::vector<uint> m_sVarId;
-    //std::vector<Var*> m_varLast;
 public:
     SrcFile* m_file;
     std::unique_ptr<Module> m_module;

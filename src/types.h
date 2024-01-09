@@ -146,12 +146,11 @@ struct NodeBinExprDiv final : NodeBinExpr{
 };
 
 struct NodeBinAreth final : NodeBinExpr{
-    TokenType type;
+    TokenType type = TokenType::uninit;
     //TODO add Types
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
         llvm::AllocaInst* ptr = builder->CreateAlloca(llvm::Type::getInt1Ty(builder->getContext()));
         builder->CreateLoad(ptr->getType(),ptr);
-        //return builder->CreateStore(builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder)),ptr);
         return  builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder));
     };
 
@@ -174,7 +173,7 @@ struct NodeTermFuncCall final : NodeTerm{
             params.push_back(val->getType());
             vals.push_back(val);
         }
-        llvm::FunctionCallee callee = getFunction(name,params);
+        const llvm::FunctionCallee callee = getFunction(name,params);
         llvm::Value* val =  builder->CreateCall(callee,vals);
         return val;
     };
@@ -202,21 +201,7 @@ struct NodeStmt : Node {
 
 struct NodeStmtFuncCall final : NodeStmt{
     NodeTermFuncCall* call = nullptr;
-    //std::string name;
-    //std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        /*std::vector<llvm::Type*> params;
-        params.reserve(exprs.size());
-        std::vector<llvm::Value*> vals;
-        vals.reserve(exprs.size());
-        for (const auto expr : exprs) {
-            llvm::Value* val = expr->generate(builder);
-            params.push_back(val->getType());
-            vals.push_back(val);
-        }
-        llvm::FunctionCallee callee = getFunction(name,params);
-        llvm::Value* val =  builder->CreateCall(callee,vals);
-        return val;*/
         return call->generate(builder);
     };
 };
@@ -228,14 +213,13 @@ struct NodeStmtLet : NodeStmt{
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
     char sid = -1;
-    bool _signed;
+    bool _signed = true;
     std::optional<NodeExpr*> expr = {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtNew : NodeStmtLet{
     std::vector<NodeExpr*> exprs = {};
-    //llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
@@ -280,21 +264,18 @@ struct NodeStmtIf final : NodeStmt{
 struct NodeStmtReassign final : NodeStmt{
     NodeTerm* id = nullptr;
     NodeExpr* expr = nullptr;
-    TokenType op;
+    TokenType op = TokenType::uninit;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtArrReassign final : NodeStmt{
-    //Token id;
     std::optional<NodeExpr*> expr;
-    TokenType op;
-    //std::vector<NodeExpr*> exprs;
+    TokenType op = TokenType::uninit;
     NodeTermArrayAcces* acces = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct IgFunction{
-    //std::string fullName;
     std::string name;
     std::vector<llvm::Type*> paramType;
     std::vector<std::string> paramName;
