@@ -1,3 +1,4 @@
 # CIgelCompiler
-This is a Compiler for my own programming language i am trying to create. 
-When this is finished i will try to rewrite the compiler in the language
+This is the source code of C++ version of the Compiler for the (Not yet Finished) programming language Igel.<br>
+There will be a link to the Igel version of the compiler once it is created.<br><br>
+The source code can be built with running cmake on this directory. It is currently Linux only.
