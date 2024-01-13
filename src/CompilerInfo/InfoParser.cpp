@@ -191,6 +191,9 @@ std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vec
                 return ret;
             }
         }
+        if(Tokenizer::LIB_FUNCS.contains(name)) {
+            return  Tokenizer::LIB_FUNCS.at(name)();
+        }
 
         return {};
     }

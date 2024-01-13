@@ -9,40 +9,42 @@
 #include <iostream>
 #include <filesystem>
 #include <set>
+#include <llvm/IR/DerivedTypes.h>
 
 typedef unsigned int uint;
 
 enum class TokenType{
-    uninit = 0,
-    _byte = 1,
-    _short = 2,
-    _int = 3,
-    _long = 4,
-    _ubyte = 5,
-    _ushort = 6,
-    _uint = 7,
-    _ulong = 8,
-    _float = 9,
-    _double = 10,
+    uninit = -1,
+    _byte = 0,
+    _short = 1,
+    _int = 2,
+    _long = 3,
+    _ubyte = 4,
+    _ushort = 5,
+    _uint = 6,
+    _ulong = 7,
+    _float = 8,
+    _double = 9,
 
     ///Double equal sign '=='
-    equal = 11,
-    notequal = 12,
-    bigequal = 13,
-    smallequal = 14,
-    big = 15,
-    small = 16,
+    equal = 10,
+    notequal = 11,
+    bigequal = 12,
+    smallequal = 13,
+    big = 14,
+    small = 15,
 
     ///Single equal sign '='
-    eq = 17,
-    plus_eq = 18,
-    sub_eq = 19,
-    div_eq = 20,
-    mul_eq = 21,
-    pow_eq = 22,
-    inc = 23,
-    dec = 24,
+    eq = 16,
+    plus_eq = 17,
+    sub_eq = 18,
+    div_eq = 19,
+    mul_eq = 20,
+    pow_eq = 21,
+    inc = 22,
+    dec = 23,
     str,
+    _char_lit,
     int_lit,
     id,
 
@@ -64,6 +66,10 @@ enum class TokenType{
 
     _if,
     _else,
+    _for,
+    _while,
+    _break,
+    _continue,
 
     semi,
     comma,
@@ -129,62 +135,77 @@ class Tokenizer{
             {"ulong",TokenType::_ulong},
             {"float",TokenType::_float},
             {"double",TokenType::_double},
+
             {"==",TokenType::equal},
             {"!=",TokenType::notequal},
             {">=",TokenType::bigequal},
             {"<=",TokenType::smallequal},
+
             {"&&",TokenType::_and},
             {"||",TokenType::_or},
             {"!|",TokenType::_xor},
+
             {"else",TokenType::_else},
+            {"break",TokenType::_break},
+            {"continue",TokenType::_continue},
+
             {"void",TokenType::_void},
             {"return",TokenType::_return},
+
             {"use",TokenType::use},
             {"using",TokenType::use},
             {"include",TokenType::include},
+
             {"public",TokenType::_public},
             {"private",TokenType::_private},
             {"protected",TokenType::_protected},
+
             {"new",TokenType::_new},
-            {"struct",TokenType::_struct},
             {"null",TokenType::null},
+
+            {"struct",TokenType::_struct},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {
-            {"exit",TokenType::_exit},
+            //{"exit",TokenType::_exit},
             {"if",TokenType::_if},
+            {"for",TokenType::_for},
+            {"while",TokenType::_while},
     };
 
-    Token token{.type = TokenType::int_lit};
-
     const std::map<std::string,Token> REPLACE = {
-            {"false",Token{.type = TokenType::int_lit}},
-            {"true",Token{.type = TokenType::int_lit}}
+            {"false",Token{.type = TokenType::int_lit,.value = "0"}},
+            {"true",Token{.type = TokenType::int_lit,.value = "1"}}
     };
 
    const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
             {';',TokenType::semi},
             {',',TokenType::comma},
+
             {'(',TokenType::openParenth},
             {')',TokenType::closeParenth},
+            {'{',TokenType::openCurl},
+            {'}',TokenType::closeCurl},
+            {'[',TokenType::openBracket},
+            {']',TokenType::closeBracket},
+
             {'=',TokenType::eq},
             {'+',TokenType::plus},
             {'-',TokenType::sub},
             {'/',TokenType::div},
             {'*',TokenType::mul},
             {'^',TokenType::pow},
-            {'{',TokenType::openCurl},
-            {'}',TokenType::closeCurl},
-            {'}',TokenType::closeCurl},
+
 
             {'>',TokenType::big},
             {'<',TokenType::small},
-            {'[',TokenType::openBracket},
-            {']',TokenType::closeBracket},
+
             {'.',TokenType::connector},
     };
 
-   std::vector<Token> tokenize(std::string file);
+    static std::map<std::string,std::function<llvm::FunctionCallee()>> LIB_FUNCS;
+
+   std::vector<Token> tokenize(const std::string&file);
 
 private:
         [[nodiscard]] std::optional<char> peak(uint count = 0) const{
@@ -194,6 +215,11 @@ private:
 
         char consume(){
             return m_src.at(m_I++);
+        }
+
+        void err(const std::string&err) const {
+            std::cerr << err << "\n" << "   at: " <<  m_tokens.back().file << ":" << m_tokens.back().line << std::endl;
+            exit(EXIT_FAILURE);
         }
 
         static std::string read(const std::string& name){
@@ -211,4 +237,5 @@ private:
         std::string m_src;
         size_t m_I = 0;
         std::set<std::string> m_extended_funcs;
+        std::vector<Token> m_tokens {};
 };

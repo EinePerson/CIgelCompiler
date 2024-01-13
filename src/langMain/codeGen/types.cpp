@@ -90,7 +90,6 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      builder->CreateCondBr(_if,then,elseB);
 
      builder->SetInsertPoint(then);
-     //llvm::Value* thenVal = generateS(scope,builder);
      //TODO add exception throwing when IndexOutOfBounds
 
      builder->CreateBr(merge);
@@ -109,16 +108,6 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
 llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      StructVar* var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
      uint fid = var->vars[acc.value.value()];
-     /*Value* val = nullptr;
-     if(contained) {
-          val = contained.value()->generate(builder);
-          //val = builder->CreateStructGEP(gen->getType(),gen,
-     }else {
-          val = builder->CreateLoad(var->type,var->alloc);
-     }
-     //var->strType->print(outs());
-     Value* ptr = builder->CreateStructGEP(var->strType,val,fid);+*/
-     //for (auto type : var->types)type->print(outs());
      return builder->CreateLoad(var->types[fid],this->generatePointer(builder));
 }
 
@@ -166,19 +155,6 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
           std::cerr << "Undeclarde Type " << typeName << std::endl;
           exit(EXIT_FAILURE);
      }
-
-     //Generator::instance->genStructVar(typeName,id);
-     //Generator::instance->genStructVar(typeName,id);
-     /*if(auto structT = Generator::instance->m_file->findStruct(typeName)) {
-          auto type = PointerType::get(structT,0);
-          StructVar* var = new StructVar;
-          var->alloc = builder->CreateAlloca(type);
-          Generator::currentVar.push_back(var);
-
-
-
-          Generator::currentVar.pop_back();
-     }*/
 }
 
 llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
@@ -200,11 +176,24 @@ llvm::Value* NodeStmtExit::generate(llvm::IRBuilder<>* builder) {
      Value* val = expr->generate(builder);
      Generator* gen = Generator::instance;
 
-     //Generator::instance->m_module->print(outs(),nullptr);
-     //if(val->getType()->isIntegerTy())
-          return gen->exitG(val);
-     //else return  gen->exitG(builder->CreateLoad(IntegerType::getInt32Ty(builder->getContext()),val));
+     return gen->exitG(val);
 }
+
+llvm::Value* NodeStmtScope::generate(llvm::IRBuilder<>* builder) {
+     llvm::Value* val = nullptr;
+     Generator::lastUnreachable = false;
+     Generator::unreachableFlag.push_back(false);
+     for (const auto stmt : stmts) {
+          if(Generator::unreachableFlag.back()) {
+               Generator::unreachableFlag.pop_back();
+               Generator::lastUnreachable = true;
+          }
+          val = stmt->generate(builder);
+     }
+     Generator::lastUnreachable = Generator::unreachableFlag.back();
+     Generator::unreachableFlag.pop_back();
+     return val;
+};
 
 llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      llvm::Value* val = expr[0]->generate(builder);
@@ -213,6 +202,9 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
           else val = builder->CreateLogicalOr(val,expr[i]->generate(builder));
      }
 
+     if(!Generator::instance->next.empty()) {
+          std::cout << Generator::instance->next.back()->getName().str() << "\n";
+     }
      llvm::Function* parFunc = builder->GetInsertBlock()->getParent();
      llvm::BasicBlock* then = llvm::BasicBlock::Create(builder->getContext(),"then",parFunc);
      llvm::BasicBlock* elseB = llvm::BasicBlock::Create(builder->getContext(),"else");
@@ -222,23 +214,27 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
 
      builder->SetInsertPoint(then);
      llvm::Value* thenVal = generateS(scope,builder);
-
-     builder->CreateBr(merge);
+     if(!Generator::lastUnreachable) {
+          builder->CreateBr(merge);
+     }
      then = builder->GetInsertBlock();
 
      llvm::Value* elseV = nullptr;
      if(scope_else) {
-
           parFunc->insert(parFunc->end(),elseB);
           builder->SetInsertPoint(elseB);
           elseV = generateS(scope_else.value(),builder);
-          builder->CreateBr(merge);
+          if(!Generator::lastUnreachable) {
+               builder->CreateBr(merge);
+          }
           elseB = builder->GetInsertBlock();
      }else if(else_if) {
           parFunc->insert(parFunc->end(),elseB);
           builder->SetInsertPoint(elseB);
           elseV = else_if.value()->generate(builder);
-          builder->CreateBr(merge);
+          if(!Generator::lastUnreachable) {
+               builder->CreateBr(merge);
+          }
           elseB = builder->GetInsertBlock();
      }else {
           parFunc->insert(parFunc->end(),elseB);
@@ -248,77 +244,93 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      }
      parFunc->insert(parFunc->end(),merge);
      builder->SetInsertPoint(merge);
-     /*llvm::PHINode* phi = builder->CreatePHI(thenVal->getType(),2,"iftmp");
-     phi->addIncoming(thenVal,then);
-     if(elseV) {
-          phi->addIncoming(elseV,elseB);
-     }*/
-     //Generator::instance->m_module->print(outs(),nullptr);
      return elseB != nullptr?elseB:then;
 }
 
+llvm::Value* NodeStmtFor::generate(llvm::IRBuilder<>* builder) {
+     Value* var = let->generate(builder);
+     Function* func = builder->GetInsertBlock()->getParent();
+     BasicBlock* head = BasicBlock::Create(builder->getContext(), "head", func);
+     BasicBlock* scopeB = BasicBlock::Create(builder->getContext(), "scope",func);
+     BasicBlock* tail = BasicBlock::Create(builder->getContext(), "tail");
+     BasicBlock* next = BasicBlock::Create(builder->getContext(), "next",func);
+     builder->CreateBr(head);
+     builder->SetInsertPoint(head);
+
+     llvm::Value* val = expr[0]->generate(builder);
+     for (size_t i = 1;i < expr.size();i++) {
+          if(exprCond[i - 1] == TokenType::_and)val = builder->CreateLogicalAnd(val,expr[i]->generate(builder));
+          else val = builder->CreateLogicalOr(val,expr[i]->generate(builder));
+     }
+
+     builder->CreateCondBr(val,scopeB,next);
+     builder->SetInsertPoint(scopeB);
+
+     Generator::instance->after.push_back(next);
+     Generator::instance->next.push_back(tail);
+     generateS(scope,builder);
+     Generator::instance->next.pop_back();
+     Generator::instance->after.pop_back();
+
+     builder->CreateBr(tail);
+     func->insert(func->end(),tail);
+     builder->SetInsertPoint(tail);
+     res->generate(builder);
+     builder->CreateBr(head);
+
+     builder->SetInsertPoint(next);
+     return next;
+}
+
+llvm::Value* NodeStmtWhile::generate(llvm::IRBuilder<>* builder) {
+     Function* func = builder->GetInsertBlock()->getParent();
+     BasicBlock* head = BasicBlock::Create(builder->getContext(), "head", func);
+     BasicBlock* scopeB = BasicBlock::Create(builder->getContext(), "scope", func);
+     BasicBlock* next = BasicBlock::Create(builder->getContext(), "next",func);
+     builder->CreateBr(head);
+     builder->SetInsertPoint(head);
+
+     llvm::Value* val = expr[0]->generate(builder);
+     for (size_t i = 1;i < expr.size();i++) {
+          if(exprCond[i - 1] == TokenType::_and)val = builder->CreateLogicalAnd(val,expr[i]->generate(builder));
+          else val = builder->CreateLogicalOr(val,expr[i]->generate(builder));
+     }
+
+     builder->CreateCondBr(val,scopeB,next);
+     builder->SetInsertPoint(scopeB);
+
+     Generator::instance->after.push_back(next);
+     Generator::instance->next.push_back(head);
+     generateS(scope,builder);
+     Generator::instance->next.pop_back();
+     Generator::instance->after.pop_back();
+
+     builder->CreateBr(head);
+     next->moveAfter(&func->back());
+     builder->SetInsertPoint(next);
+     return next;
+}
+
+
 llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
-     //Var* var = Generator::instance->getVar(id.value.value());
-     //TODO REMEMBER
      Value* val = id->generatePointer(builder);
-     //Value* val = id->generate(builder);
      if(op == TokenType::eq) {
-          //Generator::instance->m_module->print(outs(),nullptr);
           return builder->CreateStore(expr->generate(builder),val);
      }else {
           Value* load = builder->CreateLoad(val->getType(),val);
-          Value* _new = expr->generate(builder);
-          load = builder->CreatePtrToInt(load,_new->getType());
+          Value* _new = nullptr;
+          if(expr != nullptr)_new = expr->generate(builder);
+          load = builder->CreatePtrToInt(load,_new == nullptr ? IntegerType::getInt8Ty(builder->getContext()): _new->getType());
           Value* res = generateReassing(load,_new,op,builder);
           return builder->CreateStore(res,val);
      }
 }
 
 llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
-     /*ArrayVar* var = static_cast<ArrayVar *>(Generator::instance->getVar(id.value.value()));
-
-     Value* ep = var->alloc;
-     Value* _if = nullptr;
-     /*for (auto expr : exprs) {
-
-          ep = builder->CreateGEP(var->types[var->types.size() - exprs.size() - 1],ep,expr->generate(builder));
-     }*//*
-     for (size_t i = 0;i < exprs.size();i++) {
-          Value* size = exprs[i]->generate(builder);
-          Value* arrSize = builder->CreateLoad(IntegerType::getInt32Ty(builder->getContext()),var->sizes[i]);
-          if(i == 0) {
-               _if = builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize);
-          }else {
-               _if = builder->CreateOr(_if,builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize));
-          }
-          ep = builder->CreateGEP(var->types[var->types.size() - exprs.size() - 1],ep,size);
-     }
-     llvm::Function* parFunc = builder->GetInsertBlock()->getParent();
-     llvm::BasicBlock* then = llvm::BasicBlock::Create(builder->getContext(),"then",parFunc);
-     llvm::BasicBlock* elseB = llvm::BasicBlock::Create(builder->getContext(),"else");
-     llvm::BasicBlock* merge = llvm::BasicBlock::Create(builder->getContext(),"ifcont");
-
-     builder->CreateCondBr(_if,then,elseB);
-
-     builder->SetInsertPoint(then);
-     //llvm::Value* thenVal = generateS(scope,builder);
      //TODO add exception throwing when IndexOutOfBounds
-
-     builder->CreateBr(merge);
-     then = builder->GetInsertBlock();
-
-     parFunc->insert(parFunc->end(),elseB);
-     builder->SetInsertPoint(elseB);
-     builder->CreateBr(merge);
-     elseB = builder->GetInsertBlock();
-
-     parFunc->insert(parFunc->end(),merge);
-     builder->SetInsertPoint(merge);*/
-
      Value* ep = acces->generatePointer(builder);
      if(op == TokenType::eq) {
           Value* gen = expr.value()->generate(builder);
-          //Generator::instance->m_module->print(outs(),nullptr);
           Value* val = builder->CreateStore(gen,ep);
           return val;
      }else {
@@ -330,12 +342,24 @@ llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
      }
 };
 
-llvm::Value* Return::generate(llvm::IRBuilder<>* builder)  {
+llvm::Value* NodeStmtReturn::generate(llvm::IRBuilder<>* builder)  {
      if(val) {
           return  builder->CreateRet(val.value()->generate(builder));
      }
      return  builder->CreateRetVoid();
 };
+
+llvm::Value* NodeStmtBreak::generate(llvm::IRBuilder<>* builder) {
+     Value* val = builder->CreateBr(Generator::instance->after.back());
+     Generator::unreachableFlag.back() = true;
+     return val;
+}
+
+llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
+     Value* val = builder->CreateBr(Generator::instance->next.back());
+     Generator::unreachableFlag.back() = true;
+     return val;
+}
 
 int Types::getSize(TokenType type) {
      if(type > TokenType::_ulong)return -1;
@@ -348,7 +372,6 @@ void Struct::generateSig(llvm::IRBuilder<>* builder) {
           if(types[i] == nullptr) {
                types[i] = PointerType::get(builder->getContext(),0);
           }
-          //types[i]->print(outs());
      }
      Generator::instance->m_file->structs[name] = std::make_pair(StructType::create(builder->getContext(),name),this);
 }
@@ -371,8 +394,6 @@ llvm::FunctionCallee getFunction(std::string name,std::vector<Type*> params) {
           exit(EXIT_FAILURE);
      }
      return callee.value();
-     /*FunctionType* type = FunctionType::get(Type::getVoidTy(Generator::instance->m_module->getContext()), params, false);
-     return  Generator::instance->m_module->getOrInsertFunction(func->name,type);*/
 }
 
 llvm::Type* getType(TokenType type) {

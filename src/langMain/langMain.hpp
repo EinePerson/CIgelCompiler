@@ -3,7 +3,7 @@
 #include <string>
 
 #include "preParser.hpp"
-#include "parser.hpp"
+#include "./parsing/Parser.h"
 #include "../CompilerInfo/OptionsParser.h"
 #include "codeGen/Generator.h"
 

@@ -2,7 +2,7 @@
 #include <algorithm>
 
 #include "../CompilerInfo/CompilerInfo.hpp"
-#include "parser.hpp"
+#include "parsing/Parser.h"
 
 class PreParser{
 

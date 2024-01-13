@@ -46,19 +46,20 @@
 
 
 Generator* Generator::instance = nullptr;
+std::vector<bool> Generator::unreachableFlag {};
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
+bool Generator::lastUnreachable = false;
 
 Generator::Generator(SrcFile* file) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
-    setup();
     setupFlag = true;
     instance = this;
+    //AllocaInst* alloc = m_builder->CreateAlloca(PointerType::get(*m_contxt,0));
 }
 
 Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr) {
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
-    setup();
 }
 
 void Generator::setup(SrcFile* file) {
@@ -162,7 +163,7 @@ void Generator::write() {
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
 
-    verifyModule(*m_module);
+    //verifyModule(*m_module);
 
     auto TargetTriple = sys::getDefaultTargetTriple();
     m_module->setTargetTriple(TargetTriple);
@@ -216,7 +217,6 @@ void Generator::write() {
 
 llvm::Value* Generator::genStructVar(std::string typeName) {
     if(const auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
-        //m_currentVar.push_back(var);
         m_currentVar++;
         m_sVarId.push_back(0);
         FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
@@ -241,6 +241,7 @@ auto Generator::exitG(Value* exitCode) const -> Value* {
     FunctionType *fType = FunctionType::get(Type::getVoidTy(*m_contxt), params, false);
     FunctionCallee exitFunc = m_module->getOrInsertFunction("exit",fType);
     Value* ret = m_builder->CreateCall(exitFunc, {exitCode});
+
     return ret;
 }
 
@@ -251,7 +252,7 @@ Value* Generator::_new() const {
 }
 
 
-auto Generator::getVar(const std::string&name, bool _this){
+Var* Generator::getVar(const std::string&name, bool _this){
     const std::optional<Var*> opt = getOptVar(name,_this);
     if(!opt.has_value()) {
         std::cerr << "Undeclared identifier: " << name << std::endl;
@@ -290,7 +291,3 @@ void Generator::createVar(Argument* arg) {
     m_builder->CreateStore(arg,alloc);
     m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
 }
-
-
-
-

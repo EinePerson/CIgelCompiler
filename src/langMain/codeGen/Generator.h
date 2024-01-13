@@ -84,8 +84,12 @@ public:
     SrcFile* m_file;
     std::unique_ptr<Module> m_module;
     std::vector<std::map<std::string, Var*>> m_vars;
+    std::vector<BasicBlock*> after;
+    std::vector<BasicBlock*> next;
     static Generator* instance;
     static std::unique_ptr<LLVMContext> m_contxt;
+    static std::vector<bool> unreachableFlag;
+    static bool lastUnreachable;;
 };
 
 

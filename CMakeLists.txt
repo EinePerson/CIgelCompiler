@@ -18,6 +18,7 @@ add_executable(igel
         src/langMain/codeGen/Generator.h
         src/langMain/codeGen/Generator.cpp
         src/langMain/codeGen/types.cpp
+        src/langMain/parsing/Parser.cpp
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 
