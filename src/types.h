@@ -71,6 +71,16 @@ struct NodeTermIntLit final : NodeTerm{
     };
 };
 
+struct NodeTermStringLit final : NodeTerm {
+    Token str;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        return  builder->CreateGlobalStringPtr(str.value.value());
+    }
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
+
 struct NodeTermNull final : NodeTerm {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
         return llvm::ConstantPointerNull::get(llvm::PointerType::get(builder->getContext(),0));
@@ -244,12 +254,12 @@ struct NodeStmtExit final : NodeStmt{
 
 struct  NodeStmtScope final : NodeStmt{
     std::vector<NodeStmt*> stmts;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override /*{
         llvm::Value* val = nullptr;
         for (const auto stmt : stmts)
             val = stmt->generate(builder);
         return val;
-    };
+    }*/;
 };
 
 struct NodeStmtIf final : NodeStmt{
@@ -258,6 +268,24 @@ struct NodeStmtIf final : NodeStmt{
     std::variant<NodeStmtScope*,NodeStmt*> scope;
     std::optional<std::variant<NodeStmtScope*,NodeStmt*>> scope_else;
     std::optional<NodeStmtIf*> else_if;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtReassign;
+
+struct NodeStmtFor final : NodeStmt {
+    NodeStmtLet* let = nullptr;
+    std::vector<NodeExpr*> expr = {};
+    std::vector<TokenType> exprCond = {};
+    NodeStmtReassign* res = nullptr;
+    std::variant<NodeStmtScope*,NodeStmt*> scope;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtWhile final : NodeStmt {
+    std::vector<NodeExpr*> expr = {};
+    std::vector<TokenType> exprCond = {};
+    std::variant<NodeStmtScope*,NodeStmt*> scope;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -283,8 +311,16 @@ struct IgFunction{
     NodeStmtScope * scope;
 };
 
-struct Return final : NodeStmt{
+struct NodeStmtReturn final : NodeStmt{
     std::optional<NodeExpr*> val;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtBreak final : NodeStmt {
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtContinue final : NodeStmt {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
