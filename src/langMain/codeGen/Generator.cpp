@@ -108,6 +108,8 @@ Type* Generator::getType(TokenType type) {
         Type* t = IntegerType::get(*m_contxt,b);
         return t;
     }
+    if(type == TokenType::_float)return llvm::IntegerType::getFloatTy(instance->m_module->getContext());
+    if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(instance->m_module->getContext());
     if(type == TokenType::_void)return Type::getVoidTy(*m_contxt);
     return nullptr;
 }
@@ -134,7 +136,7 @@ void Generator::genFunc(IgFunction* func) {
 
     m_vars.emplace_back();
     for(size_t i = 0;i < llvmFunc->arg_size();i++){
-        createVar(llvmFunc->getArg(i));
+        createVar(llvmFunc->getArg(i),func->signage[i]);
     }
 
     func->scope->generate(m_builder.get());
@@ -193,14 +195,14 @@ void Generator::write() {
 
     if(verifyModule(*m_module,&outs()))exit(EXIT_FAILURE);
 
-    PassBuilder PB;
+    /*PassBuilder PB;
     PB.registerModuleAnalyses(MAM);
     PB.registerCGSCCAnalyses(CGAM);
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
-    MPM.run(*m_module,MAM);
+    MPM.run(*m_module,MAM);*/
 
     std::error_code EC;
     raw_fd_ostream dest("./build/cmp/" + m_file->fullName + ".bc", EC, sys::fs::OF_None);
@@ -275,19 +277,19 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
     return  {};
 }
 
-void Generator::createVar(const std::string&name,Type* type,Value* val) {
+void Generator::createVar(const std::string&name,Type* type,Value* val,bool _signed) {
     if(m_currentVar == 0) {
         if(getOptVar(name)) {
             std::cerr << "Identifier already used: " << name << std::endl;
         }
         AllocaInst* alloc = m_builder->CreateAlloca(type);
         m_builder->CreateStore(val,alloc);
-        m_vars.back()[name] = new Var{alloc};
+        m_vars.back()[name] = new Var{alloc,_signed};
     }
 }
 
-void Generator::createVar(Argument* arg) {
+void Generator::createVar(Argument* arg,bool _signed) {
     AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
     m_builder->CreateStore(arg,alloc);
-    m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc};
+    m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc,_signed};
 }

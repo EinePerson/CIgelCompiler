@@ -10,7 +10,9 @@ llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           return contained.value()->generate(builder);
      }
-     AllocaInst* ptr = (AllocaInst*) (Generator::instance->getVar(id.value.value())->alloc);
+     const Var* var = Generator::instance->getVar(id.value.value());
+     _signed = var->_signed;
+     auto* ptr = (AllocaInst*) (var->alloc);
      return builder->CreateLoad(ptr->getAllocatedType(),ptr);
 }
 
@@ -27,6 +29,7 @@ llvm::Value* NodeTermArrayAcces::generate(llvm::IRBuilder<>* builder) {
           contained.value()->generate(builder);
      }
      ArrayVar* var = static_cast<ArrayVar*>(Generator::instance->getVar(id.value.value()));
+     _signed = var->_signed;
 
      Value* ep = var->alloc;
      Value* _if = nullptr;
@@ -106,29 +109,27 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
 }
 
 llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
-     StructVar* var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
+     auto* var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
      uint fid = var->vars[acc.value.value()];
      return builder->CreateLoad(var->types[fid],this->generatePointer(builder));
 }
 
 llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Value* val;
-     StructVar* var = static_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
+     auto* var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
      if(contained) {
           val = contained.value()->generate(builder);
-          //val = builder->CreateStructGEP(gen->getType(),gen,
      }else {
           val = builder->CreateLoad(var->type,var->alloc);
      }
      uint fid = var->vars[acc.value.value()];
-     //var->strType->print(outs());
      Value* ptr = builder->CreateStructGEP(var->strType,val,fid);
      return ptr;
 }
 
 llvm::Value* NodeStmtPirimitiv::generate(llvm::IRBuilder<>* builder) {
      Value* val = expr.has_value()?expr.value()->generate(builder) : ConstantInt::get(Generator::getType(static_cast<TokenType>(sid)),0);
-     Generator::instance->createVar(id.value.value(),Generator::getType(static_cast<TokenType>(sid)),val);
+     Generator::instance->createVar(id.value.value(),Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
      return val;
 }
 
@@ -147,6 +148,7 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
                NodeStmtLet* let = structT.value().second->vars[i];
                auto t = let->id;
                std::string str = structT.value().second->vars[i]->id.value.value();
+               var->signage.push_back(t.type <= TokenType::_long);
                var->vars[str] = i;
           }
           Generator::instance->m_vars.back()[id.value.value()] = var;
@@ -159,7 +161,7 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
 
 llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
      Type* type = getType((TokenType) sid);
-     auto* var = new ArrayVar(builder->CreateAlloca(type));
+     auto* var = new ArrayVar(builder->CreateAlloca(type),sid <= 3);
      var->types.push_back(type);
      for (auto i : size) {
           type = ArrayType::get(type,i);
@@ -387,8 +389,8 @@ void Struct::generate(llvm::IRBuilder<>* builder) {
 
 }
 
-llvm::FunctionCallee getFunction(std::string name,std::vector<Type*> params) {
-     std::optional<FunctionCallee> callee = Generator::instance->m_file->findFunc(name,params);
+std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<Type*> params) {
+     std::optional<std::pair<llvm::FunctionCallee,bool>> callee = Generator::instance->m_file->findFunc(name,params);
      if(!callee.has_value()) {
           std::cerr << "Could not find function " << name << "\n";
           exit(EXIT_FAILURE);
@@ -402,7 +404,9 @@ llvm::Type* getType(TokenType type) {
           int b = (i + 1) * 8 + 8 * std::max(i - 1,0) + 16 * std::max(i - 2,0);
           return llvm::IntegerType::get(*Generator::m_contxt,b);
      }
-     if(type == TokenType::_void)return Type::getVoidTy(Generator::instance->m_module->getContext());
+     if(type == TokenType::_float)return llvm::IntegerType::getFloatTy(*Generator::m_contxt);
+     if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(*Generator::m_contxt);
+     if(type == TokenType::_void)return Type::getVoidTy(*Generator::m_contxt);
      return nullptr;
 }
 
@@ -427,7 +431,8 @@ llvm::Value* generateReassing(llvm::Value* load,llvm::Value* _new,TokenType op,l
 }
 llvm::Value* NodeTermIntLit::generate(llvm::IRBuilder<>* builder) {
      llvm::Type* type = Generator::getType(static_cast<TokenType>(sid));
-     return  llvm::ConstantInt::get(type,std::stoi(int_lit.value.value()),sid <= 3);
+     if(sid >= 8)return llvm::ConstantFP::get(type,std::stod(int_lit.value.value()));
+     return  llvm::ConstantInt::get(type,std::stol(int_lit.value.value()),sid <= 3);
 }
 
 llvm::Value* NodeTermNew::generate(llvm::IRBuilder<>* builder) {

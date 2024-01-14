@@ -157,11 +157,12 @@
         return it;
     }
 
-    std::optional<llvm::FunctionCallee> Header::findFunc(std::string name,std::vector<llvm::Type*> types) {
+    std::optional<std::pair<llvm::FunctionCallee,bool>> Header::findFunc(std::string name,std::vector<llvm::Type*> types) {
         for (auto func : funcs) {
             if(func == new FuncSig(name,types)) {
                 llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
-                return  Generator::instance->m_module->getOrInsertFunction(func->name,type);
+                //TODO REPLACE TRUE WITH ACTUAL SIGNAGNE OF FUNCTION
+                return  std::make_pair(Generator::instance->m_module->getOrInsertFunction(func->name,type),false);
             }
         }
         return {};
@@ -175,11 +176,11 @@ std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::stri
 }
 
 
-std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
+std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
         if(funcs.contains(FuncSig(name,types))) {
             IgFunction* func = funcs[FuncSig(name,types)];
             llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
-            return  Generator::instance->m_module->getOrInsertFunction(func->name,type);
+            return  std::make_pair(Generator::instance->m_module->getOrInsertFunction(func->name,type),func->returnSigned);
         };
         for (const auto &item: includes){
             if(auto ret = item->findFunc(name,types)){
@@ -192,7 +193,7 @@ std::optional<llvm::FunctionCallee> SrcFile::findFunc(std::string name, std::vec
             }
         }
         if(Tokenizer::LIB_FUNCS.contains(name)) {
-            return  Tokenizer::LIB_FUNCS.at(name)();
+            return  std::make_pair(Tokenizer::LIB_FUNCS.at(name)(),false);
         }
 
         return {};

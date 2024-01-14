@@ -17,7 +17,7 @@ namespace Types {
     int getSize(TokenType type);
 }
 
-llvm::FunctionCallee getFunction(std::string name,std::vector<llvm::Type*> params);
+std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<llvm::Type*> params);
 llvm::Type* getType(TokenType type);
 
 struct NodeStmtScope;
@@ -50,19 +50,23 @@ struct Node {
 };
 
 struct NodeExpr : Node {
-    //TODO add info for floating points and sinage
-    char floating;
-    char _signed;
+    //FLOATING IS STORED IN VALUE* TYPE
+    bool floating;
+    bool _signed;
 };
 struct NodeStmt;
 struct NodeTermFuncCall;
+
+
+
+//BEGIN OF NODE TERMS
+
 struct NodeTerm : NodeExpr{
     std::optional<NodeTerm*> contained;
 };
 
 struct NodeTermIntLit final : NodeTerm{
     Token int_lit;
-    //TODO remove fixed size type sizes
     char sid = 2;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
@@ -93,7 +97,7 @@ struct NodeTermNull final : NodeTerm {
 
 struct NodeTermId final : NodeTerm{
     Token id;
-    std::vector<std::string> names;
+    //std::vector<std::string> names;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
@@ -122,53 +126,6 @@ struct NodeTermStructAcces final : NodeTerm {
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
-struct NodeBinExpr : NodeExpr{
-    NodeExpr* ls = nullptr;
-    NodeExpr* rs = nullptr;
-
-    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
-    };
-};
-
-struct NodeBinExprAdd final : NodeBinExpr{
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        return  builder->CreateAdd(ls->generate(builder),rs->generate(builder));
-    };
-};
-
-struct NodeBinExprSub final : NodeBinExpr{
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        return builder->CreateSub(ls->generate(builder),rs->generate(builder));
-    };
-};
-
-struct NodeBinExprMul final : NodeBinExpr{
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        return builder->CreateMul(ls->generate(builder),rs->generate(builder));
-    };
-};
-
-struct NodeBinExprDiv final : NodeBinExpr{
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        return builder->CreateFDiv(ls->generate(builder),rs->generate(builder));
-    };
-};
-
-struct NodeBinAreth final : NodeBinExpr{
-    TokenType type = TokenType::uninit;
-    //TODO add Types
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        llvm::AllocaInst* ptr = builder->CreateAlloca(llvm::Type::getInt1Ty(builder->getContext()));
-        builder->CreateLoad(ptr->getType(),ptr);
-        return  builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder));
-    };
-
-    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
-    };
-};
-
 struct NodeTermFuncCall final : NodeTerm{
     std::string name;
     std::vector<NodeExpr*> exprs;
@@ -183,8 +140,9 @@ struct NodeTermFuncCall final : NodeTerm{
             params.push_back(val->getType());
             vals.push_back(val);
         }
-        const llvm::FunctionCallee callee = getFunction(name,params);
-        llvm::Value* val =  builder->CreateCall(callee,vals);
+        const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params);
+        _signed = callee.second;
+        llvm::Value* val =  builder->CreateCall(callee.first,vals);
         return val;
     };
 
@@ -201,6 +159,103 @@ struct NodeTermNew final : NodeTerm {
         throw "NotImplementedException";
     };
 };
+
+
+
+//BEGIN OF BINARY EXPRESIONS
+
+struct NodeBinExpr : NodeExpr{
+    NodeExpr* ls = nullptr;
+    NodeExpr* rs = nullptr;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
+
+struct NodeBinExprAdd final : NodeBinExpr{
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        char type = 0;
+        type += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        type += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(type == 0)return  builder->CreateAdd(lsv,rsv);
+
+        if(type == 2)rsv = rs->_signed ? builder->CreateSIToFP(rsv,lsv->getType()) : builder->CreateUIToFP(rsv,lsv->getType());
+        if(type == 1)lsv = ls->_signed ? builder->CreateSIToFP(lsv,rsv->getType()) : builder->CreateUIToFP(lsv,rsv->getType());
+
+        return builder->CreateFAdd(lsv,rsv);
+    };
+};
+
+struct NodeBinExprSub final : NodeBinExpr{
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        char type = 0;
+        type += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        type += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(type == 0)return  builder->CreateSub(lsv,rsv);
+
+        if(type == 2)rsv = rs->_signed ? builder->CreateSIToFP(rsv,lsv->getType()) : builder->CreateUIToFP(rsv,lsv->getType());
+        if(type == 1)lsv = ls->_signed ? builder->CreateSIToFP(lsv,rsv->getType()) : builder->CreateUIToFP(lsv,rsv->getType());
+
+        return builder->CreateFSub(lsv,rsv);
+    };
+};
+
+struct NodeBinExprMul final : NodeBinExpr{
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        char type = 0;
+        type += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        type += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(type == 0)return  builder->CreateMul(lsv,rsv);
+
+        if(type == 2)rsv = rs->_signed ? builder->CreateSIToFP(rsv,lsv->getType()) : builder->CreateUIToFP(rsv,lsv->getType());
+        if(type == 1)lsv = ls->_signed ? builder->CreateSIToFP(lsv,rsv->getType()) : builder->CreateUIToFP(lsv,rsv->getType());
+
+        return builder->CreateFMul(lsv,rsv);
+    };
+};
+
+struct NodeBinExprDiv final : NodeBinExpr{
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        char type = 0;
+        type += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        type += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(type == 0) {
+            if(ls->_signed && rs->_signed)return builder->CreateSDiv(lsv,rsv);
+            return builder->CreateUDiv(lsv,rsv);
+        }
+
+        if(type == 2)
+            rsv = rs->_signed ? builder->CreateSIToFP(rsv,lsv->getType()) : builder->CreateUIToFP(rsv,lsv->getType());
+        if(type == 1)
+            lsv = ls->_signed ? builder->CreateSIToFP(lsv,rsv->getType()) : builder->CreateUIToFP(lsv,rsv->getType());
+
+        return builder->CreateFDiv(lsv,rsv);
+    };
+};
+
+struct NodeBinAreth final : NodeBinExpr{
+    TokenType type = TokenType::uninit;
+    //TODO add Types
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::AllocaInst* ptr = builder->CreateAlloca(llvm::Type::getInt1Ty(builder->getContext()));
+        builder->CreateLoad(ptr->getType(),ptr);
+        return  builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder));
+    };
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
+//BEGIN OF STATEMENT NODES
 
 struct NodeStmt : Node {
 
@@ -307,7 +362,9 @@ struct IgFunction{
     std::string name;
     std::vector<llvm::Type*> paramType;
     std::vector<std::string> paramName;
+    std::vector<bool> signage;
     llvm::Type* _return;
+    bool returnSigned;
     NodeStmtScope * scope;
 };
 
@@ -323,6 +380,10 @@ struct NodeStmtBreak final : NodeStmt {
 struct NodeStmtContinue final : NodeStmt {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
+
+
+
+//BEGIN OF TYPES
 
 struct IgType {
     virtual ~IgType() = default;

@@ -21,21 +21,23 @@ struct IgFunction;
 
 
 struct Var {
-    explicit Var(Value* alloc) : alloc(alloc){}
+    explicit Var(Value* alloc,bool _signed) : alloc(alloc),_signed(_signed){}
     virtual ~Var() = default;
     Value* alloc;
+    char _signed = -1;
 };
 
 struct ArrayVar : Var {
-    explicit ArrayVar(Value* alloc) : Var(alloc) {}
+    explicit ArrayVar(Value* alloc,bool _signed) : Var(alloc,_signed) {}
     std::vector<Type*> types;
     std::vector<AllocaInst*> sizes;
 };
 
 struct StructVar final : Var {
-    explicit StructVar(Value* alloc) : Var(alloc) {}
+    explicit StructVar(Value* alloc) : Var(alloc,false) {}
     std::unordered_map<std::string,uint> vars;
     std::vector<Type*> types;
+    std::vector<bool> signage;
     PointerType* type = nullptr;
     StructType* strType = nullptr;
 };
@@ -69,8 +71,8 @@ public:
     Var* getVar(const std::string&name, bool _this = false);
     std::optional<Var*> getOptVar(std::string name, bool _this = false);
 
-    void createVar(const std::string&name,Type* type,Value* val);
-    void createVar(Argument* arg);
+    void createVar(const std::string&name,Type* type,Value* val,bool _signed);
+    void createVar(Argument* arg,bool _signed);
 private:
 
     std::unique_ptr<IRBuilder<>> m_builder;

@@ -272,7 +272,7 @@ typedef unsigned int uint;
                 }
             }else if(std::isdigit(peak().value())){
                 buf.push_back(consume());
-                while (peak().has_value() && std::isdigit(peak().value()))
+                while (peak().has_value() && (std::isdigit(peak().value()) || peak().value() == '.') )
                 {
                     buf.push_back(consume());
                 }

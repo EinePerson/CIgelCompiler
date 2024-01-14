@@ -4,7 +4,14 @@ struct Test{
     int b;
 }
 
+double test(double d){
+    return d * d;
+}
+
 int main(){
+    int i = 51;
+    double d = 10.5D;
+    printf("%f",i / d);
     Test test = new Test;
     test.t = new Test;
     test.t.a = 3;
@@ -25,6 +32,7 @@ int main(){
     if(test.t.b == 8){
         if(test.t.a == 9)printf("ABCD");
     }
+    printf("%f",test(5.05D));
     exit(test.t.b);
     exit(50);
     return 5;

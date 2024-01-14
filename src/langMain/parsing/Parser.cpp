@@ -10,6 +10,7 @@
                 auto nodeInt = new NodeTermIntLit;
                 nodeInt->int_lit = int_lit.value();
                 nodeInt->sid = sidChar(int_lit.value().value.value().back());
+                nodeInt->_signed = nodeInt->sid <= 3;
                 term = nodeInt;
             }else if(auto str = tryConsume(TokenType::str)) {
                 auto nodestr = new NodeTermStringLit;
@@ -53,6 +54,7 @@
                 tryConsume(TokenType::closeParenth,"Expected ')'");
                 auto term_paren = new NodeTermParen;
                 term_paren->expr = expr.value();
+                term_paren->_signed = expr.value()->_signed;
                 term = term_paren;
             }else if(auto _new = tryConsume(TokenType::_new)) {
                 auto cr = new NodeTermNew;
@@ -126,6 +128,7 @@
                 }else{
                     err("Unkown operator");
                 }
+                expr->_signed = dynamic_cast<NodeBinExpr*>(expr)->ls->_signed && dynamic_cast<NodeBinExpr*>(expr)->rs->_signed;
             }
             return expr;
         }
@@ -153,7 +156,7 @@
                 tryConsume(TokenType::closeParenth, "Expected `)`");
                 tryConsume(TokenType::semi,"Expected ';'");
                 return stmt;
-            }else if(peak().has_value() && peak().value().type <= TokenType::_ulong){
+            }else if(peak().has_value() && peak().value().type <= TokenType::_double){
                 if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
                 && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
                     auto pirim = new NodeStmtPirimitiv;
@@ -169,6 +172,7 @@
                         consume();
                         auto intLit = new NodeTermIntLit;
                         Token tok{.type = TokenType::int_lit,.value = "0"};
+                        intLit->_signed = false;
                         intLit->int_lit = tok;
                         pirim->expr = intLit;
                     } else {
@@ -413,16 +417,23 @@
 
         std::optional<IgFunction*> Parser::parseFunc(){
             auto func = new IgFunction;
-            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void))func->_return = getType(consume().type);
-            else return {};
+            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void)) {
+                func->_return = getType(consume().type);
+                func->returnSigned = false;
+            }
+            else if(peak().has_value() && (peak().value().type == TokenType::_float || peak().value().type == TokenType::_double)) {
+                func->_return = getType(consume().type);
+                func->returnSigned = true;
+            }else return {};
 
             auto hname = tryConsume(TokenType::id,"Expected identifier").value;
 
             tryConsume(TokenType::openParenth,"Expected '('");
             char i = 0;
-            while (peak().has_value() && peak().value().type <= TokenType::_ulong)
+            while (peak().has_value() && peak().value().type <= TokenType::_double)
             {
                 if(i)tryConsume(TokenType::comma,"Expected ','");
+                func->signage.push_back(peak().value().type <= TokenType::_long);
                 func->paramType.push_back(getType(consume().type));
                 func->paramName.push_back(tryConsume(TokenType::id,"Expected identifier").value.value());
                 if(!tryConsume(TokenType::comma))i = 1;
