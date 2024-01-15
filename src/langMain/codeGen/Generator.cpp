@@ -195,14 +195,14 @@ void Generator::write() {
 
     if(verifyModule(*m_module,&outs()))exit(EXIT_FAILURE);
 
-    /*PassBuilder PB;
+    PassBuilder PB;
     PB.registerModuleAnalyses(MAM);
     PB.registerCGSCCAnalyses(CGAM);
     PB.registerFunctionAnalyses(FAM);
     PB.registerLoopAnalyses(LAM);
     PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
     ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
-    MPM.run(*m_module,MAM);*/
+    MPM.run(*m_module,MAM);
 
     std::error_code EC;
     raw_fd_ostream dest("./build/cmp/" + m_file->fullName + ".bc", EC, sys::fs::OF_None);

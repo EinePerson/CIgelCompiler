@@ -27,14 +27,25 @@ llvm::Type* getType(llvm::Type* type);
 
 llvm::Value* generateS(std::variant<NodeStmtScope*,NodeStmt*> var,llvm::IRBuilder<>* builder);
 
-inline llvm::CmpInst::Predicate condition(const TokenType type) {
+inline llvm::CmpInst::Predicate condition(const TokenType type,bool _signed) {
+    if(_signed) {
+        switch (type) {
+            case TokenType::equal: return llvm::CmpInst::ICMP_EQ;
+            case TokenType::notequal: return llvm::CmpInst::ICMP_NE;
+            case TokenType::big: return llvm::CmpInst::ICMP_SGT;
+            case TokenType::small: return llvm::CmpInst::ICMP_SLT;
+            case TokenType::bigequal: return llvm::CmpInst::ICMP_SGE;
+            case TokenType::smallequal: return llvm::CmpInst::ICMP_SLE;
+            default: return llvm::CmpInst::BAD_ICMP_PREDICATE;
+        }
+    }
     switch (type) {
         case TokenType::equal: return llvm::CmpInst::ICMP_EQ;
         case TokenType::notequal: return llvm::CmpInst::ICMP_NE;
-        case TokenType::big: return llvm::CmpInst::ICMP_SGT;
-        case TokenType::small: return llvm::CmpInst::ICMP_SLT;
-        case TokenType::bigequal: return llvm::CmpInst::ICMP_SGE;
-        case TokenType::smallequal: return llvm::CmpInst::ICMP_SLE;
+        case TokenType::big: return llvm::CmpInst::ICMP_UGT;
+        case TokenType::small: return llvm::CmpInst::ICMP_ULT;
+        case TokenType::bigequal: return llvm::CmpInst::ICMP_UGE;
+        case TokenType::smallequal: return llvm::CmpInst::ICMP_ULE;
         default: return llvm::CmpInst::BAD_ICMP_PREDICATE;
     }
 }
@@ -244,11 +255,26 @@ struct NodeBinExprDiv final : NodeBinExpr{
 
 struct NodeBinAreth final : NodeBinExpr{
     TokenType type = TokenType::uninit;
-    //TODO add Types
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
         llvm::AllocaInst* ptr = builder->CreateAlloca(llvm::Type::getInt1Ty(builder->getContext()));
         builder->CreateLoad(ptr->getType(),ptr);
-        return  builder->CreateICmp(condition(type),ls->generate(builder),rs->generate(builder));
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        char typeI = 0;
+        llvm::CmpInst::Predicate lType = condition(type,ls->_signed || rs->_signed);
+        typeI += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        typeI += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(typeI == 0) {
+            if(ls->_signed && rs->_signed)return builder->CreateSDiv(lsv,rsv);
+            return builder->CreateICmp(lType,lsv,rsv);
+        }
+
+        if(typeI == 2)
+            rsv = rs->_signed ? builder->CreateSIToFP(rsv,lsv->getType()) : builder->CreateUIToFP(rsv,lsv->getType());
+        if(typeI == 1)
+            lsv = ls->_signed ? builder->CreateSIToFP(lsv,rsv->getType()) : builder->CreateUIToFP(lsv,rsv->getType());
+
+        return builder->CreateFCmp(lType,lsv,rsv);
     };
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -341,6 +367,18 @@ struct NodeStmtWhile final : NodeStmt {
     std::vector<NodeExpr*> expr = {};
     std::vector<TokenType> exprCond = {};
     std::variant<NodeStmtScope*,NodeStmt*> scope;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtCase final : NodeStmt {
+    NodeTermIntLit* cond = nullptr;
+    bool _default = false;
+    llvm::BasicBlock* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtSwitch final : NodeStmt {
+    NodeStmtScope* scope {};
+    NodeTerm* cond = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 

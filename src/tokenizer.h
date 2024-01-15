@@ -70,6 +70,11 @@ enum class TokenType{
     _while,
     _break,
     _continue,
+    _switch,
+    _case,
+    _default,
+    //: for switch
+    next,
 
     semi,
     comma,
@@ -95,6 +100,8 @@ enum class TokenType{
 
     ///Dot to acces vars of classes/structs
     connector,
+    //Double Connector ::
+    dConnect,
     _struct,
     null,
 };
@@ -148,6 +155,9 @@ class Tokenizer{
             {"else",TokenType::_else},
             {"break",TokenType::_break},
             {"continue",TokenType::_continue},
+            {"default",TokenType::_default},
+            {"case",TokenType::_case},
+            {"::",TokenType::dConnect},
 
             {"void",TokenType::_void},
             {"return",TokenType::_return},
@@ -171,6 +181,7 @@ class Tokenizer{
             {"if",TokenType::_if},
             {"for",TokenType::_for},
             {"while",TokenType::_while},
+            {"switch",TokenType::_switch}
     };
 
     const std::map<std::string,Token> REPLACE = {
@@ -201,6 +212,7 @@ class Tokenizer{
             {'<',TokenType::small},
 
             {'.',TokenType::connector},
+            {':',TokenType::next},
     };
 
     static std::map<std::string,std::function<llvm::FunctionCallee()>> LIB_FUNCS;

@@ -234,7 +234,16 @@ typedef unsigned int uint;
                 m_tokens.push_back({.type = TokenType::info,.value = buf});
                 buf.clear();
                 continue;
-            } else if(std::isalpha(peak().value())){
+            }else if(peak().value() == ':') {
+                consume();
+                if(peak().value() == ':') {
+                    consume();
+                    m_tokens.push_back({.type =  TokenType::dConnect,.line = lineCount,.file = file});
+                    continue;
+                }
+                m_tokens.push_back({.type =  TokenType::next,.line = lineCount,.file = file});
+                continue;
+            }else if(std::isalpha(peak().value())){
                 buf.push_back(consume());
                 while (peak().has_value() && std::isalnum(peak().value()))
                 {

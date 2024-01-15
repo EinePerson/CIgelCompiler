@@ -215,17 +215,16 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      builder->CreateCondBr(val,then,elseB);
 
      builder->SetInsertPoint(then);
-     llvm::Value* thenVal = generateS(scope,builder);
+     generateS(scope,builder);
      if(!Generator::lastUnreachable) {
           builder->CreateBr(merge);
      }
      then = builder->GetInsertBlock();
 
-     llvm::Value* elseV = nullptr;
      if(scope_else) {
           parFunc->insert(parFunc->end(),elseB);
           builder->SetInsertPoint(elseB);
-          elseV = generateS(scope_else.value(),builder);
+          generateS(scope_else.value(),builder);
           if(!Generator::lastUnreachable) {
                builder->CreateBr(merge);
           }
@@ -233,7 +232,7 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      }else if(else_if) {
           parFunc->insert(parFunc->end(),elseB);
           builder->SetInsertPoint(elseB);
-          elseV = else_if.value()->generate(builder);
+          else_if.value()->generate(builder);
           if(!Generator::lastUnreachable) {
                builder->CreateBr(merge);
           }
@@ -311,6 +310,35 @@ llvm::Value* NodeStmtWhile::generate(llvm::IRBuilder<>* builder) {
      next->moveAfter(&func->back());
      builder->SetInsertPoint(next);
      return next;
+}
+
+BasicBlock* NodeStmtCase::generate(llvm::IRBuilder<>* builder) {
+     Function* func = builder->GetInsertBlock()->getParent();
+     BasicBlock* _case = BasicBlock::Create(builder->getContext(),"case",func);
+     Generator::instance->_switch.back()->addCase(static_cast<ConstantInt*>(cond->generate(builder)),_case);
+     if(_default)Generator::instance->_switch.back()->setDefaultDest(_case);
+     builder->SetInsertPoint(_case);
+     Generator::instance->lastCase.pop_back();
+     Generator::instance->lastCase.push_back(_case);
+     return _case;
+}
+
+llvm::Value* NodeStmtSwitch::generate(llvm::IRBuilder<>* builder) {
+     Function* func = builder->GetInsertBlock()->getParent();
+     BasicBlock* next = BasicBlock::Create(builder->getContext(),"next",func);
+     SwitchInst* inst = builder->CreateSwitch(cond->generate(builder),next);
+     Generator::instance->_switch.push_back(inst);
+     Generator::instance->after.push_back(next);
+     Generator::instance->lastCase.push_back(nullptr);
+     generateS(scope,builder);
+     Generator::instance->_switch.pop_back();
+     Generator::instance->after.pop_back();
+     if(Generator::instance->lastCase.back() != nullptr) {
+          next->moveAfter(Generator::instance->lastCase.back());
+     }
+     Generator::instance->lastCase.pop_back();
+     builder->SetInsertPoint(next);
+     return inst;
 }
 
 

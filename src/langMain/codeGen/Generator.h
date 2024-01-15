@@ -88,6 +88,8 @@ public:
     std::vector<std::map<std::string, Var*>> m_vars;
     std::vector<BasicBlock*> after;
     std::vector<BasicBlock*> next;
+    std::vector<SwitchInst*> _switch;
+    std::vector<BasicBlock*> lastCase;
     static Generator* instance;
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
