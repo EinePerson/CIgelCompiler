@@ -26,7 +26,11 @@ enum class FunctionState{
 };
 
 //Compiler Info FLAGS
-#define IS_DEBUG 0b1
+const std::map<std::string,uint> FLAGS = {
+    {"Debug",0b1},
+    {"Optimize",0b10},
+};
+//#define IS_DEBUG 0b1
 
 struct FuncSig {
     FuncSig(const std::string&name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}

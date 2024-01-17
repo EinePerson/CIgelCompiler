@@ -45,11 +45,10 @@ struct StructVar final : Var {
 class Generator {
 
 public:
-    explicit Generator(SrcFile* file);
+    explicit Generator(SrcFile* file,Info* info);
     Generator();
-    void setup(SrcFile* file);
-
     ~Generator();
+    void setup(SrcFile* file);
 
     void generate();
 
@@ -89,7 +88,7 @@ public:
     std::vector<BasicBlock*> after;
     std::vector<BasicBlock*> next;
     std::vector<SwitchInst*> _switch;
-    std::vector<BasicBlock*> lastCase;
+    Info* m_info;
     static Generator* instance;
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;

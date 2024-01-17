@@ -184,16 +184,9 @@ llvm::Value* NodeStmtExit::generate(llvm::IRBuilder<>* builder) {
 llvm::Value* NodeStmtScope::generate(llvm::IRBuilder<>* builder) {
      llvm::Value* val = nullptr;
      Generator::lastUnreachable = false;
-     Generator::unreachableFlag.push_back(false);
      for (const auto stmt : stmts) {
-          if(Generator::unreachableFlag.back()) {
-               Generator::unreachableFlag.pop_back();
-               Generator::lastUnreachable = true;
-          }
           val = stmt->generate(builder);
      }
-     Generator::lastUnreachable = Generator::unreachableFlag.back();
-     Generator::unreachableFlag.pop_back();
      return val;
 };
 
@@ -315,11 +308,10 @@ llvm::Value* NodeStmtWhile::generate(llvm::IRBuilder<>* builder) {
 BasicBlock* NodeStmtCase::generate(llvm::IRBuilder<>* builder) {
      Function* func = builder->GetInsertBlock()->getParent();
      BasicBlock* _case = BasicBlock::Create(builder->getContext(),"case",func);
-     Generator::instance->_switch.back()->addCase(static_cast<ConstantInt*>(cond->generate(builder)),_case);
      if(_default)Generator::instance->_switch.back()->setDefaultDest(_case);
+     else
+          Generator::instance->_switch.back()->addCase(static_cast<ConstantInt*>(cond->generate(builder)),_case);
      builder->SetInsertPoint(_case);
-     Generator::instance->lastCase.pop_back();
-     Generator::instance->lastCase.push_back(_case);
      return _case;
 }
 
@@ -329,14 +321,10 @@ llvm::Value* NodeStmtSwitch::generate(llvm::IRBuilder<>* builder) {
      SwitchInst* inst = builder->CreateSwitch(cond->generate(builder),next);
      Generator::instance->_switch.push_back(inst);
      Generator::instance->after.push_back(next);
-     Generator::instance->lastCase.push_back(nullptr);
      generateS(scope,builder);
      Generator::instance->_switch.pop_back();
      Generator::instance->after.pop_back();
-     if(Generator::instance->lastCase.back() != nullptr) {
-          next->moveAfter(Generator::instance->lastCase.back());
-     }
-     Generator::instance->lastCase.pop_back();
+     next->moveAfter(&func->back());
      builder->SetInsertPoint(next);
      return inst;
 }
@@ -381,13 +369,15 @@ llvm::Value* NodeStmtReturn::generate(llvm::IRBuilder<>* builder)  {
 
 llvm::Value* NodeStmtBreak::generate(llvm::IRBuilder<>* builder) {
      Value* val = builder->CreateBr(Generator::instance->after.back());
-     Generator::unreachableFlag.back() = true;
+     //Generator::unreachableFlag.back() = true;
+     Generator::lastUnreachable = true;
      return val;
 }
 
 llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
      Value* val = builder->CreateBr(Generator::instance->next.back());
-     Generator::unreachableFlag.back() = true;
+     //Generator::unreachableFlag.back() = true;
+     Generator::lastUnreachable = true;
      return val;
 }
 

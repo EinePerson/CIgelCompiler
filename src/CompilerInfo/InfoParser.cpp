@@ -38,6 +38,19 @@
                     //NOTIMPLEMENTEDEXCEPTION parsing for header files to include
                     info->m_info->header_table[file->fullName] = file;
                 }
+            }},{"SetBool",[](InfoParser* info,std::vector<std::string> args) -> void {
+                if(args.size() != 2) {
+                    std::cerr << "Expected 2 arguments in SetBool" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                if(!FLAGS.contains(args[0])) {
+                    std::cerr << "Could not find setting" << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                //std::ranges::transform(args[1],args[1].begin(), ::toupper);
+                if(args[1] == "1") {
+                    info->m_info->flags |= FLAGS.at(args[0]);
+                }
             }},
             {"setOutName",[](const InfoParser* info,std::vector<std::string> args) -> void{
                 info->m_info->m_name = args.at(0);
@@ -67,7 +80,7 @@
             func.func =  funcs.at(consume().value.value());
             tryConsume(TokenType::openParenth,"Expected '('");
             bool b = true;
-            while (peak().has_value() && peak().value().type == TokenType::str)
+            while (peak().has_value() && (peak().value().type == TokenType::str || peak().value().type == TokenType::int_lit))
             {
                 if(!b)tryConsume(TokenType::comma,"Expected ','");
                 func.args.push_back(consume().value.value());

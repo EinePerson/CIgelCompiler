@@ -244,14 +244,9 @@
                 err("Expected number");
             }else if(auto _caseT = tryConsume(TokenType::_default)) {
                 auto* _case = new NodeStmtCase;
+                tryConsume(TokenType::next,"Expected ':'");
                 _case->_default = true;
-                if(auto lit = parseTerm()) {
-                    if(auto termLit = dynamic_cast<NodeTermIntLit*>(lit.value())) {
-                        _case->cond = termLit;
-                        return _case;
-                    }
-                }
-                err("Expected number");
+                return _case;
             }else if(peak().has_value() && peak().value().type == TokenType::id && peak(1).has_value() && peak(1).value().type == TokenType::id &&
                 peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new*/) {
                 auto id = tryConsume(TokenType::id);

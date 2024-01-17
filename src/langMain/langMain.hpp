@@ -29,7 +29,7 @@ class LangMain{
 
             outFiles << "clang++ -o " << m_info->m_name << " ";
             if(m_info->files.empty())return;
-            m_gen = new Generator(m_info->files.back());
+            m_gen = new Generator(m_info->files.back(),m_info);
             for(const auto file:m_info->files){
                 m_gen->setup(file);
                 m_gen->generate();
@@ -40,6 +40,8 @@ class LangMain{
             const char* str1 = temp.c_str();
             system(str1);
         }
+
+    ~LangMain() = default;
 
 private:
 

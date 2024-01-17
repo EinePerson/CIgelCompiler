@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 #include <map>
+#include <ranges>
 
 #include "InfoParser.h"
 
@@ -11,7 +12,7 @@
 class CompilerInfo{
 
     public:
-        CompilerInfo(std::string file) : m_file(std::move(file)),m_tokenizer({"setMain","SourceDirectory","setOutName"}) {
+    explicit CompilerInfo(std::string file) : m_file(std::move(file)),m_tokenizer({std::views::keys(InfoParser::funcs).begin(),std::views::keys(InfoParser::funcs).end()}) {
         }
 
         Info* getInfo(){

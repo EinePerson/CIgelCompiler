@@ -114,6 +114,8 @@ public:
         else return {};
     }
 
+    ~PreParser() = default;
+
     private:
         Info* m_info;
         SrcFile* m_file;

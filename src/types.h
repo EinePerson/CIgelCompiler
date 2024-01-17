@@ -265,7 +265,6 @@ struct NodeBinAreth final : NodeBinExpr{
         typeI += rsv->getType()->isFloatingPointTy()? 1 : 0;
         typeI += lsv->getType()->isFloatingPointTy()? 2 : 0;
         if(typeI == 0) {
-            if(ls->_signed && rs->_signed)return builder->CreateSDiv(lsv,rsv);
             return builder->CreateICmp(lType,lsv,rsv);
         }
 

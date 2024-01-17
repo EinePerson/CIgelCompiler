@@ -44,13 +44,15 @@
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/Passes/PassBuilder.h>
 
+#include "../langMain.hpp"
+
 
 Generator* Generator::instance = nullptr;
 std::vector<bool> Generator::unreachableFlag {};
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 bool Generator::lastUnreachable = false;
 
-Generator::Generator(SrcFile* file) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr) {
+Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
@@ -143,6 +145,7 @@ void Generator::genFunc(IgFunction* func) {
     m_vars.pop_back();
     if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
+        m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
     }
 }
@@ -193,16 +196,19 @@ void Generator::write() {
     CGSCCAnalysisManager CGAM;
     ModuleAnalysisManager MAM;
 
-    if(verifyModule(*m_module,&outs()))exit(EXIT_FAILURE);
+    if(verifyModule(*m_module,&outs()))
+        exit(EXIT_FAILURE);
 
-    PassBuilder PB;
-    PB.registerModuleAnalyses(MAM);
-    PB.registerCGSCCAnalyses(CGAM);
-    PB.registerFunctionAnalyses(FAM);
-    PB.registerLoopAnalyses(LAM);
-    PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-    ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
-    MPM.run(*m_module,MAM);
+    if((m_info->flags & FLAGS.at("Optimize")) == FLAGS.at("Optimize")) {
+        PassBuilder PB;
+        PB.registerModuleAnalyses(MAM);
+        PB.registerCGSCCAnalyses(CGAM);
+        PB.registerFunctionAnalyses(FAM);
+        PB.registerLoopAnalyses(LAM);
+        PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+        ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
+        MPM.run(*m_module,MAM);
+    }
 
     std::error_code EC;
     raw_fd_ostream dest("./build/cmp/" + m_file->fullName + ".bc", EC, sys::fs::OF_None);
