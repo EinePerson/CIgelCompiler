@@ -82,6 +82,8 @@
         }
 
         std::optional<NodeExpr*> Parser::parseExpr(int minPrec){
+            NodeBinNeg* neg = nullptr;
+            if(tryConsume(TokenType::_not))neg = new NodeBinNeg;
             std::optional<NodeTerm*> termLs = parseTerm();
             if(!termLs.has_value())return {};
             NodeExpr* expr = termLs.value();
@@ -125,10 +127,20 @@
                     areth->rs = exprR.value();
                     areth->type = op.type;
                     expr = areth;
+                }else if(op.type >= TokenType::_bitOr && op.type <= TokenType::_bitAnd) {
+                    auto bit = new NodeBinBit;
+                    bit->ls = expr;
+                    bit->rs = exprR.value();
+                    bit->op = op.type;
+                    expr = bit;
                 }else{
                     err("Unkown operator");
                 }
                 expr->_signed = dynamic_cast<NodeBinExpr*>(expr)->ls->_signed && dynamic_cast<NodeBinExpr*>(expr)->rs->_signed;
+            }
+            if(neg) {
+                neg->expr = expr;
+                return neg;
             }
             return expr;
         }
@@ -156,7 +168,7 @@
                 tryConsume(TokenType::closeParenth, "Expected `)`");
                 tryConsume(TokenType::semi,"Expected ';'");
                 return stmt;
-            }else if(peak().has_value() && peak().value().type <= TokenType::_double){
+            }else if(peak().has_value() && peak().value().type <= TokenType::_bool){
                 if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
                 && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
                     auto pirim = new NodeStmtPirimitiv;
@@ -456,7 +468,7 @@
 
             tryConsume(TokenType::openParenth,"Expected '('");
             char i = 0;
-            while (peak().has_value() && peak().value().type <= TokenType::_double)
+            while (peak().has_value() && peak().value().type <= TokenType::_bool)
             {
                 if(i)tryConsume(TokenType::comma,"Expected ','");
                 func->signage.push_back(peak().value().type <= TokenType::_long);

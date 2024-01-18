@@ -39,7 +39,7 @@ llvm::Value* NodeTermArrayAcces::generate(llvm::IRBuilder<>* builder) {
           if(i == 0) {
                _if = builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize);
           }else {
-               _if = builder->CreateOr(_if,builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize));
+               _if = builder->CreateLogicalOr(_if,builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize));
           }
           ep = builder->CreateGEP(var->types[var->types.size() - exprs.size() - 1],ep,size);
      }
@@ -81,7 +81,7 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
           if(i == 0) {
                _if = builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize);
           }else {
-               _if = builder->CreateOr(_if,builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize));
+               _if = builder->CreateLogicalOr(_if,builder->CreateCmp(CmpInst::ICMP_UGE,size,arrSize));
           }
           ep = builder->CreateGEP(var->types[var->types.size() - exprs.size() - 1],ep,size);
      }
@@ -338,7 +338,7 @@ llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
           Value* load = builder->CreateLoad(val->getType(),val);
           Value* _new = nullptr;
           if(expr != nullptr)_new = expr->generate(builder);
-          load = builder->CreatePtrToInt(load,_new == nullptr ? IntegerType::getInt8Ty(builder->getContext()): _new->getType());
+          load = builder->CreateLoad(static_cast<AllocaInst*>(val)->getAllocatedType(),val);
           Value* res = generateReassing(load,_new,op,builder);
           return builder->CreateStore(res,val);
      }
@@ -424,6 +424,7 @@ llvm::Type* getType(TokenType type) {
      }
      if(type == TokenType::_float)return llvm::IntegerType::getFloatTy(*Generator::m_contxt);
      if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(*Generator::m_contxt);
+     if(type == TokenType::_bool)return llvm::IntegerType::getInt1Ty(*Generator::m_contxt);
      if(type == TokenType::_void)return Type::getVoidTy(*Generator::m_contxt);
      return nullptr;
 }
@@ -431,9 +432,9 @@ llvm::Type* getType(TokenType type) {
 llvm::Value* generateReassing(llvm::Value* load,llvm::Value* _new,TokenType op,llvm::IRBuilder<>* builder) {
      switch (op) {
           case TokenType::inc:
-               return  builder->CreateAdd(load,ConstantInt::get(IntegerType::getInt8Ty(Generator::instance->m_module->getContext()),1));
+               return  builder->CreateAdd(load,ConstantInt::get(load->getType(),1));
           case TokenType::dec:
-               return builder->CreateSub(load,ConstantInt::get(IntegerType::getInt8Ty(Generator::instance->m_module->getContext()),1));
+               return builder->CreateSub(load,ConstantInt::get(load->getType(),1));
           case TokenType::plus_eq:
                return builder->CreateAdd(load,_new);
           case TokenType::sub_eq:
@@ -449,8 +450,19 @@ llvm::Value* generateReassing(llvm::Value* load,llvm::Value* _new,TokenType op,l
 }
 llvm::Value* NodeTermIntLit::generate(llvm::IRBuilder<>* builder) {
      llvm::Type* type = Generator::getType(static_cast<TokenType>(sid));
-     if(sid >= 8)return llvm::ConstantFP::get(type,std::stod(int_lit.value.value()));
-     return  llvm::ConstantInt::get(type,std::stol(int_lit.value.value()),sid <= 3);
+     if(sid >= 8 && sid <= 9)return llvm::ConstantFP::get(type,std::stod(int_lit.value.value()));
+     int base = 10;
+     std::string val = int_lit.value.value();
+     if(int_lit.value.value().size() > 2) {
+          if(int_lit.value.value()[0] == '0' && int_lit.value.value()[1] == 'x') {
+               base = 16;
+               val = val.substr(2);
+          }else if(int_lit.value.value()[0] == '0' && int_lit.value.value()[1] == 'b') {
+               base = 2;
+               val = val.substr(2);
+          }
+     }
+     return  llvm::ConstantInt::get(type,std::stol(val,nullptr,base),sid <= 3);
 }
 
 llvm::Value* NodeTermNew::generate(llvm::IRBuilder<>* builder) {

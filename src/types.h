@@ -275,11 +275,35 @@ struct NodeBinAreth final : NodeBinExpr{
 
         return builder->CreateFCmp(lType,lsv,rsv);
     };
+};
 
-    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+struct NodeBinBit final : NodeBinExpr {
+    TokenType op = TokenType::uninit;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::AllocaInst* ptr = builder->CreateAlloca(llvm::Type::getInt1Ty(builder->getContext()));
+        builder->CreateLoad(ptr->getType(),ptr);
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+        switch (op) {
+            case TokenType::_bitAnd:
+                return builder->CreateAnd(lsv,rsv);
+            case TokenType::_bitOr:
+                return builder->CreateOr(lsv,rsv);
+            default:
+                return nullptr;
+        }
     };
 };
+
+struct NodeBinNeg final : NodeBinExpr {
+    NodeExpr* expr = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
+        llvm::Value * val = expr->generate(builder);
+        return builder->CreateNot(val);
+    }
+};
+
+
 //BEGIN OF STATEMENT NODES
 
 struct NodeStmt : Node {

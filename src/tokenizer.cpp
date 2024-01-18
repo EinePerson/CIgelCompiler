@@ -26,6 +26,8 @@ typedef unsigned int uint;
             case TokenType::smallequal:
             case TokenType::small:
             case TokenType::big:
+            case TokenType::_bitAnd:
+            case TokenType::_bitOr:
                 return 0;
             case TokenType::plus:
             case TokenType::sub:
@@ -94,7 +96,7 @@ typedef unsigned int uint;
                     consume();
                     continue;
                 }else{
-                    err("Expected '='1");
+                    m_tokens.push_back({.type = TokenType::_not,.line = lineCount,.file = file});
                 }
             }else if(peak().value() == '>'){
                 consume();
@@ -134,7 +136,7 @@ typedef unsigned int uint;
                     consume();
                     continue;
                 }else{
-                    err("Expected '&'");
+                    m_tokens.push_back({.type = TokenType::_bitAnd,.line = lineCount,.file = file});
                 }
             }else if(peak().value() == '|'){
                 consume();
@@ -143,7 +145,7 @@ typedef unsigned int uint;
                     consume();
                     continue;
                 }else{
-                    err("Expected '|'");
+                    m_tokens.push_back({.type = TokenType::_bitOr,.line = lineCount,.file = file});
                 }
             }else if(peak().value() == '+'){
                 consume();
@@ -281,7 +283,7 @@ typedef unsigned int uint;
                 }
             }else if(std::isdigit(peak().value())){
                 buf.push_back(consume());
-                while (peak().has_value() && (std::isdigit(peak().value()) || peak().value() == '.') )
+                while (isNum())
                 {
                     buf.push_back(consume());
                 }

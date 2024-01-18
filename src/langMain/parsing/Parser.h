@@ -15,6 +15,7 @@ public:
     static char sidChar(char c) {
         c = std::toupper(c);
         switch (c) {
+            case 'Z': return 10;
             case 'D': return 9;
             case 'F': return 8;
             case 'L': return 3;

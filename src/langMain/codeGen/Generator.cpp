@@ -112,6 +112,7 @@ Type* Generator::getType(TokenType type) {
     }
     if(type == TokenType::_float)return llvm::IntegerType::getFloatTy(instance->m_module->getContext());
     if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(instance->m_module->getContext());
+    if(type == TokenType::_bool)return llvm::IntegerType::getInt1Ty(instance->m_module->getContext());
     if(type == TokenType::_void)return Type::getVoidTy(*m_contxt);
     return nullptr;
 }
@@ -145,7 +146,6 @@ void Generator::genFunc(IgFunction* func) {
     m_vars.pop_back();
     if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
-        m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
     }
 }

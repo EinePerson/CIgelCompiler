@@ -25,24 +25,28 @@ enum class TokenType{
     _ulong = 7,
     _float = 8,
     _double = 9,
+    _bool = 10,
 
     ///Double equal sign '=='
-    equal = 10,
-    notequal = 11,
-    bigequal = 12,
-    smallequal = 13,
-    big = 14,
-    small = 15,
+    equal = 11,
+    notequal = 12,
+    bigequal = 13,
+    smallequal = 14,
+    big = 15,
+    small = 16,
 
     ///Single equal sign '='
-    eq = 16,
-    plus_eq = 17,
-    sub_eq = 18,
-    div_eq = 19,
-    mul_eq = 20,
-    pow_eq = 21,
-    inc = 22,
-    dec = 23,
+    eq = 17,
+    plus_eq = 18,
+    sub_eq = 19,
+    div_eq = 20,
+    mul_eq = 21,
+    pow_eq = 22,
+    inc = 23,
+    dec = 24,
+    _bitOr = 25,
+    _bitAnd = 26,
+    _not,
     str,
     _char_lit,
     int_lit,
@@ -60,6 +64,7 @@ enum class TokenType{
     _or,
     ///Not implemented and not directly planed to do so
     _xor,
+
 
     ///DEPRECATED
     _exit,
@@ -142,6 +147,8 @@ class Tokenizer{
             {"ulong",TokenType::_ulong},
             {"float",TokenType::_float},
             {"double",TokenType::_double},
+            {"boolean",TokenType::_bool},
+            {"bool",TokenType::_bool},
 
             {"==",TokenType::equal},
             {"!=",TokenType::notequal},
@@ -177,7 +184,6 @@ class Tokenizer{
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {
-            //{"exit",TokenType::_exit},
             {"if",TokenType::_if},
             {"for",TokenType::_for},
             {"while",TokenType::_while},
@@ -185,8 +191,8 @@ class Tokenizer{
     };
 
     const std::map<std::string,Token> REPLACE = {
-            {"false",Token{.type = TokenType::int_lit,.value = "0"}},
-            {"true",Token{.type = TokenType::int_lit,.value = "1"}}
+            {"false",Token{.type = TokenType::int_lit,.value = "0Z"}},
+            {"true",Token{.type = TokenType::int_lit,.value = "1Z"}}
     };
 
    const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
@@ -244,6 +250,11 @@ private:
             r << file.rdbuf();
             file.close();
             return r.str();
+        }
+
+        bool isNum() {
+            return peak().has_value() && (std::isdigit(peak().value()) || peak().value() == '.' || peak().value() == 'x' || peak().value() == 'b' || peak().value() == 'A' || peak().value() == 'B' || peak().value() == 'C'
+                || peak().value() == 'D' || peak().value() == 'E' || peak().value() == 'F' || peak().value() == 'a' || peak().value() == 'c' || peak().value() == 'd' || peak().value() == 'e' || peak().value() == 'f' );
         }
 
         std::string m_src;
