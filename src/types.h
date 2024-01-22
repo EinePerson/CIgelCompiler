@@ -5,9 +5,9 @@
 #ifndef TYPES_H
 #define TYPES_H
 #include <llvm/IR/IRBuilder.h>
+#include <variant>
 
 #include "tokenizer.h"
-#include "types.h"
 
 struct Var;
 struct IgFunction;
@@ -471,22 +471,5 @@ struct Struct final : IgType {
 
     void generate(llvm::IRBuilder<>* builder) override;
 };
-
-inline llvm::Value* generateS(std::variant<NodeStmtScope*,NodeStmt*> var,llvm::IRBuilder<>* builder) {
-    static llvm::Value* val;
-    struct Visitor {
-        llvm::IRBuilder<>* builder;
-        void operator()(NodeStmt* stmt) const {
-            val = stmt->generate(builder);
-        }
-        void operator()(NodeStmtScope* scope) const {
-            val = scope->generate(builder);
-        }
-    };
-
-    Visitor visitor{.builder = builder};
-    std::visit(visitor,var);
-    return val;
-}
 
 #endif //TYPES_H

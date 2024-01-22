@@ -198,9 +198,8 @@ llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
           sizeS *= i;
      }
      var->alloc = builder->CreateAlloca(type);
-     builder->CreateMemSet(var->alloc,ConstantInt::get(IntegerType::getInt8Ty(builder->getContext()),0),sizeS,MaybeAlign(0));
      Generator::instance->m_vars.back().insert_or_assign(id.value.value(),var);
-     return builder->CreateStore(ConstantInt::get(type,0),var->alloc);
+     return builder->CreateMemSet(var->alloc,ConstantInt::get(IntegerType::getInt8Ty(builder->getContext()),0),sizeS,MaybeAlign(0));
 }
 
 llvm::Value* NodeStmtExit::generate(llvm::IRBuilder<>* builder) {
@@ -502,4 +501,21 @@ llvm::Value* NodeTermNew::generate(llvm::IRBuilder<>* builder) {
 
 llvm::Type* getType(llvm::Type* type) {
      return type == nullptr?PointerType::get(Generator::instance->m_module->getContext(),0):type;
+}
+
+llvm::Value* generateS(std::variant<NodeStmtScope*,NodeStmt*> var,llvm::IRBuilder<>* builder) {
+     static llvm::Value* val;
+     struct Visitor {
+          llvm::IRBuilder<>* builder;
+          void operator()(NodeStmt* stmt) const {
+               val = stmt->generate(builder);
+          }
+          void operator()(NodeStmtScope* scope) const {
+               val = scope->generate(builder);
+          }
+     };
+
+     Visitor visitor{.builder = builder};
+     std::visit(visitor,var);
+     return val;
 }
