@@ -66,7 +66,9 @@
                 return {};
             if(tryConsume(TokenType::connector)) {
                 auto termT = new NodeTermStructAcces;
-                termT->id = dynamic_cast<NodeTermId*>(term)->id;
+                if(auto val = dynamic_cast<NodeTermId*>(term))termT->id = val->id;
+                if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
+
                 auto termF = peak();
                 if(peak(1).has_value() && peak(1).value().type != TokenType::connector)consume();
                 if(!termF)return term;
@@ -455,8 +457,11 @@
 
         std::optional<IgFunction*> Parser::parseFunc(){
             auto func = new IgFunction;
-            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void)) {
-                func->_return = getType(consume().type);
+            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void || peak().value().type == TokenType::id)) {
+                Token ret = consume();
+                if(ret.value.has_value())func->retTypeName = ret.value.value();
+                else func->retTypeName = "";
+                func->_return = getType(ret.type);
                 func->returnSigned = false;
             }
             else if(peak().has_value() && (peak().value().type == TokenType::_float || peak().value().type == TokenType::_double)) {
@@ -468,11 +473,14 @@
 
             tryConsume(TokenType::openParenth,"Expected '('");
             char i = 0;
-            while (peak().has_value() && peak().value().type <= TokenType::_bool)
+            while (peak().has_value() && (peak().value().type <= TokenType::_bool || peak().value().type == TokenType::id))
             {
                 if(i)tryConsume(TokenType::comma,"Expected ','");
                 func->signage.push_back(peak().value().type <= TokenType::_long);
-                func->paramType.push_back(getType(consume().type));
+                Token param = consume();
+                if(param.value.has_value())func->paramTypeName.push_back(param.value.value());
+                else func->paramTypeName.push_back("");
+                func->paramType.push_back(getType(param.type));
                 func->paramName.push_back(tryConsume(TokenType::id,"Expected identifier").value.value());
                 if(!tryConsume(TokenType::comma))i = 1;
             }
@@ -498,6 +506,8 @@
                     NodeStmtScope* scope = parseScope().value();
                     for (auto stmt : scope->stmts) {
                         if(auto val = dynamic_cast<NodeStmtLet *>(stmt)) {
+                            if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->typeName.push_back(type->typeName);
+                            else str->typeName.emplace_back("");
                             str->vars.push_back(val);
                             str->types.push_back(val->type);
                         }else {
@@ -517,9 +527,9 @@
             m_I = file->tokenPtr;
             while ((peak().has_value()))
             {
-                if(auto stmt = parseStmt()){
+                /*if(auto stmt = parseStmt()){
                     file->stmts.push_back(stmt.value());
-                }else if(auto func = parseFunc()) {
+                }else */if(auto func = parseFunc()) {
                     file->funcs.insert(std::pair(FuncSig(func.value()->name,func.value()->paramType),func.value()));
                 }else if(auto type = parseType()){
                     file->types.push_back(type.value());

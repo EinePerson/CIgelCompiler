@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <functional>
 #include <sys/stat.h>
@@ -33,8 +34,8 @@ const std::map<std::string,uint> FLAGS = {
 //#define IS_DEBUG 0b1
 
 struct FuncSig {
-    FuncSig(const std::string&name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}
-    FuncSig(const std::string&name, const std::vector<llvm::Type*>&types,llvm::Type* _return) : name(name),types(types),_return(_return){}
+    FuncSig(std::string name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}
+    FuncSig(std::string name, const std::vector<llvm::Type*>&types,llvm::Type* _return) : name(name),types(types),_return(_return){}
     std::string name;
     std::vector<llvm::Type*> types;
     llvm::Type* _return;
@@ -63,6 +64,7 @@ struct Header {
     std::vector<FuncSig*> funcs;
     std::unordered_map<std::string,llvm::StructType*> structs;
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name,std::vector<llvm::Type*> types);
+    std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
 };
 
@@ -83,6 +85,7 @@ struct SrcFile{
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
 
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type*> types);
+    std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
 };
 

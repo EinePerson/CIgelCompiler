@@ -181,6 +181,10 @@
         return {};
     }
 
+std::optional<IgFunction*> Header::findIgFunc(std::string name, std::vector<llvm::Type*> types) {
+        return {};
+}
+
 std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::string name) {
     if(auto type = structs.at(name)) {
         //TODO add parsing and finding of structs from header files
@@ -206,13 +210,32 @@ std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::strin
             }
         }
         if(Tokenizer::LIB_FUNCS.contains(name)) {
+            //TODO ADD CHECKING WEATHER FUNCTION RETURN TYPE IS SIGNED
             return  std::make_pair(Tokenizer::LIB_FUNCS.at(name)(),false);
         }
 
         return {};
     }
 
-    std::optional<std::pair<llvm::StructType*,Struct*>> SrcFile::findStruct(std::string name) {
+std::optional<IgFunction*> SrcFile::findIgFunc(std::string name, std::vector<llvm::Type*> types) {
+        if(funcs.contains(FuncSig(name,types))) {
+            return  funcs[FuncSig(name,types)];
+        };
+        for (const auto &item: includes){
+            if(auto ret = item->findIgFunc(name,types)){
+                return ret;
+            }
+        }
+        for (const auto &item: _using){
+            if(auto ret = item->findIgFunc(name, types)){
+                return ret;
+            }
+        }
+
+        return {};
+}
+
+std::optional<std::pair<llvm::StructType*,Struct*>> SrcFile::findStruct(std::string name) {
         if(structs.contains(name)) {
             return structs.at(name);
         }

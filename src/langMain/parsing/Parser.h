@@ -53,6 +53,7 @@ private:
     Token tryConsume(const TokenType type,const std::string& errs){
         if(peak().has_value() && peak().value().type == type)return consume();
         err(errs);
+        return {};
     }
 
     std::optional<Token> tryConsume(const TokenType type){

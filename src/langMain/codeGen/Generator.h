@@ -40,6 +40,7 @@ struct StructVar final : Var {
     std::vector<bool> signage;
     PointerType* type = nullptr;
     StructType* strType = nullptr;
+    Struct* str;
 };
 
 class Generator {
@@ -71,7 +72,7 @@ public:
     std::optional<Var*> getOptVar(std::string name, bool _this = false);
 
     void createVar(const std::string&name,Type* type,Value* val,bool _signed);
-    void createVar(Argument* arg,bool _signed);
+    void createVar(Argument* arg,bool _signed, const std::string&typeName);
 private:
 
     std::unique_ptr<IRBuilder<>> m_builder;

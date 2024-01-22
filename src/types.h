@@ -131,6 +131,7 @@ struct NodeTermArrayAcces final : NodeTerm{
 };
 
 struct NodeTermStructAcces final : NodeTerm {
+    NodeTermFuncCall* call = nullptr;
     Token id;
     Token acc;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
@@ -140,16 +141,20 @@ struct NodeTermStructAcces final : NodeTerm {
 struct NodeTermFuncCall final : NodeTerm{
     std::string name;
     std::vector<NodeExpr*> exprs;
+    std::vector<llvm::Type*> params;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override {
         if(contained)contained.value()->generate(builder);
-        std::vector<llvm::Type*> params;
-        params.reserve(exprs.size());
         std::vector<llvm::Value*> vals;
         vals.reserve(exprs.size());
         for (const auto expr : exprs) {
             llvm::Value* val = expr->generate(builder);
-            params.push_back(val->getType());
             vals.push_back(val);
+        }
+        if(params.empty()) {
+            params.reserve(exprs.size());
+            for (auto val : vals) {
+                params.push_back(val->getType());
+            }
         }
         const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params);
         _signed = callee.second;
@@ -423,6 +428,8 @@ struct IgFunction{
     std::string name;
     std::vector<llvm::Type*> paramType;
     std::vector<std::string> paramName;
+    std::vector<std::string> paramTypeName;
+    std::string retTypeName;
     std::vector<bool> signage;
     llvm::Type* _return;
     bool returnSigned;
@@ -458,6 +465,7 @@ struct Struct final : IgType {
     std::vector<NodeStmtLet*> vars;
     std::vector<std::string> varIds;
     std::vector<llvm::Type*> types {};
+    std::vector<std::string> typeName;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 

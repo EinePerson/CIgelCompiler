@@ -139,7 +139,8 @@ void Generator::genFunc(IgFunction* func) {
 
     m_vars.emplace_back();
     for(size_t i = 0;i < llvmFunc->arg_size();i++){
-        createVar(llvmFunc->getArg(i),func->signage[i]);
+        llvmFunc->getArg(i)->setName(func->paramName[i]);
+        createVar(llvmFunc->getArg(i),func->signage[i],func->paramTypeName[i]);
     }
 
     func->scope->generate(m_builder.get());
@@ -294,8 +295,24 @@ void Generator::createVar(const std::string&name,Type* type,Value* val,bool _sig
     }
 }
 
-void Generator::createVar(Argument* arg,bool _signed) {
+void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName) {
     AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
     m_builder->CreateStore(arg,alloc);
+    if(arg->getType()->isPointerTy()) {
+        auto structT = Generator::instance->m_file->findStruct(typeName);
+        auto var = new StructVar(alloc);
+        var->type = static_cast<PointerType*>(arg->getType());
+        var->strType = structT.value().first;
+        var->types = structT.value().second->types;
+        for(size_t i = 0;i < structT.value().second->vars.size();i++) {
+            NodeStmtLet* let = structT.value().second->vars[i];
+            auto t = let->id;
+            std::string str = structT.value().second->vars[i]->id.value.value();
+            var->signage.push_back(t.type <= TokenType::_long);
+            var->vars[str] = i;
+        }
+        m_vars.back()[static_cast<std::string>(arg->getName())] = var;
+        return;
+    }
     m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc,_signed};
 }

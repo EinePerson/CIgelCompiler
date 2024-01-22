@@ -100,18 +100,21 @@ public:
         return m_tokens.at(m_I++);
     }
 
-    inline Token tryConsume(TokenType type,const std::string& err){
+    inline Token tryConsume(TokenType type,const std::string& errs){
         if(peak().has_value() && peak().value().type == type)return consume();
         else {
-            std::cerr << err << "\nat line: " << (peak().has_value() ? peak().value().line:peak(-1).value().line);
-            std::cerr << std::endl;
-            exit(EXIT_FAILURE);
+            err(errs);
         }
     }
 
     inline std::optional<Token> tryConsume(TokenType type){
         if(peak().has_value() && peak().value().type == type)return consume();
         else return {};
+    }
+
+    void err(const std::string&err) const {
+        std::cerr << err << "\n" << "   at: " << peak(-1).value().file << ":" << peak(-1).value().line << std::endl;
+        exit(EXIT_FAILURE);
     }
 
     ~PreParser() = default;
