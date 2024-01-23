@@ -221,6 +221,16 @@ class Tokenizer{
             {':',TokenType::next},
     };
 
+    const std::map<char,std::string> ESCAPES = {
+            {'b',"\b"},
+            {'t',"\t"},
+            {'n',"\n"},
+            {'v'," \v"},
+            {'f',"\f"},
+            {'r',"\r"},
+            {'"',"\""},
+    };
+
     static std::map<std::string,std::function<llvm::FunctionCallee()>> LIB_FUNCS;
 
    std::vector<Token> tokenize(const std::string&file);

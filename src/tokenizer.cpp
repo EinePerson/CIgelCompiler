@@ -214,6 +214,13 @@ typedef unsigned int uint;
                 consume();
                 while (peak().has_value() && peak().value() != '"')
                 {
+                    if(peak().value() == '\\') {
+                        consume();
+                        if(ESCAPES.contains(peak().value())) {
+                            buf.append(ESCAPES.at(consume()));
+                            continue;
+                        }
+                    }
                     buf.push_back(consume());
                 }
                 consume();
@@ -245,9 +252,9 @@ typedef unsigned int uint;
                 }
                 m_tokens.push_back({.type =  TokenType::next,.line = lineCount,.file = file});
                 continue;
-            }else if(std::isalpha(peak().value())){
+            }else if(std::isalpha(peak().value()) || peak().value() == '_'){
                 buf.push_back(consume());
-                while (peak().has_value() && std::isalnum(peak().value()))
+                while (peak().has_value() && (std::isalnum(peak().value()) || peak().value() == '_'))
                 {
                     buf.push_back(consume());
                 }
