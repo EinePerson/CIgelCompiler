@@ -57,10 +57,26 @@
                 term_paren->_signed = expr.value()->_signed;
                 term = term_paren;
             }else if(auto _new = tryConsume(TokenType::_new)) {
-                auto cr = new NodeTermNew;
-                cr->typeName = tryConsume(TokenType::id,"Expected Identifier").value.value();
-                return cr;
-            }else if(tryConsume(TokenType::null)) {
+                if(peak().has_value() && peak().value().type <= TokenType::_bool) {
+                    auto* arr = new NodeTermArrNew;
+                    arr->sid = static_cast<char>(consume().type);
+                    while (peak().has_value() && peak().value().type == TokenType::openBracket){
+                        tryConsume(TokenType::openBracket,"Expected '['");
+                        if(auto cont = parseTerm()) {
+                            arr->size.push_back(cont.value());
+                        }else err("Expected Term");
+                        tryConsume(TokenType::closeBracket,"Expected ']'");
+                    }
+                    arr->contained = nullptr;
+                    arr->floating = arr->sid == static_cast<char>(TokenType::_float) || arr->sid == static_cast<char>(TokenType::_double);
+                    arr->_signed = arr->sid <= static_cast<char>(TokenType::_long);
+                    return  arr;
+                }else {
+                    auto cr = new NodeTermNew;
+                    cr->typeName = tryConsume(TokenType::id,"Expected Identifier").value.value();
+                    return cr;
+                }
+            } else if(tryConsume(TokenType::null)) {
                 return new NodeTermNull;
             }else
                 return {};
@@ -70,7 +86,7 @@
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
 
                 auto termF = peak();
-                if(peak(1).has_value() && peak(1).value().type != TokenType::connector)consume();
+                if(peak(1).has_value() && peak(1).value().type != TokenType::connector && peak(1).value().type != TokenType::openBracket)consume();
                 if(!termF)return term;
                 termT->acc = termF.value();
                 term = termT;
@@ -203,26 +219,31 @@
                     auto arr = new NodeStmtArr;
                     arr->sid = (char) peak().value().type;
                     arr->_signed = consume().type <= TokenType::_long;
-                    if(peak(1).has_value() && peak(1).value().type == TokenType::int_lit){
+                    arr->type = reinterpret_cast<Type *>(1);
+                    /*if(peak(1).has_value() && peak(1).value().type == TokenType::int_lit){
                         while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::int_lit &&
                         peak(2).has_value() && peak(2).value().type == TokenType::closeBracket){
                             consume();
-                            arr->size.push_back(stoi(tryConsume(TokenType::int_lit,"Expected Integer as value").value.value()));
+                            //arr->size.push_back(stoi(tryConsume(TokenType::int_lit,"Expected Integer as value").value.value()));
                             consume();
                         }
                         arr->fixed = true;
-                    }else{
+                    }else{*/
                         while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
                             consume();
-                            arr->size.push_back(-1);
+                            //if(auto term = parseTerm())arr->size.push_back(term.value());
+                            //else err("Expected Term");
+                            arr->size++;
                             consume();
                         }
                         arr->fixed = false;
-                    }
+                    //}
 
                     arr->id = consume();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
-                        //TODO add new n stuff
+                        if(auto t = parseTerm()) {
+                            arr->term = t.value();
+                        }else err("Expected Term");
                     }
                     tryConsume(TokenType::semi, "Expected ';'");
                     return arr;
@@ -265,6 +286,7 @@
                 peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new*/) {
                 auto id = tryConsume(TokenType::id);
                 auto strNew = new NodeStmtStructNew;
+                strNew->type = reinterpret_cast<Type *>(2);
                 strNew->typeName = id.value().value.value();
                 strNew->id = tryConsume(TokenType::id,"Expected name");
                 if(tryConsume(TokenType::eq)) {

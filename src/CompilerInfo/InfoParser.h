@@ -105,11 +105,14 @@ struct Info{
     std::vector<Directory*> src;
     std::vector<Directory*> include;
     std::vector<Func> calls;
+    std::vector<std::string> libs {"libigc.so"};
     SrcFile* main;
     std::string m_name;
     std::unordered_map<std::string,SrcFile*> file_table;
     std::unordered_map<std::string,Header*> header_table;
     uint flags;
+
+    bool hasFlag(const std::string&flag) const;
 };
 
 struct FileItterator{

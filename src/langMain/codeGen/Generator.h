@@ -29,7 +29,8 @@ struct Var {
 
 struct ArrayVar : Var {
     explicit ArrayVar(Value* alloc,bool _signed) : Var(alloc,_signed) {}
-    std::vector<Type*> types;
+    Type* type;
+    uint size;
     std::vector<AllocaInst*> sizes;
 };
 
@@ -94,6 +95,7 @@ public:
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
     static bool lastUnreachable;;
+    static llvm::StructType* arrTy;
 };
 
 

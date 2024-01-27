@@ -257,6 +257,10 @@ void Directory::genFile(std::string path) {
         }
     }
 
+bool Info::hasFlag(const std::string&flag) const {
+        return (flags & FLAGS.at(flag)) == FLAGS.at(flag);
+}
+
 std::string removeExtension(const std::string &filename) {
     size_t lastdot = filename.find_last_of('.');
     if(lastdot == std::string::npos)return filename;

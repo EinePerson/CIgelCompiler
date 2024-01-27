@@ -176,7 +176,16 @@ struct NodeTermNew final : NodeTerm {
     };
 };
 
+struct NodeTermArrNew final : NodeTerm {
+    char sid;
+    bool _signed;
+    std::vector<NodeExpr*> size;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw "NotImplementedException";
+    };
+};
 
 //BEGIN OF BINARY EXPRESIONS
 
@@ -348,11 +357,12 @@ struct NodeStmtStructNew final : NodeStmtNew{
 };
 
 struct NodeStmtArr final : NodeStmtLet{
-    char sid;
-    bool _signed;
-    bool fixed;
-    std::vector<uint> size;
-    std::optional<NodeStmtNew*> create;
+    NodeTerm* term = nullptr;
+    char sid = -1;
+    bool _signed = 0;
+    bool fixed = false;;
+    uint size = 0;;
+    //std::optional<NodeStmtNew*> create;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 

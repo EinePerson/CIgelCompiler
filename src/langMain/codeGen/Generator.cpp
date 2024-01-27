@@ -51,17 +51,25 @@ Generator* Generator::instance = nullptr;
 std::vector<bool> Generator::unreachableFlag {};
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 bool Generator::lastUnreachable = false;
+StructType* Generator::arrTy = nullptr;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
-    //AllocaInst* alloc = m_builder->CreateAlloca(PointerType::get(*m_contxt,0));
+    if(!arrTy) {
+        arrTy = StructType::create(*m_contxt,"ArrayWrapper");
+        arrTy->setBody(IntegerType::getInt32Ty(*m_contxt),PointerType::get(*m_contxt,0));
+    }
 }
 
-Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr) {
+Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(nullptr) {
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
+    if(!arrTy) {
+        arrTy = StructType::create(*m_contxt);
+        arrTy->setBody(IntegerType::getInt32Ty(*m_contxt),PointerType::get(*m_contxt,0));
+    }
 }
 
 void Generator::setup(SrcFile* file) {
@@ -200,7 +208,7 @@ void Generator::write() {
     if(verifyModule(*m_module,&outs()))
         exit(EXIT_FAILURE);
 
-    if((m_info->flags & FLAGS.at("Optimize")) == FLAGS.at("Optimize")) {
+    if(m_info->hasFlag("Optimize")) {
         PassBuilder PB;
         PB.registerModuleAnalyses(MAM);
         PB.registerCGSCCAnalyses(CGAM);
@@ -228,6 +236,7 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
     if(const auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
         m_currentVar++;
         m_sVarId.push_back(0);
+        m_vars.emplace_back();
         FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
         const FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
         Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
@@ -239,6 +248,7 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         }
         m_currentVar--;
         m_sVarId.pop_back();
+        m_vars.pop_back();
         return var;
     }
     std::cerr << "Unknown type " << typeName << std::endl;

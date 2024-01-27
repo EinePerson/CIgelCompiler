@@ -47,3 +47,15 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 # Link against LLVM libraries
 target_link_libraries(igel /usr/lib/libLLVM-16.so)
 #target_link_libraries(igel ${llvm_libs})
+
+SET(libSrc
+        srcLib/Array.h)
+SET(libSrcPr
+        srcLib/Array.cpp)
+
+add_library(libIg SHARED ${libSrc} ${libSrcPr})
+set_target_properties(libIg PROPERTIES OUTPUT_NAME "igc")
+
+INSTALL(TARGETS libIg
+        LIBRARY DESTINATION /libbin
+        PUBLIC_HEADER DESTINATION /libinclude)
