@@ -8,11 +8,13 @@ struct ArrayWrapper {
     long* ptr;
 };
 
-/**
-* \brief Recursive function which creates n-dimensional arrays with size information
-* \param type The base type of the array
-* \param idX the current dimension
-* \param arr the array sizes
-* \return An information struct for the array
-*/
-ArrayWrapper createArray(char type,int idX,int* arr);
+extern "C"{
+    /**
+    * \brief Recursive function which creates n-dimensional arrays with size information
+    * \param type The base type of the array
+    * \param idX the current dimension
+    * \param arr the array sizes
+    * \return An information struct for the array
+    */
+    ArrayWrapper createArray(char type,int idX,int* arr);
+}

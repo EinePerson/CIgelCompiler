@@ -105,7 +105,7 @@ struct Info{
     std::vector<Directory*> src;
     std::vector<Directory*> include;
     std::vector<Func> calls;
-    std::vector<std::string> libs {"libigc.so"};
+    std::vector<std::string> libs {"libigc.a"};
     SrcFile* main;
     std::string m_name;
     std::unordered_map<std::string,SrcFile*> file_table;

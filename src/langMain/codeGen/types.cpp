@@ -568,7 +568,7 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
           ptr = builder->CreateInBoundsGEP(IntegerType::getInt32Ty(builder->getContext()),sizes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),i));
           builder->CreateStore(size[i]->generate(builder),ptr);
      }
-     const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("_Z11createArrayciPi",Generator::arrTy,
+     const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("createArray",Generator::arrTy,
           IntegerType::getInt8Ty(builder->getContext()),IntegerType::getInt32Ty(builder->getContext()),PointerType::get(builder->getContext(),0));
      Value* arr = builder->CreateCall(_new,{ConstantInt::get(IntegerType::getInt8Ty(builder->getContext()),sid),ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),size.size() - 1),sizes});
      return arr;

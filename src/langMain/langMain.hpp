@@ -28,7 +28,6 @@ class LangMain{
             }
 
             outFiles << "clang++ -o " << m_info->m_name << " ";
-            outFiles << "srcLib/*.cpp ";
             if(m_info->files.empty())return;
             m_gen = new Generator(m_info->files.back(),m_info);
             for(const auto file:m_info->files){
@@ -37,6 +36,7 @@ class LangMain{
                 m_gen->write();
                 outFiles << "./build/cmp/" << file->fullName << ".bc ";
             }
+            for (const auto& lib : m_info->libs) outFiles << lib << " ";
 
             std::string temp = outFiles.str();
             const char* str1 = temp.c_str();
