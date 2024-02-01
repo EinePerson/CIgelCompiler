@@ -96,6 +96,7 @@ public:
     static std::vector<bool> unreachableFlag;
     static bool lastUnreachable;;
     static llvm::StructType* arrTy;
+    static Struct* structRet;
 };
 
 

@@ -476,6 +476,8 @@ struct Struct final : IgType {
     std::vector<std::string> varIds;
     std::vector<llvm::Type*> types {};
     std::vector<std::string> typeName;
+    std::unordered_map<std::string,uint> varIdMs;
+    llvm::StructType* strType = nullptr;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 

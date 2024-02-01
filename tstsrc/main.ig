@@ -2,15 +2,16 @@ struct Test{
     Test t;
     int a;
     int b;
-    //int[5] arr;
+    int[] arr;
 }
 
 int main(){
-    //Test t = new Test;
-    int[][] arr = new int[5][5];
-    arr[2][3] = 10;
-    arr[2][3] = 11;
-    //arr[2][1] = 9;
-    printf("%d",arr[2][3]);
+    Test test = new Test;
+    test.a = 164;
+    test.arr = new int[5];
+    test.arr[2] = 136;
+    test.arr[0] = 137;
+    test.arr[3] = 138;
+    printf("%d",test.a);
     return 5;
 }

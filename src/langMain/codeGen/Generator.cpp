@@ -52,6 +52,7 @@ std::vector<bool> Generator::unreachableFlag {};
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 bool Generator::lastUnreachable = false;
 StructType* Generator::arrTy = nullptr;
+Struct* Generator::structRet = nullptr;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -321,6 +322,8 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             var->signage.push_back(t.type <= TokenType::_long);
             var->vars[str] = i;
         }
+        if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
+        if(!structT.value().second->strType)structT.value().second->strType = var->strType;
         m_vars.back()[static_cast<std::string>(arg->getName())] = var;
         return;
     }
