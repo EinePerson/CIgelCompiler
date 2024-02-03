@@ -71,7 +71,22 @@
                     arr->floating = arr->sid == static_cast<char>(TokenType::_float) || arr->sid == static_cast<char>(TokenType::_double);
                     arr->_signed = arr->sid <= static_cast<char>(TokenType::_long);
                     return  arr;
-                }else {
+                }else if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket) {
+                    auto* arr = new NodeTermArrNew;
+                    arr->sid = -1;
+                    arr->typeName = consume().value.value();
+                    while (peak().has_value() && peak().value().type == TokenType::openBracket){
+                        tryConsume(TokenType::openBracket,"Expected '['");
+                        if(auto cont = parseTerm()) {
+                            arr->size.push_back(cont.value());
+                        }else err("Expected Term");
+                        tryConsume(TokenType::closeBracket,"Expected ']'");
+                    }
+                    arr->contained = nullptr;
+                    arr->floating = arr->sid == static_cast<char>(TokenType::_float) || arr->sid == static_cast<char>(TokenType::_double);
+                    arr->_signed = arr->sid <= static_cast<char>(TokenType::_long);
+                    return  arr;
+                }else{
                     auto cr = new NodeTermNew;
                     cr->typeName = tryConsume(TokenType::id,"Expected Identifier").value.value();
                     return cr;
@@ -84,6 +99,7 @@
                 auto termT = new NodeTermStructAcces;
                 if(auto val = dynamic_cast<NodeTermId*>(term))termT->id = val->id;
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
+                if(auto val = dynamic_cast<NodeTermArrayAcces*>(term))termT->contained = term;
 
                 auto termF = peak();
                 if(peak(1).has_value() && peak(1).value().type != TokenType::connector && peak(1).value().type != TokenType::openBracket)consume();
@@ -174,19 +190,7 @@
         }
 
         std::optional<NodeStmt*> Parser::parseStmt(bool semi){
-            if(peak().value().type == TokenType::_exit && peak(1).has_value() && peak(1).value().type == TokenType::openParenth){
-                consume();
-                consume();
-                auto* stmt = new NodeStmtExit;
-                if(auto nodeExpr = parseExpr()){
-                    stmt->expr = nodeExpr.value();
-                }else{
-                    err("Invalid Expression1");
-                }
-                tryConsume(TokenType::closeParenth, "Expected `)`");
-                tryConsume(TokenType::semi,"Expected ';'");
-                return stmt;
-            }else if(peak().has_value() && peak().value().type <= TokenType::_bool){
+            if(peak().has_value() && peak().value().type <= TokenType::_bool){
                 if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
                 && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
                     auto pirim = new NodeStmtPirimitiv;
@@ -282,25 +286,57 @@
                 tryConsume(TokenType::next,"Expected ':'");
                 _case->_default = true;
                 return _case;
-            }else if(peak().has_value() && peak().value().type == TokenType::id && peak(1).has_value() && peak(1).value().type == TokenType::id &&
-                peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new*/) {
-                auto id = tryConsume(TokenType::id);
-                auto strNew = new NodeStmtStructNew;
-                strNew->type = reinterpret_cast<Type *>(2);
-                strNew->typeName = id.value().value.value();
-                strNew->id = tryConsume(TokenType::id,"Expected name");
-                if(tryConsume(TokenType::eq)) {
+            }else if(peak().has_value() && peak().value().type == TokenType::id && std::find(m_file->typeNames.begin(),m_file->typeNames.end(),peak().value().value.value()) != m_file->typeNames.end()) {
+                std::string typeName = consume().value.value();
+                if(peak().value().type == TokenType::openBracket) {
+                    auto* arr = new NodeStmtArr;
+
+                    arr->typeName = typeName;
+                    arr->fixed = false;
+                    arr->_signed = false;
+                    arr->sid = -1;
+                    arr->type = reinterpret_cast<Type *>(1);
+                    while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
+                        consume();
+                        arr->size++;
+                        consume();
+                    }
+                    arr->id = consume();
+                    if(!arr->fixed && tryConsume(TokenType::eq)) {
+                        if(auto t = parseTerm()) {
+                            arr->term = t.value();
+                        }else err("Expected Term");
+                    }
+                    tryConsume(TokenType::semi, "Expected ';'");
+                    return arr;
+                }
+                Token varName = tryConsume(TokenType::id,"Expected name");
+                if(peak().value().type == TokenType::eq) {
+                    auto strNew = new NodeStmtStructNew;
+                    strNew->type = reinterpret_cast<Type *>(2);
+                    strNew->typeName = typeName;
+                    strNew->id = varName;
+                    tryConsume(TokenType::eq,"Expected '='");
                     if(auto t = parseTerm())
                         strNew->term = t.value();
                     else {
-                        //TODO throw error
+                        err("Expected Term after '='");
                     }
-                }else {
+                    tryConsume(TokenType::semi,"Expected ';'");
+                    return strNew;
+                }else if(peak().value().type == TokenType::semi) {
+                    auto strNew = new NodeStmtStructNew;
+                    strNew->type = reinterpret_cast<Type *>(2);
+                    strNew->typeName = typeName;
+                    strNew->id = varName;
                     strNew->term = new NodeTermNull;
+                    consume();
+                    return strNew;
                 }
-                tryConsume(TokenType::semi,"Expected ';'");
-                return strNew;
-            } else if(auto id = /*tryConsume(TokenType::id)*/ parseTerm()){
+            }else /*if(peak().has_value() && peak().value().type == TokenType::id && peak(1).has_value() && peak(1).value().type == TokenType::id &&
+                peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new) {
+
+            } else*/ if(auto id = /*tryConsume(TokenType::id)*/ parseTerm()){
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(id.value())){
                     auto* call = new NodeStmtFuncCall;
                     call->call = val;
@@ -547,6 +583,7 @@
         SrcFile* Parser::parseProg(SrcFile* file){
             m_tokens = file->tokens;
             m_I = file->tokenPtr;
+            m_file = file;
             while ((peak().has_value()))
             {
                 /*if(auto stmt = parseStmt()){

@@ -180,6 +180,7 @@ struct NodeTermArrNew final : NodeTerm {
     char sid;
     bool _signed;
     std::vector<NodeExpr*> size;
+    std::optional<std::string> typeName;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -361,8 +362,8 @@ struct NodeStmtArr final : NodeStmtLet{
     char sid = -1;
     bool _signed = 0;
     bool fixed = false;;
-    uint size = 0;;
-    //std::optional<NodeStmtNew*> create;
+    uint size = 0;
+    std::optional<std::string> typeName;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 

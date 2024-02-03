@@ -108,6 +108,9 @@ enum class TokenType{
     //Double Connector ::
     dConnect,
     _struct,
+    _class,
+    interface,
+    _enmu,
     null,
 };
 

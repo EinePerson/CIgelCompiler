@@ -4,7 +4,7 @@
  * \brief A struct which contains the size of an array and its respective pointer
  */
 struct ArrayWrapper {
-    int len;
+    unsigned int len;
     long* ptr;
 };
 
@@ -16,5 +16,5 @@ extern "C"{
     * \param arr the array sizes
     * \return An information struct for the array
     */
-    ArrayWrapper createArray(char type,int idX,int* arr);
+    ArrayWrapper createArray(char type,int idX,unsigned int* arr);
 }

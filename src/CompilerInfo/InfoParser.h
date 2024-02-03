@@ -81,6 +81,7 @@ struct SrcFile{
     size_t tokenPtr;
     std::vector<NodeStmt*> stmts;
     std::vector<IgType*> types;
+    std::vector<std::string> typeNames;
     std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
 

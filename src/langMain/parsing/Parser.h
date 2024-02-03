@@ -69,6 +69,7 @@ private:
     std::vector<Token> m_tokens;
     size_t m_I = 0;
     char m_sidFlag = -1;
+    SrcFile* m_file = nullptr;
 };
 
 

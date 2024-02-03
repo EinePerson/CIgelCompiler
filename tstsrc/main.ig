@@ -6,12 +6,15 @@ struct Test{
 }
 
 int main(){
-    Test test = new Test;
-    test.a = 164;
-    test.arr = new int[5];
-    test.arr[2] = 136;
-    test.arr[0] = 137;
-    test.arr[3] = 138;
-    printf("%d",test.a);
+    Test te = new Test;
+    te.t = new Test;
+    te.t.a = 364;
+    printf("%d",te.t.a);
+    Test[] t = new Test[5];
+    t[2] = new Test;
+    t[2].a = 264;
+    t[0] = new Test;
+    t[0].a = 51;
+    printf("%d",t[2].a);
     return 5;
 }

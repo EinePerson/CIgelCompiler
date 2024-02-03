@@ -28,10 +28,10 @@ struct Var {
 };
 
 struct ArrayVar : Var {
-    explicit ArrayVar(Value* alloc,bool _signed) : Var(alloc,_signed) {}
-    Type* type;
-    uint size;
-    std::vector<AllocaInst*> sizes;
+    explicit ArrayVar(Value* alloc,bool _signed,std::optional<std::string> typeName = {}) : Var(alloc,_signed),typeName(typeName) {}
+    Type* type = nullptr;
+    std::optional<std::string> typeName;
+    uint size = -1;
 };
 
 struct StructVar final : Var {

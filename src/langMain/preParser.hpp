@@ -34,6 +34,13 @@ public:
             b += parseUsing();
             if(!b)break;
         }
+        while (peak().has_value()) {
+            if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enmu) {
+                consume();
+                if(peak().value().type != TokenType::id)err("Expected type name");
+                file->typeNames.push_back(consume().value.value());
+            }else consume();
+        }
         m_parser.parseProg(file);
     }
 

@@ -29,8 +29,11 @@ llvm::Value* NodeTermArrayAcces::generate(llvm::IRBuilder<>* builder) {
           if(dynamic_cast<NodeTermStructAcces*>(contained.value())) {
                Struct* str = Generator::structRet;
                uint fid = str->varIdMs[id.value.value()];
-               Generator::structRet = nullptr;
-               return builder->CreateLoad(str->types[fid],generatePointer(builder));
+               if(auto strRet = Generator::instance->m_file->findStruct(str->typeName[fid])) {
+                    Generator::structRet = strRet.value().second;
+                    return builder->CreateLoad(str->types[fid],generatePointer(builder));
+               }
+               return nullptr;
           }
      }
      auto* var = static_cast<ArrayVar*>(Generator::instance->getVar(id.value.value()));
@@ -46,6 +49,10 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      }else {
           var = static_cast<ArrayVar*>(Generator::instance->getVar(id.value.value()));
           _signed = var->_signed;
+          if(var->typeName.has_value()) {
+               auto strRet = Generator::instance->m_file->findStruct(var->typeName.value());
+               Generator::structRet = strRet.value().second;
+          }
      }
      if(!ptr && !var) {
           std::cerr << "Neither contained value nor variable" << std::endl;
@@ -111,7 +118,7 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      Struct* str = nullptr;
      StructVar* var = nullptr;
      if(contained) {
-          val = contained.value()->generate(builder);
+          val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
@@ -122,12 +129,12 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
      if(var) {
           Generator::structRet = var->str;
-          return builder->CreateLoad(var->types[fid],this->generatePointer(builder));
+          return builder->CreateLoad(var->types[fid],ptr);
      }
      if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid])) {
           Generator::structRet = strT.value().second;
      }else Generator::structRet = nullptr;
-     return builder->CreateLoad(str->types[fid],this->generatePointer(builder));
+     return builder->CreateLoad(str->types[fid],ptr);
 }
 
 llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
@@ -147,7 +154,7 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Struct* str = nullptr;
      StructVar* var = nullptr;
      if(contained) {
-          val = contained.value()->generate(builder);
+          val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
@@ -205,17 +212,14 @@ Value* createArr(std::vector<Value*> sizes,std::vector<Type*> types,uint i,llvm:
      if(i == 0)return ConstantInt::get(types[i],0);
      const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("_Znam",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
      Value* var = builder->CreateCall(_new,builder->CreateMul(sizes[i - 1],ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),12)));
-     /*for(uint size = 0;size < sizes[i - 1];size++) {
-          Value* val = builder->CreateGEP(types[i],var,ConstantInt::get(Type::getInt64Ty(builder->getContext()),size));
-          builder->CreateStore(createArr(sizes,types, i - 1,builder),val);
-     }*/
+
      return var;
 }
 
 llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
      Value* val = llvm::ConstantPointerNull::get(llvm::PointerType::get(builder->getContext(),0));
      if(term)val = term->generate(builder);
-     auto* var = new ArrayVar(builder->CreateAlloca(Generator::arrTy),sid <= 3);
+     auto* var = new ArrayVar(builder->CreateAlloca(Generator::arrTy),sid <= 3,typeName);
      var->size = size;
      var->type = getType(static_cast<TokenType>(sid));
      builder->CreateStore(val,var->alloc);
@@ -418,14 +422,12 @@ llvm::Value* NodeStmtReturn::generate(llvm::IRBuilder<>* builder)  {
 
 llvm::Value* NodeStmtBreak::generate(llvm::IRBuilder<>* builder) {
      Value* val = builder->CreateBr(Generator::instance->after.back());
-     //Generator::unreachableFlag.back() = true;
      Generator::lastUnreachable = true;
      return val;
 }
 
 llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
      Value* val = builder->CreateBr(Generator::instance->next.back());
-     //Generator::unreachableFlag.back() = true;
      Generator::lastUnreachable = true;
      return val;
 }
@@ -440,7 +442,6 @@ void Struct::generateSig(llvm::IRBuilder<>* builder) {
      for(uint i = 0; i < this->types.size();i++) {
           if(types[i] == nullptr) {
                std::cerr << "Type is not set in " << name << std::endl;
-               //types[i] = PointerType::get(builder->getContext(),0);
           }
           auto tIL = (ulong) types[i];
           switch (const ulong tI = tIL) {
