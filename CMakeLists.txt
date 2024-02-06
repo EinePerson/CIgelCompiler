@@ -53,3 +53,11 @@ SET(libSrcPr
 
 add_library(libIg STATIC ${libSrcPr})
 set_target_properties(libIg PROPERTIES OUTPUT_NAME "igc")
+set_target_properties( libIg
+        PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "./libs"
+        LIBRARY_OUTPUT_DIRECTORY "./libs"
+        RUNTIME_OUTPUT_DIRECTORY "./bin"
+)
+#set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

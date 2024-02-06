@@ -2,7 +2,7 @@ struct Test{
     Test t;
     int a;
     int b;
-    int[] arr;
+    //int[] arr;
 }
 
 int main(){

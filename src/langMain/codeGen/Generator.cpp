@@ -239,8 +239,8 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         m_sVarId.push_back(0);
         m_vars.emplace_back();
         FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
-        const FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
-        Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
+        const FunctionCallee _new = m_module->getOrInsertFunction("GC_malloc",type);
+        Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),m_module->getDataLayout().getTypeSizeInBits(structT.value().first)));
         for (const auto node_stmt_let : structT.value().second->vars) {
             Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
             Value* gen = node_stmt_let->generate(m_builder.get());
