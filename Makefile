@@ -362,6 +362,30 @@ src/tokenizer.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/tokenizer.cpp.s
 .PHONY : src/tokenizer.cpp.s
 
+src/util/Mangler.o: src/util/Mangler.cpp.o
+.PHONY : src/util/Mangler.o
+
+# target to build an object file
+src/util/Mangler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Mangler.cpp.o
+.PHONY : src/util/Mangler.cpp.o
+
+src/util/Mangler.i: src/util/Mangler.cpp.i
+.PHONY : src/util/Mangler.i
+
+# target to preprocess a source file
+src/util/Mangler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Mangler.cpp.i
+.PHONY : src/util/Mangler.cpp.i
+
+src/util/Mangler.s: src/util/Mangler.cpp.s
+.PHONY : src/util/Mangler.s
+
+# target to generate assembly for a file
+src/util/Mangler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Mangler.cpp.s
+.PHONY : src/util/Mangler.cpp.s
+
 srcLib/Array.o: srcLib/Array.cpp.o
 .PHONY : srcLib/Array.o
 
@@ -421,6 +445,9 @@ help:
 	@echo "... src/tokenizer.o"
 	@echo "... src/tokenizer.i"
 	@echo "... src/tokenizer.s"
+	@echo "... src/util/Mangler.o"
+	@echo "... src/util/Mangler.i"
+	@echo "... src/util/Mangler.s"
 	@echo "... srcLib/Array.o"
 	@echo "... srcLib/Array.i"
 	@echo "... srcLib/Array.s"

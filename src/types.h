@@ -5,9 +5,11 @@
 #ifndef TYPES_H
 #define TYPES_H
 #include <llvm/IR/IRBuilder.h>
+#include <clang/AST/Mangle.h>
 #include <variant>
 
 #include "tokenizer.h"
+#include "exceptionns/Generator.h"
 
 struct Var;
 struct IgFunction;
@@ -22,6 +24,19 @@ llvm::Type* getType(TokenType type);
 
 struct NodeStmtScope;
 struct NodeStmt;
+struct IgType;
+
+/**
+ * \brief every tpye extending this may have a super type
+ */
+struct BeContained {
+    std::optional<IgType*> contType;
+    std::string name;
+};
+
+struct FuncInfo {
+
+};
 
 llvm::Type* getType(llvm::Type* type);
 
@@ -82,7 +97,7 @@ struct NodeTermIntLit final : NodeTerm{
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to integer literal");
     };
 };
 
@@ -92,7 +107,7 @@ struct NodeTermStringLit final : NodeTerm {
         return  builder->CreateGlobalStringPtr(str.value.value());
     }
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to string literal");
     };
 };
 
@@ -102,7 +117,7 @@ struct NodeTermNull final : NodeTerm {
     }
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to null");
     };
 };
 
@@ -119,7 +134,7 @@ struct NodeTermParen final : NodeTerm {
         return expr->generate(builder);
     };
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to parenthese operation");
     };
 };
 
@@ -142,28 +157,10 @@ struct NodeTermFuncCall final : NodeTerm{
     std::string name;
     std::vector<NodeExpr*> exprs;
     std::vector<llvm::Type*> params;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        if(contained)contained.value()->generate(builder);
-        std::vector<llvm::Value*> vals;
-        vals.reserve(exprs.size());
-        for (const auto expr : exprs) {
-            llvm::Value* val = expr->generate(builder);
-            vals.push_back(val);
-        }
-        if(params.empty()) {
-            params.reserve(exprs.size());
-            for (auto val : vals) {
-                params.push_back(val->getType());
-            }
-        }
-        const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params);
-        _signed = callee.second;
-        llvm::Value* val =  builder->CreateCall(callee.first,vals);
-        return val;
-    };
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to function call");
     };
 };
 
@@ -172,7 +169,7 @@ struct NodeTermNew final : NodeTerm {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to new instruction");
     };
 };
 
@@ -184,7 +181,7 @@ struct NodeTermArrNew final : NodeTerm {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to new array");
     };
 };
 
@@ -195,7 +192,7 @@ struct NodeBinExpr : NodeExpr{
     NodeExpr* rs = nullptr;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to binary expresion");
     };
 };
 
@@ -276,7 +273,7 @@ struct NodeBinAreth final : NodeBinExpr{
         llvm::Value* lsv = ls->generate(builder);
         llvm::Value* rsv = rs->generate(builder);
         char typeI = 0;
-        llvm::CmpInst::Predicate lType = condition(type,ls->_signed || rs->_signed);
+        const llvm::CmpInst::Predicate lType = condition(type,ls->_signed || rs->_signed);
         typeI += rsv->getType()->isFloatingPointTy()? 1 : 0;
         typeI += lsv->getType()->isFloatingPointTy()? 2 : 0;
         if(typeI == 0) {
@@ -324,7 +321,7 @@ struct NodeBinNeg final : NodeBinExpr {
 struct NodeStmt : Node {
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw "NotImplementedException";
+        throw IllegalGenerationException("Cannot generate pointer to statement");
     };
 };
 
@@ -335,8 +332,7 @@ struct NodeStmtFuncCall final : NodeStmt{
     };
 };
 
-struct NodeStmtLet : NodeStmt{
-    Token id;
+struct NodeStmtLet : NodeStmt,BeContained{
     llvm::Type* type = nullptr;
 };
 
@@ -352,7 +348,7 @@ struct NodeStmtNew : NodeStmtLet{
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
-    std::string typeName;
+    //std::string typeName;
     NodeTerm* term = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
@@ -360,10 +356,10 @@ struct NodeStmtStructNew final : NodeStmtNew{
 struct NodeStmtArr final : NodeStmtLet{
     NodeTerm* term = nullptr;
     char sid = -1;
-    bool _signed = 0;
+    bool _signed = false;
     bool fixed = false;;
     uint size = 0;
-    std::optional<std::string> typeName;
+    //std::optional<std::string> typeName;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -435,18 +431,6 @@ struct NodeStmtArrReassign final : NodeStmt{
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
-struct IgFunction{
-    std::string name;
-    std::vector<llvm::Type*> paramType;
-    std::vector<std::string> paramName;
-    std::vector<std::string> paramTypeName;
-    std::string retTypeName;
-    std::vector<bool> signage;
-    llvm::Type* _return;
-    bool returnSigned;
-    NodeStmtScope * scope;
-};
-
 struct NodeStmtReturn final : NodeStmt{
     std::optional<NodeExpr*> val;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
@@ -462,23 +446,75 @@ struct NodeStmtContinue final : NodeStmt {
 
 
 
+struct IgFunction : BeContained{
+    std::vector<llvm::Type*> paramType;
+    std::vector<std::string> paramName;
+    std::vector<std::string> paramTypeName;
+    std::string retTypeName;
+    std::vector<bool> signage;
+    llvm::Type* _return = nullptr;
+    bool returnSigned;
+    NodeStmtScope* scope = nullptr;
+    llvm::Function* llvmFunc = nullptr;
+};
+
 //BEGIN OF TYPES
 
-struct IgType {
+struct IgType : BeContained {
+    IgType(bool gen) : gen(gen){}
     virtual ~IgType() = default;
-    std::string name;
+    ///weather the type is able to be generated
+    bool gen;
 
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
 };
 
 struct Struct final : IgType {
+    Struct() : IgType(true){}
     std::vector<NodeStmtLet*> vars;
     std::vector<std::string> varIds;
     std::vector<llvm::Type*> types {};
-    std::vector<std::string> typeName;
+    std::vector<BeContained*> typeName;
     std::unordered_map<std::string,uint> varIdMs;
     llvm::StructType* strType = nullptr;
+
+    void generateSig(llvm::IRBuilder<>* builder) override;
+
+    void generate(llvm::IRBuilder<>* builder) override;
+};
+
+/**
+ * \brief A type that can contain different types;
+ */
+struct ContainableType : IgType {
+    explicit ContainableType(bool gen) : IgType(gen){}
+    std::vector<BeContained*> contained {};
+};
+
+struct NamesSpace final : ContainableType {
+    NamesSpace() : ContainableType(false){}
+    std::vector<IgFunction*> funcs {};
+
+    void generateSig(llvm::IRBuilder<>* builder) override {
+        throw IllegalGenerationException("Cannot generate namespace");
+    }
+
+    void generate(llvm::IRBuilder<>* builder) override{
+        throw IllegalGenerationException("Cannot generate namespace");
+    }
+};
+
+struct Class final : ContainableType {
+    Class() : ContainableType(true){}
+    std::vector<NodeStmtLet*> vars;
+    std::vector<std::string> varIds;
+    std::vector<llvm::Type*> types {};
+    std::vector<BeContained*> typeName;
+    std::unordered_map<std::string,uint> varIdMs;
+    llvm::StructType* strType = nullptr;
+
+    std::vector<IgFunction*> funcs;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 

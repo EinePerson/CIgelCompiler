@@ -175,7 +175,7 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
 
 llvm::Value* NodeStmtPirimitiv::generate(llvm::IRBuilder<>* builder) {
      Value* val = expr.has_value()?expr.value()->generate(builder) : ConstantInt::get(Generator::getType(static_cast<TokenType>(sid)),0);
-     Generator::instance->createVar(id.value.value(),Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
+     Generator::instance->createVar(name,Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
      return val;
 }
 
@@ -193,14 +193,15 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
           var->types = structT.value().second->types;
           for(size_t i = 0;i < structT.value().second->vars.size();i++) {
                NodeStmtLet* let = structT.value().second->vars[i];
-               auto t = let->id;
-               std::string str = structT.value().second->vars[i]->id.value.value();
-               var->signage.push_back(t.type <= TokenType::_long);
+               std::string str = structT.value().second->vars[i]->name;
+               if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
+               else var->signage.push_back(false);
+               //var->signage.push_back(let-> <= TokenType::_long);
                var->vars[str] = i;
           }
           if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
           if(!structT.value().second->strType)structT.value().second->strType = var->strType;
-          Generator::instance->m_vars.back()[id.value.value()] = var;
+          Generator::instance->m_vars.back()[name] = var;
           return gen;
      }else {
           std::cerr << "Undeclarde Type " << typeName << std::endl;
@@ -223,7 +224,7 @@ llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
      var->size = size;
      var->type = getType(static_cast<TokenType>(sid));
      builder->CreateStore(val,var->alloc);
-     Generator::instance->m_vars.back().insert_or_assign(id.value.value(),var);
+     Generator::instance->m_vars.back().insert_or_assign(name,var);
      return val;
 }
 
@@ -464,9 +465,17 @@ void Struct::generateSig(llvm::IRBuilder<>* builder) {
 void Struct::generate(llvm::IRBuilder<>* builder) {
      StructType* type = Generator::instance->m_file->findStruct(name).value().first;
      for (auto var : vars) {
-          varIds.push_back(var->id.value.value());
+          varIds.push_back(var->name);
      }
      type->setBody(types,false);
+}
+
+void Class::generateSig(llvm::IRBuilder<>* builder) {
+
+}
+
+void Class::generate(llvm::IRBuilder<>* builder) {
+
 }
 
 std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<Type*> params) {
@@ -526,6 +535,27 @@ llvm::Value* NodeTermIntLit::generate(llvm::IRBuilder<>* builder) {
           }
      }
      return  llvm::ConstantInt::get(type,std::stol(val,nullptr,base),sid <= 3);
+}
+
+llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
+     if(contained)contained.value()->generate(builder);
+     std::vector<llvm::Value*> vals;
+     vals.reserve(exprs.size());
+     for (const auto expr : exprs) {
+          llvm::Value* val = expr->generate(builder);
+          vals.push_back(val);
+     }
+
+     if(params.empty()) {
+          params.reserve(exprs.size());
+          for (auto val : vals) {
+               params.push_back(val->getType());
+          }
+     }
+     const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params);
+     _signed = callee.second;
+     llvm::Value* val =  builder->CreateCall(callee.first,vals);
+     return val;
 }
 
 llvm::Value* NodeTermNew::generate(llvm::IRBuilder<>* builder) {

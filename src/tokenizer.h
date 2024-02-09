@@ -105,12 +105,16 @@ enum class TokenType{
 
     ///Dot to acces vars of classes/structs
     connector,
-    //Double Connector ::
+    ///Double Connector ::
     dConnect,
+
     _struct,
     _class,
     interface,
     _enmu,
+
+    _namespace,
+    _abstract,
     null,
 };
 
@@ -184,6 +188,8 @@ class Tokenizer{
             {"null",TokenType::null},
 
             {"struct",TokenType::_struct},
+            {"class",TokenType::_class},
+            {"namespace",TokenType::_namespace},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {

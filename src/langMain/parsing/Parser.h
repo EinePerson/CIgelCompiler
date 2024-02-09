@@ -22,7 +22,7 @@ public:
             case 'I': return 2;
             case 'S': return 1;
             case 'B': return 0;
-            default: return 2;
+            default: return -1;
         }
     }
 
@@ -35,6 +35,7 @@ public:
     NodeStmtWhile* parseWhile();
     NodeStmtIf* parseIf();
     std::optional<IgFunction*> parseFunc();
+    std::optional<BeContained*> parseContained();
 
     std::optional<IgType*> parseType();
 
@@ -70,6 +71,7 @@ private:
     size_t m_I = 0;
     char m_sidFlag = -1;
     SrcFile* m_file = nullptr;
+    std::vector<ContainableType*> m_super {};
 };
 
 

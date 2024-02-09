@@ -4,12 +4,20 @@
 
 #include "Parser.h"
 
-        std::optional<NodeTerm *> Parser::parseTerm() {
+#include <llvm/Support/CommandLine.h>
+
+std::optional<NodeTerm *> Parser::parseTerm() {
             NodeTerm* term;
             if(auto int_lit = tryConsume(TokenType::int_lit)){
                 auto nodeInt = new NodeTermIntLit;
                 nodeInt->int_lit = int_lit.value();
-                nodeInt->sid = sidChar(int_lit.value().value.value().back());
+                char sid = sidChar(int_lit.value().value.value().back());
+                if(sid == -1) {
+                    if(m_sidFlag >= 0) {
+                        nodeInt->sid = m_sidFlag;
+                        m_sidFlag = -1;
+                    }else nodeInt->sid = 2;
+                }else nodeInt->sid = 2;
                 nodeInt->_signed = nodeInt->sid <= 3;
                 term = nodeInt;
             }else if(auto str = tryConsume(TokenType::str)) {
@@ -198,9 +206,9 @@
                     pirim->sid = (char) peak().value().type;
                     m_sidFlag = pirim->sid;
                     pirim->_signed = consume().type <= TokenType::_long;
-                    pirim->id = consume();
+                    pirim->name = consume().value.value();
                     if(!peak().has_value()){
-                        //TODO Exit on error
+                        err("Expected expression or '='");
                     }
                     if(peak().value().type == TokenType::semi){
                         consume();
@@ -243,7 +251,7 @@
                         arr->fixed = false;
                     //}
 
-                    arr->id = consume();
+                    arr->name = consume().value.value();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
                         if(auto t = parseTerm()) {
                             arr->term = t.value();
@@ -287,11 +295,21 @@
                 _case->_default = true;
                 return _case;
             }else if(peak().has_value() && peak().value().type == TokenType::id && std::find(m_file->typeNames.begin(),m_file->typeNames.end(),peak().value().value.value()) != m_file->typeNames.end()) {
-                std::string typeName = consume().value.value();
+                /*std::string typeName = consume().value.value();
+                while (tryConsume(TokenType::dConnect)) {
+                    tryConsume(TokenType::dConnect,"Expected ':'");
+                    typeName += "::" + tryConsume(TokenType::id,"Expected id").value.value();
+                }*/
+                BeContained* cont = nullptr;
+                if(auto contO = parseContained())cont = contO.value();
+                else return {};
+
                 if(peak().value().type == TokenType::openBracket) {
                     auto* arr = new NodeStmtArr;
 
-                    arr->typeName = typeName;
+                    arr->name = cont->name;
+                    if(cont->contType.has_value())arr->contType = cont->contType.value();
+
                     arr->fixed = false;
                     arr->_signed = false;
                     arr->sid = -1;
@@ -301,7 +319,7 @@
                         arr->size++;
                         consume();
                     }
-                    arr->id = consume();
+                    arr->name = consume().value.value();
                     if(!arr->fixed && tryConsume(TokenType::eq)) {
                         if(auto t = parseTerm()) {
                             arr->term = t.value();
@@ -314,8 +332,9 @@
                 if(peak().value().type == TokenType::eq) {
                     auto strNew = new NodeStmtStructNew;
                     strNew->type = reinterpret_cast<Type *>(2);
-                    strNew->typeName = typeName;
-                    strNew->id = varName;
+                    strNew->name = cont->name;
+                    if(cont->contType.has_value())strNew->contType = cont->contType.value();
+                    strNew->name = varName.value.value();
                     tryConsume(TokenType::eq,"Expected '='");
                     if(auto t = parseTerm())
                         strNew->term = t.value();
@@ -327,8 +346,9 @@
                 }else if(peak().value().type == TokenType::semi) {
                     auto strNew = new NodeStmtStructNew;
                     strNew->type = reinterpret_cast<Type *>(2);
-                    strNew->typeName = typeName;
-                    strNew->id = varName;
+                    strNew->name = cont->name;
+                    if(cont->contType.has_value())strNew->contType = cont->contType.value();
+                    strNew->name = varName.value.value();
                     strNew->term = new NodeTermNull;
                     consume();
                     return strNew;
@@ -515,6 +535,10 @@
 
         std::optional<IgFunction*> Parser::parseFunc(){
             auto func = new IgFunction;
+            if(!m_super.empty()) {
+                func->contType = m_super.back();
+                m_super.back()->contained.push_back(func);
+            }
             if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void || peak().value().type == TokenType::id)) {
                 Token ret = consume();
                 if(ret.value.has_value())func->retTypeName = ret.value.value();
@@ -537,7 +561,7 @@
                 func->signage.push_back(peak().value().type <= TokenType::_long);
                 Token param = consume();
                 if(param.value.has_value())func->paramTypeName.push_back(param.value.value());
-                else func->paramTypeName.push_back("");
+                else func->paramTypeName.emplace_back("");
                 func->paramType.push_back(getType(param.type));
                 func->paramName.push_back(tryConsume(TokenType::id,"Expected identifier").value.value());
                 if(!tryConsume(TokenType::comma))i = 1;
@@ -554,18 +578,26 @@
             return func;
         }
 
-        std::optional<IgType*> Parser::parseType() {
+std::optional<BeContained*> Parser::parseContained() {
+    //TODO code
+}
+
+std::optional<IgType*> Parser::parseType() {
             if(peak(1).value().type != TokenType::id) return  {};
             switch (peak().value().type) {
                 case TokenType::_struct: {
                     auto str = new Struct;
+                    if(!m_super.empty()) {
+                        str->contType = m_super.back();
+                        m_super.back()->contained.push_back(str);
+                    }
                     consume();
                     str->name = consume().value.value();
                     NodeStmtScope* scope = parseScope().value();
                     for (auto stmt : scope->stmts) {
                         if(auto val = dynamic_cast<NodeStmtLet *>(stmt)) {
-                            if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->typeName.push_back(type->typeName);
-                            else str->typeName.emplace_back("");
+                            if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->typeName.push_back(type);
+                            else str->typeName.emplace_back(nullptr);
                             str->vars.push_back(val);
                             str->types.push_back(val->type);
                         }else {
@@ -574,7 +606,61 @@
                     }
                     return str;
                 }
-                //break;
+                case TokenType::_class: {
+                    auto clazz = new Class;
+                    consume();
+                    if(!m_super.empty()) {
+                        clazz->contType = m_super.back();
+                        m_super.back()->contained.push_back(clazz);
+                    }
+                    //TODO extends parsing
+                    clazz->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+                    tryConsume(TokenType::openCurl,"Expected '{'");
+                    m_super.push_back(clazz);
+
+                    while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
+                        if(auto func = parseFunc()) {
+                            clazz->funcs.push_back(func.value());
+                        }else if(auto stmt = parseStmt()) {
+                            if(auto var = dynamic_cast<NodeStmtLet*>(stmt.value())) {
+                                if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt.value()))clazz->typeName.push_back(type);
+                                else clazz->typeName.emplace_back(nullptr);
+                                clazz->vars.push_back(var);
+                                clazz->types.push_back(var->type);
+                            }else {
+                                err("Only Fields/Attributes/Variables are allowed in structs");
+                            }
+                        }else if(auto type = parseType()) {
+                            clazz->contained.push_back(type.value());
+                        } else err("Expected Type or Variable");
+                    }
+
+                    tryConsume(TokenType::closeCurl,"Expected '}'");
+                    m_super.pop_back();
+                    return clazz;
+                }
+                case TokenType::_namespace: {
+                    auto nmspc = new NamesSpace;
+                    if(!m_super.empty()) {
+                        nmspc->contType = m_super.back();
+                        m_super.back()->contained.push_back(nmspc);
+                    }
+                    consume();
+                    nmspc->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+                    tryConsume(TokenType::openCurl,"Expected '{'");
+                    m_super.push_back(nmspc);
+
+                    while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
+                            if(auto func = parseFunc()) {
+                                nmspc->funcs.push_back(func.value());
+                            }else if(auto type = parseType()) {
+                                nmspc->contained.push_back(type.value());
+                            }else err("Expected type or function in namespace");
+                    }
+                    tryConsume(TokenType::closeCurl,"Expected '}'");
+                    m_super.pop_back();
+                    return nmspc;
+                }
                 default:
                     return {};
             }
@@ -584,14 +670,11 @@
             m_tokens = file->tokens;
             m_I = file->tokenPtr;
             m_file = file;
-            while ((peak().has_value()))
-            {
-                /*if(auto stmt = parseStmt()){
-                    file->stmts.push_back(stmt.value());
-                }else */if(auto func = parseFunc()) {
+            while (peak().has_value()){
+                if(auto func = parseFunc()) {
                     file->funcs.insert(std::pair(FuncSig(func.value()->name,func.value()->paramType),func.value()));
                 }else if(auto type = parseType()){
-                    file->types.push_back(type.value());
+                    if(type.value()->gen)file->types.push_back(type.value());
                 }else {
                     err("Invalid Expression3");
                 }

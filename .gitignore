@@ -3,4 +3,4 @@
 /docs
 testasm.sh
 /cmake-build-debug/
-/tasks/
+#/tasks/

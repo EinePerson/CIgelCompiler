@@ -158,6 +158,7 @@ void Generator::genFunc(IgFunction* func) {
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
         exit(EXIT_FAILURE);
     }
+    func->llvmFunc = llvmFunc;
 }
 
 void Generator::reset(SrcFile* file) {
@@ -241,6 +242,7 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
         const FunctionCallee _new = m_module->getOrInsertFunction("GC_malloc",type);
         Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),m_module->getDataLayout().getTypeSizeInBits(structT.value().first)));
+        //TODO add checking weather malloc returned 0
         for (const auto node_stmt_let : structT.value().second->vars) {
             Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
             Value* gen = node_stmt_let->generate(m_builder.get());
@@ -317,9 +319,9 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
         var->types = structT.value().second->types;
         for(size_t i = 0;i < structT.value().second->vars.size();i++) {
             NodeStmtLet* let = structT.value().second->vars[i];
-            auto t = let->id;
-            std::string str = structT.value().second->vars[i]->id.value.value();
-            var->signage.push_back(t.type <= TokenType::_long);
+            std::string str = structT.value().second->vars[i]->name;
+            if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
+            else var->signage.push_back(false);
             var->vars[str] = i;
         }
         if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;

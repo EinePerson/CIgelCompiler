@@ -10,7 +10,6 @@ add_executable(igel
         src/main.cpp
         src/tokenizer.cpp
         src/tokenizer.h
-        #src/parsed.h
         src/CompilerInfo/InfoParser.cpp
         src/CompilerInfo/InfoParser.h
         src/CompilerInfo/OptionsParser.h
@@ -19,6 +18,9 @@ add_executable(igel
         src/langMain/codeGen/Generator.cpp
         src/langMain/codeGen/types.cpp
         src/langMain/parsing/Parser.cpp
+        src/util/Mangler.h
+        src/exceptionns/Generator.h
+        src/util/Mangler.cpp
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 

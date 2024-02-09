@@ -1,20 +1,30 @@
-struct Test{
-    Test t;
+namespace Igel{
+
+    struct Test{
+        Test t;
+        int a;
+        int b;
+        //int[] arr;
+    }
+
+    void abc(){
+
+    }
+
+}
+
+struct ABC{
     int a;
-    int b;
-    //int[] arr;
 }
 
 int main(){
-    Test te = new Test;
-    te.t = new Test;
-    te.t.a = 364;
-    printf("%d",te.t.a);
-    Test[] t = new Test[5];
-    t[2] = new Test;
-    t[2].a = 264;
-    t[0] = new Test;
-    t[0].a = 51;
-    printf("%d",t[2].a);
+    ABC t = new ABC;
+    t.a = 26;
+    printf("%d",t.a);
+    int[] t = new int[5];
+    t[0] = 254;
+    byte l = 25;
+    printf("%d",t[0]);
+    printf("%d",l);
     return 5;
 }
