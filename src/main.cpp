@@ -25,7 +25,7 @@ std::string read(const std::string& name){
 
 int main(int argc,char* argv[]) {
     if(argc < 2){
-        std::cerr << "Incorrect arguments, type -help for more information" << std::endl;
+        std::cerr << "Incorrect arguments, type help for more information" << std::endl;
         return EXIT_FAILURE;
     }
 

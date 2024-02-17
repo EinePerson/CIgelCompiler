@@ -45,6 +45,7 @@
 #include <llvm/Passes/PassBuilder.h>
 
 #include "../langMain.hpp"
+#include "../../util/Mangler.h"
 
 
 Generator* Generator::instance = nullptr;
@@ -53,6 +54,7 @@ std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>
 bool Generator::lastUnreachable = false;
 StructType* Generator::arrTy = nullptr;
 Struct* Generator::structRet = nullptr;
+BeContained* Generator::typeNameRet = nullptr;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -128,28 +130,28 @@ Type* Generator::getType(TokenType type) {
 
 
 
-std::pair<Function*,FuncSig*> Generator::genFuncSig(const IgFunction* func) {
+std::pair<Function*,FuncSig*> Generator::genFuncSig(IgFunction* func) {
     std::vector<Type*> types;
-    for (const auto param_type : func->paramType) {
-        types.push_back(param_type);
+    for(uint i = 0;i < func->paramType.size();i++) {
+        types.push_back(func->paramType[i]);
     }
     const ArrayRef<Type*> ref(types);
     FunctionType* type = FunctionType::get(func->_return,ref,false);
-    llvm::Function* llvmFunc = Function::Create(type,Function::ExternalLinkage,func->name,m_module.get());
+    llvm::Function* llvmFunc = Function::Create(type,Function::ExternalLinkage,func->mangle(),m_module.get());
     for(size_t i = 0;i < llvmFunc->arg_size();i++)
         llvmFunc->getArg(i)->setName(func->paramName[llvmFunc->getArg(i)->getArgNo()]);
-    return std::make_pair(llvmFunc,new FuncSig(func->name,types,func->_return));
+    return std::make_pair(llvmFunc,new FuncSig(func->mangle(),types,func->_return));
 }
 
 void Generator::genFunc(IgFunction* func) {
-    Function* llvmFunc = m_module->getFunction(func->name);
+    Function* llvmFunc = m_module->getFunction(func->mangle());
     BasicBlock* entry = BasicBlock::Create(*m_contxt,"entry",llvmFunc);
     m_builder->SetInsertPoint(entry);
 
     m_vars.emplace_back();
     for(size_t i = 0;i < llvmFunc->arg_size();i++){
         llvmFunc->getArg(i)->setName(func->paramName[i]);
-        createVar(llvmFunc->getArg(i),func->signage[i],func->paramTypeName[i]);
+        createVar(llvmFunc->getArg(i),func->signage[i],llvmFunc->getArg(i)->getType()->isPointerTy()?func->paramTypeName[i]->mangle():"");
     }
 
     func->scope->generate(m_builder.get());
@@ -308,26 +310,35 @@ void Generator::createVar(const std::string&name,Type* type,Value* val,bool _sig
     }
 }
 
+void Generator::createVar(std::string name, Var* var) {
+    if(m_vars.back().contains(name)) {
+        std::cerr << "Identiefier: " << name << " already in use" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    m_vars.back()[name] = var;
+}
+
 void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName) {
-    AllocaInst* alloc = m_builder->CreateAlloca(arg->getType());
+    AllocaInst* alloc = m_builder->CreateAlloca(arg->getType()->isIntegerTy(0)?PointerType::get(*m_contxt,0):arg->getType());
     m_builder->CreateStore(arg,alloc);
     if(arg->getType()->isPointerTy()) {
         auto structT = Generator::instance->m_file->findStruct(typeName);
         auto var = new StructVar(alloc);
-        var->type = static_cast<PointerType*>(arg->getType());
+        var->str = structT.value().second;
+        var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
         var->strType = structT.value().first;
         var->types = structT.value().second->types;
         for(size_t i = 0;i < structT.value().second->vars.size();i++) {
             NodeStmtLet* let = structT.value().second->vars[i];
-            std::string str = structT.value().second->vars[i]->name;
+            std::string str = structT.value().second->vars[i]->mangle();
             if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
             else var->signage.push_back(false);
             var->vars[str] = i;
         }
         if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
         if(!structT.value().second->strType)structT.value().second->strType = var->strType;
-        m_vars.back()[static_cast<std::string>(arg->getName())] = var;
+        createVar(Igel::Mangler::mangle(arg->getName().str()),var);
         return;
     }
-    m_vars.back()[static_cast<std::string>(arg->getName())] = new Var{alloc,_signed};
+    createVar(Igel::Mangler::mangle(arg->getName().str()),new Var{alloc,_signed});
 }

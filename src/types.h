@@ -5,7 +5,6 @@
 #ifndef TYPES_H
 #define TYPES_H
 #include <llvm/IR/IRBuilder.h>
-#include <clang/AST/Mangle.h>
 #include <variant>
 
 #include "tokenizer.h"
@@ -19,7 +18,8 @@ namespace Types {
     int getSize(TokenType type);
 }
 
-std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<llvm::Type*> params);
+std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<llvm::Type *> types);
+std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<llvm::Type*> types,std::vector<std::string> typeNames,std::vector<bool> signage);
 llvm::Type* getType(TokenType type);
 
 struct NodeStmtScope;
@@ -27,11 +27,19 @@ struct NodeStmt;
 struct IgType;
 
 /**
- * \brief every tpye extending this may have a super type
+ * \brief every type extending this may have a super type
  */
 struct BeContained {
-    std::optional<IgType*> contType;
+    std::optional<BeContained*> contType = {};
     std::string name;
+
+    BeContained() = default;
+    virtual ~BeContained() = default;
+    virtual std::string mangle() = 0;
+};
+
+struct Name final : BeContained {
+    std::string mangle() override;
 };
 
 struct FuncInfo {
@@ -122,8 +130,7 @@ struct NodeTermNull final : NodeTerm {
 };
 
 struct NodeTermId final : NodeTerm{
-    Token id;
-    //std::vector<std::string> names;
+    BeContained* cont = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
@@ -139,7 +146,7 @@ struct NodeTermParen final : NodeTerm {
 };
 
 struct NodeTermArrayAcces final : NodeTerm{
-    Token id;
+    BeContained* cont = nullptr;
     std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
@@ -147,16 +154,18 @@ struct NodeTermArrayAcces final : NodeTerm{
 
 struct NodeTermStructAcces final : NodeTerm {
     NodeTermFuncCall* call = nullptr;
-    Token id;
+    BeContained* id = nullptr;
     Token acc;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeTermFuncCall final : NodeTerm{
-    std::string name;
+    BeContained* name = nullptr;
     std::vector<NodeExpr*> exprs;
     std::vector<llvm::Type*> params;
+    std::vector<bool> signage;
+    std::vector<BeContained*> typeNames;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -334,6 +343,7 @@ struct NodeStmtFuncCall final : NodeStmt{
 
 struct NodeStmtLet : NodeStmt,BeContained{
     llvm::Type* type = nullptr;
+    IgType* typeName = nullptr;
 };
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
@@ -341,10 +351,13 @@ struct NodeStmtPirimitiv final : NodeStmtLet {
     bool _signed = true;
     std::optional<NodeExpr*> expr = {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    std::string mangle() override;
 };
 
 struct NodeStmtNew : NodeStmtLet{
     std::vector<NodeExpr*> exprs = {};
+    std::string mangle() override;
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
@@ -361,6 +374,8 @@ struct NodeStmtArr final : NodeStmtLet{
     uint size = 0;
     //std::optional<std::string> typeName;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    std::string mangle() override;
 };
 
 struct NodeStmtExit final : NodeStmt{
@@ -446,23 +461,25 @@ struct NodeStmtContinue final : NodeStmt {
 
 
 
-struct IgFunction : BeContained{
+struct IgFunction final : BeContained{
     std::vector<llvm::Type*> paramType;
     std::vector<std::string> paramName;
-    std::vector<std::string> paramTypeName;
+    std::vector<BeContained*> paramTypeName;
     std::string retTypeName;
     std::vector<bool> signage;
     llvm::Type* _return = nullptr;
     bool returnSigned;
     NodeStmtScope* scope = nullptr;
     llvm::Function* llvmFunc = nullptr;
+
+    std::string mangle() override;
 };
 
 //BEGIN OF TYPES
 
 struct IgType : BeContained {
-    IgType(bool gen) : gen(gen){}
-    virtual ~IgType() = default;
+    explicit IgType(bool gen) : BeContained(), gen(gen){}
+    //virtual ~IgType() = default;
     ///weather the type is able to be generated
     bool gen;
 
@@ -482,6 +499,8 @@ struct Struct final : IgType {
     void generateSig(llvm::IRBuilder<>* builder) override;
 
     void generate(llvm::IRBuilder<>* builder) override;
+
+    std::string mangle() override;
 };
 
 /**
@@ -503,6 +522,10 @@ struct NamesSpace final : ContainableType {
     void generate(llvm::IRBuilder<>* builder) override{
         throw IllegalGenerationException("Cannot generate namespace");
     }
+
+    std::string mangle() override {
+        throw IllegalGenerationException("Cannot mangle namespace");
+    }
 };
 
 struct Class final : ContainableType {
@@ -519,6 +542,8 @@ struct Class final : ContainableType {
     void generateSig(llvm::IRBuilder<>* builder) override;
 
     void generate(llvm::IRBuilder<>* builder) override;
+
+    std::string mangle() override;
 };
 
 #endif //TYPES_H

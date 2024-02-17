@@ -5,12 +5,14 @@
 #include <llvm/IR/Verifier.h>
 
 #include "Generator.h"
+#include "../../util/Mangler.h"
 
 llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           return contained.value()->generate(builder);
      }
-     const Var* var = Generator::instance->getVar(id.value.value());
+     Var* var = Generator::instance->getVar(Igel::Mangler::mangleName(cont));
+     if(auto str = dynamic_cast<StructVar*>(var))Generator::typeNameRet = str->str;
      _signed = var->_signed;
      auto* ptr = (AllocaInst*) (var->alloc);
      return builder->CreateLoad(ptr->getAllocatedType(),ptr);
@@ -20,7 +22,10 @@ llvm::Value* NodeTermId::generatePointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           return contained.value()->generatePointer(builder);
      }
-     Value* ptr = Generator::instance->getVar(id.value.value())->alloc;
+     Var* var = Generator::instance->getVar(Igel::Mangler::mangleName(cont));
+     if(auto str = dynamic_cast<StructVar*>(var))Generator::typeNameRet = str->str;
+     //if(auto arr = dynamic_cast<ArrayVar*>(var))Generator::typeNameRet.
+     Value* ptr = var->alloc;
      return ptr;
 }
 
@@ -28,15 +33,16 @@ llvm::Value* NodeTermArrayAcces::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           if(dynamic_cast<NodeTermStructAcces*>(contained.value())) {
                Struct* str = Generator::structRet;
-               uint fid = str->varIdMs[id.value.value()];
-               if(auto strRet = Generator::instance->m_file->findStruct(str->typeName[fid])) {
+               uint fid = str->varIdMs[Igel::Mangler::mangleName(cont)];
+               if(auto strRet = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
+                    Generator::typeNameRet = strRet.value().second;
                     Generator::structRet = strRet.value().second;
                     return builder->CreateLoad(str->types[fid],generatePointer(builder));
                }
                return nullptr;
           }
      }
-     auto* var = static_cast<ArrayVar*>(Generator::instance->getVar(id.value.value()));
+     auto* var = static_cast<ArrayVar*>(Generator::instance->getVar(Igel::Mangler::mangleName(cont)));
      _signed = var->_signed;
      return builder->CreateLoad(var->type,generatePointer(builder));
 }
@@ -47,7 +53,7 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           ptr = contained.value()->generatePointer(builder);
      }else {
-          var = static_cast<ArrayVar*>(Generator::instance->getVar(id.value.value()));
+          var = static_cast<ArrayVar*>(Generator::instance->getVar(Igel::Mangler::mangleName(cont)));
           _signed = var->_signed;
           if(var->typeName.has_value()) {
                auto strRet = Generator::instance->m_file->findStruct(var->typeName.value());
@@ -104,9 +110,10 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
 llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      if(call) {
           call->generate(builder);
-          if(auto func = Generator::instance->m_file->findIgFunc(call->name,call->params)) {
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
                auto str = Generator::instance->m_file->findStruct(func.value()->retTypeName);
                if(!str)return nullptr;
+               Generator::typeNameRet = str.value().second;
                auto it = std::ranges::find(str.value().second->varIds,acc.value.value());
                if(it == str.value().second->varIds.end())return nullptr;
                uint fid = it - str.value().second->varIds.begin();
@@ -121,17 +128,22 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
           val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
      }else {
-          var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
+          var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
           val = builder->CreateLoad(var->type,var->alloc);
+     }
+     if(!str && !var) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
      }
 
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+     Generator::typeNameRet = str?str:var->str;
      if(var) {
           Generator::structRet = var->str;
           return builder->CreateLoad(var->types[fid],ptr);
      }
-     if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid])) {
+     if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
           Generator::structRet = strT.value().second;
      }else Generator::structRet = nullptr;
      return builder->CreateLoad(str->types[fid],ptr);
@@ -140,9 +152,10 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
 llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(call) {
           Value* val = call->generate(builder);
-          if(auto func = Generator::instance->m_file->findIgFunc(call->name,call->params)) {
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
                auto str = Generator::instance->m_file->findStruct(func.value()->retTypeName);
                if(!str)return nullptr;
+               Generator::typeNameRet = str.value().second;
                auto it = std::ranges::find(str.value().second->varIds,acc.value.value());
                if(it == str.value().second->varIds.end())return nullptr;
                uint fid = it - str.value().second->varIds.begin();
@@ -157,17 +170,23 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
           val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
      }else {
-          var = dynamic_cast<StructVar*>(Generator::instance->getVar(id.value.value()));
+          var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
           val = builder->CreateLoad(var->type,var->alloc);
+     }
+
+     if(!str && !var) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
      }
 
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+     Generator::typeNameRet = str?str:var->str;
      if(var) {
           Generator::structRet = var->str;
           return ptr;
      }
-     if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid])) {
+     if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
           Generator::structRet = strT.value().second;
      }else Generator::structRet = nullptr;
      return ptr;
@@ -175,12 +194,24 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
 
 llvm::Value* NodeStmtPirimitiv::generate(llvm::IRBuilder<>* builder) {
      Value* val = expr.has_value()?expr.value()->generate(builder) : ConstantInt::get(Generator::getType(static_cast<TokenType>(sid)),0);
-     Generator::instance->createVar(name,Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
+     Generator::instance->createVar(mangle(),Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
      return val;
 }
 
+std::string NodeStmtPirimitiv::mangle() {
+     return "_Z" + Igel::Mangler::mangle(this);
+}
+
+std::string NodeStmtNew::mangle() {
+     return Igel::Mangler::mangle(this);
+}
+
+std::string NodeStmtArr::mangle() {
+     return Igel::Mangler::mangleName(this);
+}
+
 llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
-     if(auto structT = Generator::instance->m_file->findStruct(typeName)) {
+     if(auto structT = Generator::instance->m_file->findStruct(typeName->mangle())) {
           auto type = PointerType::get(builder->getContext(),0);
           AllocaInst* alloc = builder->CreateAlloca(type);
           Value* gen = term->generate(builder);
@@ -193,7 +224,7 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
           var->types = structT.value().second->types;
           for(size_t i = 0;i < structT.value().second->vars.size();i++) {
                NodeStmtLet* let = structT.value().second->vars[i];
-               std::string str = structT.value().second->vars[i]->name;
+               std::string str = structT.value().second->vars[i]->mangle();
                if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
                else var->signage.push_back(false);
                //var->signage.push_back(let-> <= TokenType::_long);
@@ -201,10 +232,11 @@ llvm::Value* NodeStmtStructNew::generate(llvm::IRBuilder<>* builder) {
           }
           if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
           if(!structT.value().second->strType)structT.value().second->strType = var->strType;
-          Generator::instance->m_vars.back()[name] = var;
+          //Generator::instance->m_vars.back()[Igel::Mangler::mangle(name)] = var;
+          Generator::instance->createVar(Igel::Mangler::mangle(name),var);
           return gen;
      }else {
-          std::cerr << "Undeclarde Type " << typeName << std::endl;
+          std::cerr << "Undeclarde Type " << typeName->mangle() << std::endl;
           exit(EXIT_FAILURE);
      }
 }
@@ -220,11 +252,12 @@ Value* createArr(std::vector<Value*> sizes,std::vector<Type*> types,uint i,llvm:
 llvm::Value* NodeStmtArr::generate(llvm::IRBuilder<>* builder) {
      Value* val = llvm::ConstantPointerNull::get(llvm::PointerType::get(builder->getContext(),0));
      if(term)val = term->generate(builder);
-     auto* var = new ArrayVar(builder->CreateAlloca(Generator::arrTy),sid <= 3,typeName);
+     auto* var = new ArrayVar(builder->CreateAlloca(Generator::arrTy),sid <= 3,typeName != nullptr?Igel::Mangler::mangleTypeName(typeName):(std::optional<std::string>) {});
      var->size = size;
      var->type = getType(static_cast<TokenType>(sid));
      builder->CreateStore(val,var->alloc);
-     Generator::instance->m_vars.back().insert_or_assign(name,var);
+     //Generator::instance->m_vars.back().insert_or_assign(mangle(),var);
+     Generator::instance->createVar(mangle(),var);
      return val;
 }
 
@@ -406,7 +439,7 @@ llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
           Value* val = builder->CreateStore(gen,ep);
           return val;
      }else {
-          auto* var = static_cast<ArrayVar*>(Generator::instance->getVar(acces->id.value.value()));
+          auto* var = static_cast<ArrayVar*>(Generator::instance->getVar(Igel::Mangler::mangleName(acces->cont)));
           Value* load = builder->CreateLoad(var->type,generatePointer(builder));
           Value* _new = expr.value()->generate(builder);
           Value* res = generateReassing(load,_new,op,builder);
@@ -433,6 +466,10 @@ llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
      return val;
 }
 
+std::string IgFunction::mangle() {
+     return Igel::Mangler::mangle(this,paramType,paramTypeName,signage);
+}
+
 int Types::getSize(TokenType type) {
      if(type > TokenType::_ulong)return -1;
      const int i = static_cast<int>(type) % 4;
@@ -442,7 +479,7 @@ int Types::getSize(TokenType type) {
 void Struct::generateSig(llvm::IRBuilder<>* builder) {
      for(uint i = 0; i < this->types.size();i++) {
           if(types[i] == nullptr) {
-               std::cerr << "Type is not set in " << name << std::endl;
+               std::cerr << "Type is not set in " << mangle() << std::endl;
           }
           auto tIL = (ulong) types[i];
           switch (const ulong tI = tIL) {
@@ -459,15 +496,20 @@ void Struct::generateSig(llvm::IRBuilder<>* builder) {
                     exit(EXIT_FAILURE);
           }
      }
-     Generator::instance->m_file->structs[name] = std::make_pair(StructType::create(builder->getContext(),name),this);
+     Generator::instance->m_file->structs[mangle()] = std::make_pair(StructType::create(builder->getContext(),mangle()),this);
 }
 
 void Struct::generate(llvm::IRBuilder<>* builder) {
-     StructType* type = Generator::instance->m_file->findStruct(name).value().first;
+     StructType* type = Generator::instance->m_file->findStruct(mangle()).value().first;
      for (auto var : vars) {
+          //TODO maybe mangle
           varIds.push_back(var->name);
      }
      type->setBody(types,false);
+}
+
+std::string Struct::mangle() {
+     return Igel::Mangler::mangleTypeName(this);
 }
 
 void Class::generateSig(llvm::IRBuilder<>* builder) {
@@ -478,13 +520,21 @@ void Class::generate(llvm::IRBuilder<>* builder) {
 
 }
 
-std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<Type*> params) {
-     std::optional<std::pair<llvm::FunctionCallee,bool>> callee = Generator::instance->m_file->findFunc(name,params);
+std::string Class::mangle() {
+     return Igel::Mangler::mangleTypeName(this);
+}
+
+std::pair<llvm::FunctionCallee,bool> getFunction(std::string name, std::vector<llvm::Type *> types) {
+     std::optional<std::pair<llvm::FunctionCallee,bool>> callee = Generator::instance->m_file->findFunc(name,types);
      if(!callee.has_value()) {
           std::cerr << "Could not find function " << name << "\n";
           exit(EXIT_FAILURE);
      }
      return callee.value();
+}
+
+std::pair<llvm::FunctionCallee, bool> getFunction(BeContained* name, std::vector<llvm::Type *> types,std::vector<BeContained*> typeNames, std::vector<bool> signage) {
+     return getFunction(Igel::Mangler::mangle(name,types,typeNames,signage),types);
 }
 
 llvm::Type* getType(TokenType type) {
@@ -497,7 +547,7 @@ llvm::Type* getType(TokenType type) {
      if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(*Generator::m_contxt);
      if(type == TokenType::_bool)return llvm::IntegerType::getInt1Ty(*Generator::m_contxt);
      if(type == TokenType::_void)return Type::getVoidTy(*Generator::m_contxt);
-     if(type == TokenType::id)return PointerType::get(*Generator::m_contxt,0);
+     if(type == TokenType::id || type == TokenType::uninit)return PointerType::get(*Generator::m_contxt,0);
      return nullptr;
 }
 
@@ -541,8 +591,11 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
      if(contained)contained.value()->generate(builder);
      std::vector<llvm::Value*> vals;
      vals.reserve(exprs.size());
+     typeNames.clear();
+     typeNames.reserve(exprs.size());
      for (const auto expr : exprs) {
           llvm::Value* val = expr->generate(builder);
+          if(val->getType()->isPointerTy() || val->getType()->isIntegerTy(0))typeNames.push_back(Generator::typeNameRet);
           vals.push_back(val);
      }
 
@@ -552,7 +605,11 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                params.push_back(val->getType());
           }
      }
-     const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params);
+     if(signage.empty()) {
+          signage.reserve(exprs.size());
+          for (auto expr : exprs) signage.push_back(expr->_signed);
+     }
+     const std::pair<llvm::FunctionCallee,bool> callee = getFunction(name,params,typeNames,signage);
      _signed = callee.second;
      llvm::Value* val =  builder->CreateCall(callee.first,vals);
      return val;
@@ -575,6 +632,10 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
           IntegerType::getInt8Ty(builder->getContext()),IntegerType::getInt32Ty(builder->getContext()),PointerType::get(builder->getContext(),0));
      Value* arr = builder->CreateCall(_new,{ConstantInt::get(IntegerType::getInt8Ty(builder->getContext()),sid),ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),size.size() - 1),sizes});
      return arr;
+}
+
+std::string Name::mangle() {
+     return Igel::Mangler::mangleName(this);
 }
 
 llvm::Type* getType(llvm::Type* type) {

@@ -35,9 +35,20 @@ public:
             if(!b)break;
         }
         while (peak().has_value()) {
-            if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enmu) {
+            if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enum) {
+                IgType* type = nullptr;
+                switch (peak().value().type) {
+                    case TokenType::_struct:  type = new Struct;
+                        break;
+                    case TokenType::_class: type = new Class;
+                        break;
+                    case TokenType::_namespace: type = new NamesSpace;
+                        break;
+                    default: err("Unkown type: " + static_cast<uint>(peak().value().type));
+                }
                 consume();
                 if(peak().value().type != TokenType::id)err("Expected type name");
+                file->nameTypeMap[peak().value().value.value()] = type;;
                 file->typeNames.push_back(consume().value.value());
             }else consume();
         }

@@ -8,17 +8,24 @@
 
 #include "../types.h"
 
-namespace IgCmp {
-    struct Mangled {
-        bool mangled;
-        BeContained* cont;
-        std::string name;
+namespace Igel {
+    class Mangler{
+        struct Mangled {
+            bool mangled;
+            BeContained* cont;
+            std::string name;
+        };
+    public:
+        static std::string mangleTypeName(BeContained* cont);
+        static std::string mangleName(BeContained* cont);
+        static std::string mangle(BeContained* cont);
+        static std::string mangle(std::string name);
+        //static std::string mangleImpl(BeContained* cont);
+        static std::string mangle(std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
+        static std::string mangle(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
+
+        static std::string mangle(std::vector<llvm::Type*> types,std::vector<std::string> typeNames,std::vector<bool> signage);
+        static std::string mangle(std::string name,std::vector<llvm::Type*> types,std::vector<std::string> typeNames,std::vector<bool> signage);
     };
-
-    std::string mangle(BeContained* cont);
-    std::string mangleImpl(BeContained* cont);
-    std::string mangle(std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
-    std::string mangle(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
 }
-
 #endif //MANGLER_H

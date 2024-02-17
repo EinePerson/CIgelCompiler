@@ -63,7 +63,7 @@ private:
     }
 
     void err(const std::string&err) const {
-        std::cerr << err << "\n" << "   at: " << peak(-1).value().file << ":" << peak(-1).value().line << std::endl;
+        std::cerr << err << "\n" << "   at: " << (peak().has_value()?peak().value().file:peak(-1).value().file) << ":" << (peak().has_value()?peak().value().line:peak(-1).value().line) << std::endl;
         exit(EXIT_FAILURE);
     }
 

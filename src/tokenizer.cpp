@@ -5,12 +5,12 @@
 typedef unsigned int uint;
 
     std::map<std::string,std::function<llvm::FunctionCallee()>> Tokenizer::LIB_FUNCS {
-        {"exit",[]() -> FunctionCallee {
+        {"_Z4exit",[]() -> FunctionCallee {
             std::vector<Type*> params = {Type::getInt32Ty(*Generator::instance->m_contxt)};
             FunctionType *fType = FunctionType::get(Type::getVoidTy(*Generator::instance->m_contxt), params, false);
             return Generator::instance->m_module->getOrInsertFunction("exit",fType);
         }},
-        {"printf",[]() -> FunctionCallee {
+        {"_Z6printf",[]() -> FunctionCallee {
             std::vector<Type*> params = {PointerType::get(*Generator::instance->m_contxt,0)};
             FunctionType *fType = FunctionType::get(Type::getVoidTy(*Generator::instance->m_contxt), params, true);
             return Generator::instance->m_module->getOrInsertFunction("printf",fType);

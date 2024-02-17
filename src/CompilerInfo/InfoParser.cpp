@@ -198,11 +198,11 @@ std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::stri
 }
 
 
-std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name, std::vector<llvm::Type*> types) {
-        if(funcs.contains(FuncSig(name,types))) {
-            IgFunction* func = funcs[FuncSig(name,types)];
+std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name,std::vector<Type*> types) {
+        if(funcs.contains(name)) {
+            IgFunction* func = funcs[name];
             llvm::FunctionType* type = llvm::FunctionType::get(func->_return,types, false);
-            return  std::make_pair(Generator::instance->m_module->getOrInsertFunction(func->name,type),func->returnSigned);
+            return  std::make_pair(Generator::instance->m_module->getOrInsertFunction(func->mangle(),type),func->returnSigned);
         };
         for (const auto &item: includes){
             if(auto ret = item->findFunc(name,types)){
@@ -210,7 +210,7 @@ std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::strin
             }
         }
         for (const auto &item: _using){
-            if(auto ret = item->findFunc(name, types)){
+            if(auto ret = item->findFunc(name,types)){
                 return ret;
             }
         }
@@ -223,8 +223,8 @@ std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::strin
     }
 
 std::optional<IgFunction*> SrcFile::findIgFunc(std::string name, std::vector<llvm::Type*> types) {
-        if(funcs.contains(FuncSig(name,types))) {
-            return  funcs[FuncSig(name,types)];
+        if(funcs.contains(name)) {
+            return  funcs[name];
         };
         for (const auto &item: includes){
             if(auto ret = item->findIgFunc(name,types)){

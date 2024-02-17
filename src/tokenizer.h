@@ -111,9 +111,9 @@ enum class TokenType{
     _struct,
     _class,
     interface,
-    _enmu,
-
     _namespace,
+    _enum,
+
     _abstract,
     null,
 };
@@ -123,7 +123,7 @@ std::optional<int> prec(TokenType type);
 struct Token;
 
 struct Token{
-    TokenType type;
+    TokenType type = TokenType::uninit;
     std::optional<std::string> value {};
     uint line = -1;
     std::string file;

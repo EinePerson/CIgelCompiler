@@ -82,10 +82,12 @@ struct SrcFile{
     std::vector<NodeStmt*> stmts;
     std::vector<IgType*> types;
     std::vector<std::string> typeNames;
-    std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
+    std::unordered_map<std::string,IgType*> nameTypeMap;
+    //std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
+    std::unordered_map<std::string,IgFunction*> funcs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
 
-    std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type*> types);
+    std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type *> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
 };

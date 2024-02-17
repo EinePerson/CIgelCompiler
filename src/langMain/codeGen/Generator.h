@@ -41,7 +41,7 @@ struct StructVar final : Var {
     std::vector<bool> signage;
     PointerType* type = nullptr;
     StructType* strType = nullptr;
-    Struct* str;
+    Struct* str = nullptr;
 };
 
 class Generator {
@@ -56,7 +56,7 @@ public:
 
     [[nodiscard]] static Type* getType(TokenType type);
 
-    std::pair<Function*,FuncSig*> genFuncSig(const IgFunction* func);
+    std::pair<Function*,FuncSig*> genFuncSig(IgFunction* func);
 
     void genFunc(IgFunction* func);
 
@@ -73,6 +73,7 @@ public:
     std::optional<Var*> getOptVar(std::string name, bool _this = false);
 
     void createVar(const std::string&name,Type* type,Value* val,bool _signed);
+    void createVar(std::string name,Var* var);
     void createVar(Argument* arg,bool _signed, const std::string&typeName);
 private:
 
@@ -97,6 +98,7 @@ public:
     static bool lastUnreachable;;
     static llvm::StructType* arrTy;
     static Struct* structRet;
+    static BeContained* typeNameRet;
 };
 
 

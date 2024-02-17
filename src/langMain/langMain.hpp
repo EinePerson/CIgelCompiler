@@ -21,6 +21,8 @@ class LangMain{
                 file->tokens = tokens;
             }
             m_parser.parse(m_info);
+            genDir("./build");
+            genDir("./build/cmp");
             for (const auto src : m_info->src)genDir("./build/cmp/",src);
 
             outFiles << "clang++ -o " << m_info->m_name << " ";
@@ -55,6 +57,16 @@ private:
         }
         for (auto sub_dir : dir->sub_dirs)genDir(name,sub_dir);
 
+    }
+
+    void genDir(std::string name) {
+        if(!std::filesystem::exists(name)){
+            int ret = mkdir(name.c_str(), 0777);
+            if (ret != 0) {
+                std::cerr << strerror(errno);
+                exit(EXIT_FAILURE);
+            }
+        }
     }
 
     std::stringstream outFiles;
