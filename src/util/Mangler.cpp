@@ -93,28 +93,3 @@ std::string Igel::Mangler::mangle(BeContained* cont, std::vector<llvm::Type*> ty
     str += mangle(std::move(types),std::move(typeNames),std::move(signage));
     return str;
 }
-
-std::string Igel::Mangler::mangle(std::vector<llvm::Type *> types, std::vector<std::string> typeNames,std::vector<bool> signage) {
-    std::string str;
-    for(uint i = 0;i < types.size();i++) {
-        std::string name;
-        char c = -2;
-        if(types[i]->isIntegerTy(8))c = 'c';
-        else if(types[i]->isIntegerTy(16))c = 's';
-        else if(types[i]->isIntegerTy(32))c = 'i';
-        else if(types[i]->isIntegerTy(64))c = 'l';
-        else if(types[i]->isDoubleTy())c = 'd';
-        else if(types[i]->isFloatTy())c = 'f';
-        else name = typeNames[i];
-        c += signage[i];
-        if(c >= 0)str += c;
-        else str += name;
-    }
-    if(types.empty())str += "v";
-    return str;
-}
-
-std::string Igel::Mangler::mangle(std::string name, std::vector<llvm::Type *> types,std::vector<std::string> typeNames, std::vector<bool> signage) {
-    if(name == "_Z6printf")return name;
-    return name + mangle(std::move(types),std::move(typeNames),std::move(signage));
-}

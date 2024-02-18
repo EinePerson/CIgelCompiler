@@ -8,32 +8,23 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/InitLLVM.h>
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/Host.h"
 #include <algorithm>
 #include <cassert>
-#include <cctype>
-#include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -52,7 +43,6 @@ Generator* Generator::instance = nullptr;
 std::vector<bool> Generator::unreachableFlag {};
 std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 bool Generator::lastUnreachable = false;
-StructType* Generator::arrTy = nullptr;
 Struct* Generator::structRet = nullptr;
 BeContained* Generator::typeNameRet = nullptr;
 
@@ -61,18 +51,10 @@ Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefault
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
-    if(!arrTy) {
-        arrTy = StructType::create(*m_contxt,"ArrayWrapper");
-        arrTy->setBody(IntegerType::getInt32Ty(*m_contxt),PointerType::get(*m_contxt,0));
-    }
 }
 
 Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(nullptr) {
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
-    if(!arrTy) {
-        arrTy = StructType::create(*m_contxt);
-        arrTy->setBody(IntegerType::getInt32Ty(*m_contxt),PointerType::get(*m_contxt,0));
-    }
 }
 
 void Generator::setup(SrcFile* file) {
@@ -245,15 +227,20 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         const FunctionCallee _new = m_module->getOrInsertFunction("GC_malloc",type);
         Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),m_module->getDataLayout().getTypeSizeInBits(structT.value().first)));
         //TODO add checking weather malloc returned 0
-        for (const auto node_stmt_let : structT.value().second->vars) {
+        std::unordered_map<std::string,uint> vars;
+        for (size_t i = 0;i < structT.value().second->vars.size();i++) {
             Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
-            Value* gen = node_stmt_let->generate(m_builder.get());
+            Value* gen = structT.value().second->vars[i]->generate(m_builder.get());
             m_builder->CreateStore(gen,val);
             m_sVarId.back()++;
+            std::string str = structT.value().second->vars[i]->mangle();
+            vars[str] = i;
         }
         m_currentVar--;
         m_sVarId.pop_back();
         m_vars.pop_back();
+        if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = vars;
+        if(!structT.value().second->strType)structT.value().second->strType = structT.value().first;
         return var;
     }
     std::cerr << "Unknown type " << typeName << std::endl;

@@ -23,9 +23,6 @@ namespace Igel {
         //static std::string mangleImpl(BeContained* cont);
         static std::string mangle(std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
         static std::string mangle(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
-
-        static std::string mangle(std::vector<llvm::Type*> types,std::vector<std::string> typeNames,std::vector<bool> signage);
-        static std::string mangle(std::string name,std::vector<llvm::Type*> types,std::vector<std::string> typeNames,std::vector<bool> signage);
     };
 }
 #endif //MANGLER_H

@@ -18,18 +18,18 @@ struct ABC{
 }
 
 int main(){
-    ABC t = new ABC;
-    t.a = 26;
-    printf("%d",t.a);
-    int[] t1 = new int[5];
-    t1[0] = 254;
-    byte l = 25;
-    printf("%d",t1[0]);
-    printf("%d",l);
-    test(t);
-    return 5;
-}
+    int[] a = new int[5];
+    a[0] = 25;
+    a[3] = 2;
+    printf("%d",a[0]);
 
-void test(ABC i){
-    printf("%d",i.a);
+    ABC b = new ABC;
+    b.a = 554;
+    printf("%d",b.a);
+
+    ABC[] arr = new ABC[5];
+    arr[0] = new ABC;
+    arr[0].a = 256;
+    printf("%d\n",arr[0].a);
+    return 5;
 }

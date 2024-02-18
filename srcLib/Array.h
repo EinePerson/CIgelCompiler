@@ -1,20 +1,12 @@
 #pragma once
 
-/**
- * \brief A struct which contains the size of an array and its respective pointer
- */
-struct ArrayWrapper {
-    unsigned int len;
-    long* ptr;
-};
-
 extern "C"{
     /**
     * \brief Recursive function which creates n-dimensional arrays with size information
-    * \param type The base type of the array
+    * \param size size of the base type in bytes
     * \param idX the current dimension
-    * \param arr the array sizes
-    * \return An information struct for the array
+    * \param arr the array sizes for every dimension
+    * \return the pointer to the array
     */
-    ArrayWrapper createArray(char type,int idX,unsigned int* arr);
+    long* newArray(char size,int idX,unsigned long* arr);
 }

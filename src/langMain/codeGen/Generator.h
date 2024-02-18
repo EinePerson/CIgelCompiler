@@ -21,21 +21,21 @@ struct IgFunction;
 
 
 struct Var {
-    explicit Var(Value* alloc,bool _signed) : alloc(alloc),_signed(_signed){}
+    explicit Var(AllocaInst* alloc,bool _signed) : alloc(alloc),_signed(_signed){}
     virtual ~Var() = default;
-    Value* alloc;
+    AllocaInst* alloc;
     char _signed = -1;
 };
 
 struct ArrayVar : Var {
-    explicit ArrayVar(Value* alloc,bool _signed,std::optional<std::string> typeName = {}) : Var(alloc,_signed),typeName(typeName) {}
+    explicit ArrayVar(AllocaInst* alloc,bool _signed,std::optional<BeContained*> typeName = {}) : Var(alloc,_signed),typeName(typeName) {}
     Type* type = nullptr;
-    std::optional<std::string> typeName;
+    std::optional<BeContained*> typeName;
     uint size = -1;
 };
 
 struct StructVar final : Var {
-    explicit StructVar(Value* alloc) : Var(alloc,false) {}
+    explicit StructVar(AllocaInst* alloc) : Var(alloc,false) {}
     std::unordered_map<std::string,uint> vars;
     std::vector<Type*> types;
     std::vector<bool> signage;
@@ -96,7 +96,6 @@ public:
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
     static bool lastUnreachable;;
-    static llvm::StructType* arrTy;
     static Struct* structRet;
     static BeContained* typeNameRet;
 };
