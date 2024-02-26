@@ -62,6 +62,7 @@ void Generator::setup(SrcFile* file) {
     m_file = file;
     setupFlag = true;
     instance = this;
+    m_vars.push_back({});
 }
 
 Generator::~Generator() = default;
@@ -157,13 +158,21 @@ void Generator::reset(SrcFile* file) {
 }
 
 void Generator::write() {
+    m_vars.pop_back();
+    if(staticInit) {
+        m_builder->SetInsertPoint(staticInit);
+        m_builder->CreateRetVoid();
+
+        /*FunctionType* type = FunctionType::get(m_builder->getVoidTy(),{},false);
+        FunctionCallee callee = m_module->getOrInsertFunction("_GLOBAL__sub_I_example.cpp",type);*/
+    }
     InitializeAllTargetInfos();
     InitializeAllTargets();
     InitializeAllTargetMCs();
     InitializeAllAsmParsers();
     InitializeAllAsmPrinters();
 
-    //verifyModule(*m_module);
+    verifyModule(*m_module);
 
     auto TargetTriple = sys::getDefaultTargetTriple();
     m_module->setTargetTriple(TargetTriple);
@@ -229,12 +238,14 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         //TODO add checking weather malloc returned 0
         std::unordered_map<std::string,uint> vars;
         for (size_t i = 0;i < structT.value().second->vars.size();i++) {
-            Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
-            Value* gen = structT.value().second->vars[i]->generate(m_builder.get());
-            m_builder->CreateStore(gen,val);
-            m_sVarId.back()++;
-            std::string str = structT.value().second->vars[i]->mangle();
-            vars[str] = i;
+            if(structT.value().second->vars[i]->_static) {
+                Value* val = m_builder->CreateStructGEP(structT.value().first,var,m_sVarId.back());
+                Value* gen = structT.value().second->vars[i]->generate(m_builder.get());
+                m_builder->CreateStore(gen,val);
+                m_sVarId.back()++;
+                std::string str = structT.value().second->vars[i]->mangle();
+                vars[str] = i;
+            }else structT.value().second->vars[i]->generate(m_builder.get());
         }
         m_currentVar--;
         m_sVarId.pop_back();
@@ -277,8 +288,9 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
         if(m_vars[0].contains(name))return m_vars[0][name];
         return {};
     }
-    auto map = std::find_if(m_vars.rbegin(), m_vars.rbegin(), [&](const std::map<std::string,Var*> mapl) {
+    auto map = std::find_if(m_vars.rbegin(), m_vars.rend(), [&](const std::map<std::string,Var*> mapl) -> Var* {
         if(mapl.contains(name))return mapl.at(name);
+        return nullptr;
     });
     if(map != m_vars.rend() && map->contains(name)) {
         return map->at(name);
@@ -322,10 +334,34 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             else var->signage.push_back(false);
             var->vars[str] = i;
         }
+
+
         if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
         if(!structT.value().second->strType)structT.value().second->strType = var->strType;
         createVar(Igel::Mangler::mangle(arg->getName().str()),var);
         return;
     }
     createVar(Igel::Mangler::mangle(arg->getName().str()),new Var{alloc,_signed});
+}
+
+void Generator::createStaticVar(std::string name, Value* val,Var* var) {
+    if(!staticInit) {
+        FunctionType* ty = llvm::FunctionType::get(m_builder->getVoidTy(),{},false);
+        m_module->getOrInsertFunction("__cxx_global_var_init",ty);
+        Function* func = m_module->getFunction("__cxx_global_var_init");
+        func->setSection(".text.startup");
+        staticInit = BasicBlock::Create(*m_contxt,"staticInit",func);
+
+        StructType* str = StructType::create({m_builder->getInt32Ty(),m_builder->getPtrTy(),m_builder->getPtrTy()});
+        ArrayType* arr = ArrayType::get(str,1);
+        Constant* constArr = ConstantArray::get(arr,ConstantStruct::get(str,{ConstantInt::get(m_builder->getInt32Ty(),65535),func,ConstantPointerNull::get(m_builder->getPtrTy())}));
+        new GlobalVariable(*m_module,arr,true,GlobalValue::AppendingLinkage,constArr,"llvm.global_ctors");
+    }
+    m_builder->SetInsertPoint(staticInit);
+    m_builder->CreateStore(val,m_module->getGlobalVariable(name));
+    if(m_vars.back().contains(name)) {
+        std::cerr << "Identiefier: " << name << " already in use" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    m_vars.back()[name] = var;
 }

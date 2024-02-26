@@ -38,9 +38,7 @@ struct BeContained {
     virtual std::string mangle() = 0;
 };
 
-struct Name final : BeContained {
-    std::string mangle() override;
-};
+
 
 struct FuncInfo {
 
@@ -133,6 +131,16 @@ struct NodeTermId final : NodeTerm{
     BeContained* cont = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+};
+
+struct Name final : BeContained {
+
+    NodeTermId* getId() {
+        auto id = new NodeTermId;
+        id->cont = this;
+        return id;
+    }
+    std::string mangle() override;
 };
 
 struct NodeTermParen final : NodeTerm {
@@ -344,13 +352,19 @@ struct NodeStmtFuncCall final : NodeStmt{
 struct NodeStmtLet : NodeStmt,BeContained{
     llvm::Type* type = nullptr;
     IgType* typeName = nullptr;
+    bool final = false;
+    bool _static = false;
+
+    std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder) = 0;;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
     char sid = -1;
     bool _signed = true;
     std::optional<NodeExpr*> expr = {};
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
 };
@@ -361,9 +375,9 @@ struct NodeStmtNew : NodeStmtLet{
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
-    //std::string typeName;
     NodeTerm* term = nullptr;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtArr final : NodeStmtLet{
@@ -373,7 +387,7 @@ struct NodeStmtArr final : NodeStmtLet{
     bool fixed = false;;
     uint size = 0;
     //std::optional<std::string> typeName;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
 };
@@ -469,6 +483,8 @@ struct IgFunction final : BeContained{
     std::vector<bool> signage;
     llvm::Type* _return = nullptr;
     bool returnSigned;
+    bool _static = false;
+    bool final = false;
     NodeStmtScope* scope = nullptr;
     llvm::Function* llvmFunc = nullptr;
 
@@ -490,9 +506,12 @@ struct IgType : BeContained {
 struct Struct final : IgType {
     Struct() : IgType(true){}
     std::vector<NodeStmtLet*> vars;
+    std::vector<NodeStmtLet*> staticVars;
     std::vector<std::string> varIds;
     std::vector<llvm::Type*> types {};
+    std::vector<llvm::Type*> staticTypes {};
     std::vector<BeContained*> typeName;
+    std::unordered_map<std::string,BeContained*> staticTypeName;
     std::unordered_map<std::string,uint> varIdMs;
     llvm::StructType* strType = nullptr;
 
@@ -528,6 +547,22 @@ struct NamesSpace final : ContainableType {
     }
 };
 
+struct Interface final : ContainableType {
+    Interface() : ContainableType(false){}
+
+    std::string mangle() override {
+        throw IllegalGenerationException("Cannot mangle interface");
+    };
+
+    void generateSig(llvm::IRBuilder<>* builder) override {
+
+    };
+
+    void generate(llvm::IRBuilder<>* builder) override {
+
+    };
+};
+
 struct Class final : ContainableType {
     Class() : ContainableType(true){}
     std::vector<NodeStmtLet*> vars;
@@ -536,6 +571,8 @@ struct Class final : ContainableType {
     std::vector<BeContained*> typeName;
     std::unordered_map<std::string,uint> varIdMs;
     llvm::StructType* strType = nullptr;
+    std::optional<Class*> extending = {};
+    std::vector<Interface*> implementing {};
 
     std::vector<IgFunction*> funcs;
 

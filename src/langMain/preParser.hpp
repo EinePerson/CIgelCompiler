@@ -90,8 +90,7 @@ public:
     bool tryParseInclude(){
         if(peak().has_value() && peak().value().type == TokenType::include){
             consume();
-            auto id = tryConsume(TokenType::str,"Expected identifier").value.value();
-            m_file->includes.push_back(getHeader(id));
+            auto id = tryConsume(TokenType::str,"Expected identifier").value;
             tryConsume(TokenType::semi,"Expected ';'");
             m_file->tokenPtr += 3;
             return true;

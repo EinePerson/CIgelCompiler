@@ -6,9 +6,8 @@
 
 #include <llvm/Support/CommandLine.h>
 
-std::optional<NodeTerm *> Parser::parseTerm() {
-            NodeTerm* term;
-            if(auto int_lit = tryConsume(TokenType::int_lit)){
+std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,NodeTerm* term) {
+    if(auto int_lit = tryConsume(TokenType::int_lit)){
                 auto nodeInt = new NodeTermIntLit;
                 nodeInt->int_lit = int_lit.value();
                 char sid = sidChar(int_lit.value().value.value().back());
@@ -24,8 +23,8 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 auto nodestr = new NodeTermStringLit;
                 nodestr->str = str.value();
                 term = nodestr;
-            }else if(peak().has_value() && peak().value().type == TokenType::id){
-                BeContained* cont = parseContained().value();
+            }else if((peak().has_value() && peak().value().type == TokenType::id) || contP.has_value()){
+                BeContained* cont = contP.has_value()?contP.value():parseContained().value();
                 if(tryConsume(TokenType::openParenth)){
                     auto call = new NodeTermFuncCall;
                     call->name = cont;
@@ -83,7 +82,7 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 }else if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket) {
                     auto* arr = new NodeTermArrNew;
                     arr->sid = -1;
-                    arr->typeName = consume().value.value();
+                    arr->typeName = consume().value;
                     while (peak().has_value() && peak().value().type == TokenType::openBracket){
                         tryConsume(TokenType::openBracket,"Expected '['");
                         if(auto cont = parseTerm()) {
@@ -102,13 +101,13 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 }
             } else if(tryConsume(TokenType::null)) {
                 return new NodeTermNull;
-            }else
-                return {};
+            }
             if(tryConsume(TokenType::connector)) {
                 auto termT = new NodeTermStructAcces;
-                if(auto val = dynamic_cast<NodeTermId*>(term))termT->id = val->cont;
+                if(auto val = dynamic_cast<NodeTermId*>(term))
+                    termT->id = val->cont;
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
-                if(auto val = dynamic_cast<NodeTermArrayAcces*>(term))termT->contained = term;
+                if(dynamic_cast<NodeTermArrayAcces*>(term))termT->contained = term;
 
                 auto termF = peak();
                 if(peak(1).has_value() && peak(1).value().type != TokenType::connector && peak(1).value().type != TokenType::openBracket)consume();
@@ -116,6 +115,7 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 termT->acc = termF.value();
                 term = termT;
             }
+            if(!term)return {};
             if(auto ro = parseTerm()) {
                 NodeTerm* r = ro.value();
                 r->contained = term;
@@ -199,68 +199,11 @@ std::optional<NodeTerm *> Parser::parseTerm() {
         }
 
         std::optional<NodeStmt*> Parser::parseStmt(bool semi){
+            bool final = tryConsume(TokenType::final).has_value();
+            bool _static = tryConsume(TokenType::_static).has_value();
             if(peak().has_value() && peak().value().type <= TokenType::_bool){
-                if(peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
-                && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
-                    auto pirim = new NodeStmtPirimitiv;
-                    pirim->type = getType(peak().value().type);
-                    pirim->sid = (char) peak().value().type;
-                    m_sidFlag = pirim->sid;
-                    pirim->_signed = consume().type <= TokenType::_long;
-                    pirim->name = consume().value.value();
-                    if(!peak().has_value()){
-                        err("Expected expression or '='");
-                    }
-                    if(peak().value().type == TokenType::semi){
-                        consume();
-                        auto intLit = new NodeTermIntLit;
-                        Token tok{.type = TokenType::int_lit,.value = "0"};
-                        intLit->_signed = false;
-                        intLit->int_lit = tok;
-                        pirim->expr = intLit;
-                    } else {
-                        tryConsume(TokenType::eq,"Expected '='");
-                        if (auto expr = parseExpr())
-                            pirim->expr = expr.value();
-                        else {
-                            err("Unexpected expression1");
-                        }
-                        tryConsume(TokenType::semi, "Expected ';'");
-                    }
-                    return pirim;
-                }else if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket){
-                    auto arr = new NodeStmtArr;
-                    arr->sid = (char) peak().value().type;
-                    arr->_signed = consume().type <= TokenType::_long;
-                    arr->type = reinterpret_cast<Type *>(1);
-                    /*if(peak(1).has_value() && peak(1).value().type == TokenType::int_lit){
-                        while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::int_lit &&
-                        peak(2).has_value() && peak(2).value().type == TokenType::closeBracket){
-                            consume();
-                            //arr->size.push_back(stoi(tryConsume(TokenType::int_lit,"Expected Integer as value").value.value()));
-                            consume();
-                        }
-                        arr->fixed = true;
-                    }else{*/
-                        while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
-                            consume();
-                            //if(auto term = parseTerm())arr->size.push_back(term.value());
-                            //else err("Expected Term");
-                            arr->size++;
-                            consume();
-                        }
-                        arr->fixed = false;
-                    //}
-
-                    arr->name = consume().value.value();
-                    if(!arr->fixed && tryConsume(TokenType::eq)) {
-                        if(auto t = parseTerm()) {
-                            arr->term = t.value();
-                        }else err("Expected Term");
-                    }
-                    tryConsume(TokenType::semi, "Expected ';'");
-                    return arr;
-                }
+                if(auto var = parsePirim(_static,final))return var.value();
+                else err("Expected variable declaration");
             }else if(auto scope = parseScope()){
                 return scope.value();
             }else if(auto _if = tryConsume(TokenType::_if)){
@@ -295,123 +238,6 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 tryConsume(TokenType::next,"Expected ':'");
                 _case->_default = true;
                 return _case;
-            }else if(peak().has_value() && peak().value().type == TokenType::id && std::find(m_file->typeNames.begin(),m_file->typeNames.end(),peak().value().value.value()) != m_file->typeNames.end()) {
-                /*std::string typeName = consume().value.value();
-                while (tryConsume(TokenType::dConnect)) {
-                    tryConsume(TokenType::dConnect,"Expected ':'");
-                    typeName += "::" + tryConsume(TokenType::id,"Expected id").value.value();
-                }*/
-                IgType* cont = nullptr;
-                if(auto contO = parseContained())cont = dynamic_cast<IgType *>(contO.value());
-                else return {};
-
-                if(peak().value().type == TokenType::openBracket) {
-                    auto* arr = new NodeStmtArr;
-
-                    //arr->name = cont->name;
-                    //if(cont->contType.has_value())arr->contType = cont->contType.value();
-                    arr->typeName = cont;
-
-                    arr->fixed = false;
-                    arr->_signed = false;
-                    arr->sid = -1;
-                    arr->type = reinterpret_cast<Type *>(1);
-                    while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
-                        consume();
-                        arr->size++;
-                        consume();
-                    }
-                    arr->name = consume().value.value();
-                    if(!arr->fixed && tryConsume(TokenType::eq)) {
-                        if(auto t = parseTerm()) {
-                            arr->term = t.value();
-                        }else err("Expected Term");
-                    }
-                    tryConsume(TokenType::semi, "Expected ';'");
-                    return arr;
-                }
-                Token varName = tryConsume(TokenType::id,"Expected name");
-                if(peak().value().type == TokenType::eq) {
-                    auto strNew = new NodeStmtStructNew;
-                    //strNew->type = reinterpret_cast<Type *>(2);
-                    //strNew->name = cont->name;
-                    strNew->typeName = cont;
-                    if(cont->contType.has_value())strNew->contType = cont->contType;
-                    if(cont->contType.has_value())strNew->contType = cont->contType.value();
-                    strNew->name = varName.value.value();
-                    tryConsume(TokenType::eq,"Expected '='");
-                    if(auto t = parseTerm())
-                        strNew->term = t.value();
-                    else {
-                        err("Expected Term after '='");
-                    }
-                    tryConsume(TokenType::semi,"Expected ';'");
-                    return strNew;
-                }else if(peak().value().type == TokenType::semi) {
-                    auto strNew = new NodeStmtStructNew;
-                    strNew->type = reinterpret_cast<Type *>(2);
-                    strNew->typeName = cont;
-                    if(cont->contType.has_value())strNew->contType = cont->contType.value();
-                    strNew->name = varName.value.value();
-                    strNew->term = new NodeTermNull;
-                    consume();
-                    return strNew;
-                }
-            }else /*if(peak().has_value() && peak().value().type == TokenType::id && peak(1).has_value() && peak(1).value().type == TokenType::id &&
-                peak(2).has_value() && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)/*&& peak(3).has_value() && peak(3).value().type == TokenType::_new) {
-
-            } else*/ if(auto id = /*tryConsume(TokenType::id)*/ parseTerm()){
-                if(auto val = dynamic_cast<NodeTermFuncCall*>(id.value())){
-                    auto* call = new NodeStmtFuncCall;
-                    call->call = val;
-                    tryConsume(TokenType::semi, "Expected ';'");
-                    return call;
-                }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())){
-                    auto reassign = new NodeStmtArrReassign;
-                    reassign->acces = value;
-                    if (peak().has_value() && peak().value().type >= TokenType::eq &&
-                            peak().value().type <= TokenType::pow_eq) {
-                        reassign->op = consume().type;
-
-                        if (auto expr = parseExpr())reassign->expr = expr.value();
-                        else {
-                            err("Unexpected expression2");
-                        }
-                    } else if (peak().has_value() && peak().value().type == TokenType::inc ||
-                                       peak().value().type == TokenType::dec) {
-                        reassign->op = consume().type;
-                    } else {
-                        err("Expected Assignment Operator1");
-                    }
-                    tryConsume(TokenType::semi, "Expected ';'");
-                    return reassign;
-                }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
-                    auto reassign = new NodeStmtReassign;
-                    reassign->op = consume().type;
-                    reassign->id = id.value();
-
-                    if(semi)tryConsume(TokenType::semi,"Expected ';'");
-                    return  reassign;
-                }else{
-                        auto reassign = new NodeStmtReassign;
-                        reassign->id = id.value();
-                        if (peak().has_value() && peak().value().type >= TokenType::eq &&
-                            peak().value().type <= TokenType::pow_eq) {
-                            reassign->op = consume().type;
-
-                            if (auto expr = parseExpr())reassign->expr = expr.value();
-                            else {
-                                err("Unexpected expression2");
-                            }
-                        } else if (peak().has_value() && peak().value().type == TokenType::inc ||
-                                   peak().value().type == TokenType::dec) {
-                            reassign->op = consume().type;
-                        } else {
-                            err("Expected Assignment Operator2");
-                        }
-                        if(semi)tryConsume(TokenType::semi, "Expected ';'");
-                        return reassign;
-                }
             }else if(peak().has_value() && peak().value().type == TokenType::_return){
                 consume();
                 auto _return = new NodeStmtReturn;
@@ -428,11 +254,225 @@ std::optional<NodeTerm *> Parser::parseTerm() {
                 consume();
                 tryConsume(TokenType::semi,"Expected ';'");
                 return new NodeStmtContinue;
+            }else if(peak().has_value() && peak().value().type == TokenType::id) {
+                BeContained* cont;
+                if(auto co = parseContained())cont = co.value();
+                else err("Could not parse contained");
+                if(dynamic_cast<IgType*>(cont)) {
+                    if(auto let = parseLet(_static,final,cont))return let.value();
+                    err("Expected variable declaration");
+                    return {};
+                }
+                auto id = parseTerm(cont);
+                if(id.has_value()){
+                    if(auto val = dynamic_cast<NodeTermFuncCall*>(id.value())) {
+                        auto* call = new NodeStmtFuncCall;
+                        call->call = val;
+                        tryConsume(TokenType::semi, "Expected ';'");
+                        return call;
+                    }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())) {
+                        auto reassign = new NodeStmtArrReassign;
+                        reassign->acces = value;
+                        if (peak().has_value() && peak().value().type >= TokenType::eq &&
+                                peak().value().type <= TokenType::pow_eq) {
+                            reassign->op = consume().type;
+
+                            if (auto expr = parseExpr())reassign->expr = expr.value();
+                            else {
+                                err("Unexpected expression2");
+                            }
+                                } else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
+                                    reassign->op = consume().type;
+                                } else {
+                                    err("Expected Assignment Operator1");
+                                }
+                        tryConsume(TokenType::semi, "Expected ';'");
+                        return reassign;
+                    }else {
+                        auto reassign = new NodeStmtReassign;
+                        reassign->id = id.value();//dynamic_cast<Name*>(cont)->getId();
+                        if (peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq) {
+                            reassign->op = consume().type;
+
+                            if (auto expr = parseExpr())reassign->expr = expr.value();
+                            else err("Unexpected expression2");
+                        }else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
+                            reassign->op = consume().type;
+                        } else {
+                            err("Expected Assignment Operator2");
+                        }
+                        if(semi)tryConsume(TokenType::semi, "Expected ';'");
+                        return reassign;
+                    }
+                    return {};
+                }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
+                    auto reassign = new NodeStmtReassign;
+                    reassign->op = consume().type;
+                    reassign->id = dynamic_cast<Name*>(cont)->getId();
+
+                    if(semi)tryConsume(TokenType::semi,"Expected ';'");
+                    return  reassign;
+                }else {
+                    auto reassign = new NodeStmtReassign;
+                    reassign->id = dynamic_cast<Name*>(cont)->getId();
+                    if (peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq) {
+                        reassign->op = consume().type;
+
+                        if (auto expr = parseExpr())reassign->expr = expr.value();
+                        else err("Unexpected expression2");
+                    }else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
+                        reassign->op = consume().type;
+                    } else {
+                        err("Expected Assignment Operator2");
+                    }
+                    if(semi)tryConsume(TokenType::semi, "Expected ';'");
+                    return reassign;
+                }
             }
             return {};
         }
 
-        NodeStmtFor* Parser::parseFor() {
+std::optional<NodeStmtLet*> Parser::parseLet(bool _static, bool final, std::optional<BeContained*> contP) {
+    if(contP.has_value()) {
+        if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,contP);
+        return parseStrNew(_static,final,contP);
+    }
+    if(peak().value().type <= TokenType::_bool)return parsePirim(_static,final);
+    BeContained* cont;
+    if(auto co = parseContained())cont = co.value();
+    else return {};
+    if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,cont);
+    return parseStrNew(_static,final,cont);
+}
+
+std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
+    if(peak().has_value() && peak().value().type <= TokenType::_bool && peak(1).has_value() && peak(1).value().type == TokenType::id && peak(2).has_value()
+                && (peak(2).value().type == TokenType::eq || peak(2).value().type == TokenType::semi)) {
+        auto pirim = new NodeStmtPirimitiv;
+        pirim->type = getType(peak().value().type);
+        pirim->sid = static_cast<char>(peak().value().type);
+        m_sidFlag = pirim->sid;
+        pirim->_signed = consume().type <= TokenType::_long;
+        pirim->name = consume().value.value();
+        if(!peak().has_value()){
+            err("Expected expression or '='");
+        }
+        if(peak().value().type == TokenType::semi){
+            consume();
+            auto intLit = new NodeTermIntLit;
+            Token tok(TokenType::int_lit,-1,"","0");
+            intLit->_signed = false;
+            intLit->int_lit = tok;
+            pirim->expr = intLit;
+        } else {
+            tryConsume(TokenType::eq,"Expected '='");
+            if (auto expr = parseExpr())pirim->expr = expr.value();
+            else err("Unexpected expression1");
+            tryConsume(TokenType::semi, "Expected ';'");
+        }
+        pirim->final = final;
+        pirim->_static = _static;
+        if(varHolder)pirim->contType = varHolder;
+        return pirim;
+    }
+    return {};
+}
+
+std::optional<NodeStmtStructNew*> Parser::parseStrNew(bool _static, bool final,std::optional<BeContained*> contP) {
+    IgType* cont;
+    if(auto val = dynamic_cast<IgType*>(contP.has_value()?contP.value():parseContained().value()))cont = val;
+    else return {};
+    Token varName = tryConsume(TokenType::id,"Expected name");
+    if(peak().value().type == TokenType::eq) {
+        auto strNew = new NodeStmtStructNew;
+        strNew->typeName = cont;
+        if(cont->contType.has_value())strNew->contType = cont->contType;
+        if(cont->contType.has_value())strNew->contType = cont->contType.value();
+        strNew->name = varName.value.value();
+        tryConsume(TokenType::eq,"Expected '='");
+        if(auto t = parseTerm())
+            strNew->term = t.value();
+        else err("Expected Term after '='");
+        tryConsume(TokenType::semi,"Expected ';'");
+        strNew->final = final;
+        strNew->_static = _static;
+        if(varHolder)strNew->contType = varHolder;
+        return strNew;
+    }
+    if(peak().value().type == TokenType::semi) {
+        auto strNew = new NodeStmtStructNew;
+        strNew->type = reinterpret_cast<Type *>(2);
+        strNew->typeName = cont;
+        if(cont->contType.has_value())strNew->contType = cont->contType.value();
+        strNew->name = varName.value.value();
+        strNew->term = new NodeTermNull;
+        consume();
+        strNew->final = final;
+        strNew->_static = _static;
+        if(varHolder)strNew->contType = varHolder;
+        return strNew;
+    }
+    return {};
+}
+
+std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::optional<BeContained*> contP) {
+    if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket){
+        auto arr = new NodeStmtArr;
+        arr->sid = (char) peak().value().type;
+        arr->_signed = consume().type <= TokenType::_long;
+        arr->type = reinterpret_cast<Type *>(1);
+        while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
+            consume();
+            arr->size++;
+            consume();
+        }
+        arr->fixed = false;
+        arr->name = consume().value.value();
+        if(!arr->fixed && tryConsume(TokenType::eq)) {
+            if(auto t = parseTerm()) {
+                arr->term = t.value();
+            }else err("Expected Term");
+        }
+        tryConsume(TokenType::semi, "Expected ';'");
+        arr->final = final;
+        arr->_static = _static;
+        if(varHolder)arr->contType = varHolder;
+        return arr;
+    }
+    IgType* cont;
+    if(auto val = dynamic_cast<IgType*>(contP.has_value()?contP.value():parseContained().value()))cont = val;
+    else return {};
+
+    if(peak().value().type == TokenType::openBracket) {
+        auto* arr = new NodeStmtArr;
+
+        arr->typeName = cont;
+
+        arr->fixed = false;
+        arr->_signed = false;
+        arr->sid = -1;
+        arr->type = reinterpret_cast<Type *>(1);
+        while (peak().has_value() && peak().value().type == TokenType::openBracket && peak(1).has_value() && peak(1).value().type == TokenType::closeBracket){
+            consume();
+            arr->size++;
+            consume();
+        }
+        arr->name = consume().value.value();
+        if(!arr->fixed && tryConsume(TokenType::eq)) {
+            if(auto t = parseTerm()) {
+                arr->term = t.value();
+            }else err("Expected Term");
+        }
+        tryConsume(TokenType::semi, "Expected ';'");
+        arr->final = final;
+        arr->_static = _static;
+        if(varHolder)arr->contType = varHolder;
+        return arr;
+    }
+    return {};
+}
+
+NodeStmtFor* Parser::parseFor() {
             tryConsume(TokenType::openParenth,"Expected '('");
             auto stmt_for = new NodeStmtFor;
 
@@ -539,13 +579,16 @@ std::optional<NodeTerm *> Parser::parseTerm() {
 
         std::optional<IgFunction*> Parser::parseFunc(){
             auto func = new IgFunction;
+            func->final = tryConsume(TokenType::final).has_value();
+            func->_static = tryConsume(TokenType::_static).has_value();
             if(!m_super.empty()) {
                 func->contType = m_super.back();
                 m_super.back()->contained.push_back(func);
-            }
+            }else func->_static = true;
+
             if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void || peak().value().type == TokenType::id)) {
                 Token ret = consume();
-                if(ret.value.has_value())func->retTypeName = ret.value.value();
+                if(!ret.value.has_value())func->retTypeName = ret.value.value();
                 else func->retTypeName = "";
                 func->_return = getType(ret.type);
                 func->returnSigned = false;
@@ -589,14 +632,14 @@ std::optional<NodeTerm *> Parser::parseTerm() {
         }
 
 std::optional<BeContained*> Parser::parseContained() {
+    //if(peak(1).value().type != TokenType::dConnect)return {};
     IgType* cont = nullptr;
-    while (peak().value().type == TokenType::id,peak(1).value().type == TokenType::dConnect,
-        peak(2).value().type == TokenType::dConnect) {
+    while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {
         IgType* contN = m_file->nameTypeMap[consume().value.value()];
         if(cont)contN->contType = cont;
         cont = contN;
         consume();
-        consume();
+        //consume();
     }
     if(m_file->nameTypeMap.contains(peak().value().value.value())) {
         IgType* contN = m_file->nameTypeMap[consume().value.value()];
@@ -620,13 +663,22 @@ std::optional<IgType*> Parser::parseType() {
                     }
 
                     str->name = consume().value.value();
+                    varHolder = str;
                     NodeStmtScope* scope = parseScope().value();
+                    varHolder = nullptr;
                     for (auto stmt : scope->stmts) {
                         if(auto val = dynamic_cast<NodeStmtLet *>(stmt)) {
-                            if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->typeName.push_back(type);
-                            else str->typeName.emplace_back(nullptr);
-                            str->vars.push_back(val);
-                            str->types.push_back(val->type);
+                            if(val->_static) {
+                                if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->staticTypeName[type->mangle()] = type;
+                                //else str->typeName nullptr;
+                                str->staticVars.push_back(val);
+                                str->staticTypes.push_back(val->type);
+                            }else {
+                                if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->typeName.push_back(type);
+                                else str->typeName.emplace_back(nullptr);
+                                str->vars.push_back(val);
+                                str->types.push_back(val->type);
+                            }
                         }else {
                             err("Only Fields/Attributes/Variables are allowed in structs");
                         }
@@ -639,7 +691,24 @@ std::optional<IgType*> Parser::parseType() {
                         clazz->contType = m_super.back();
                         m_super.back()->contained.push_back(clazz);
                     }
-                    //TODO extends parsing
+
+                    if(tryConsume(TokenType::extends)) {
+                        if(auto cont = parseContained()) {
+                            if(auto ext = dynamic_cast<Class*>(m_file->nameTypeMap[cont.value()->mangle()])) {
+                                clazz->extending = ext;
+                            }err("Can only extend classes");
+                        }err("Expected class name after \"extending\"");
+                    }
+
+                    if(tryConsume(TokenType::implements)) {
+                        while (auto cont = parseContained()) {
+                            if(auto imp = dynamic_cast<Interface*>(m_file->nameTypeMap[cont.value()->mangle()])){
+                                clazz->implementing.push_back(imp);
+                            }err("Can only implement interfaces");
+                        }
+                        if(clazz->implementing.empty())err("Expected interface name after \"implements\"");
+                    }
+
                     clazz->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     tryConsume(TokenType::openCurl,"Expected '{'");
                     m_super.push_back(clazz);

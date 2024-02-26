@@ -114,18 +114,29 @@ enum class TokenType{
     _namespace,
     _enum,
 
+    extends,
+    implements,
     _abstract,
     null,
+    _static,
+    final,
 };
 
 std::optional<int> prec(TokenType type);
 
-struct Token;
-
 struct Token{
-    TokenType type = TokenType::uninit;
-    std::optional<std::string> value {};
-    uint line = -1;
+    Token():type(TokenType::uninit),line(-1) {}
+    Token(const TokenType type, const uint line,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), file(std::move(file)) {}
+    Token(const Token& other) {
+        type = other.type;
+        value = other.value;
+        line = other.line;
+        file = other.file;
+    }
+
+    TokenType type;
+    std::optional<std::string> value;
+    uint line;
     std::string file;
 
     Token& operator=(Token other){
@@ -190,6 +201,15 @@ class Tokenizer{
             {"struct",TokenType::_struct},
             {"class",TokenType::_class},
             {"namespace",TokenType::_namespace},
+            {"enum",TokenType::_enum},
+            {"interface",TokenType::interface},
+
+            {"abstract",TokenType::_abstract},
+            {"extends",TokenType::extends},
+            {"implements",TokenType::implements},
+
+            {"static",TokenType::_static},
+            {"final",TokenType::final},
     };
 
     const std::map<std::string,TokenType> FUNCTIONS = {
@@ -200,8 +220,8 @@ class Tokenizer{
     };
 
     const std::map<std::string,Token> REPLACE = {
-            {"false",Token{.type = TokenType::int_lit,.value = "0Z"}},
-            {"true",Token{.type = TokenType::int_lit,.value = "1Z"}}
+            {"false",Token(TokenType::int_lit,(uint) -1,"","0Z")},
+            {"true",Token(TokenType::int_lit,(uint) -1,"","1Z")},
     };
 
    const std::map<char,TokenType> IGEL_TOKEN_CHAR = {

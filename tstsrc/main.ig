@@ -11,25 +11,32 @@
 
     }
 
+    class Gaming{
+        void test(){
+
+        }
+    }
 }*/
 
+struct Amogus{
+    int test;
+    int gaming;
+}
+
 struct ABC{
+    static int c = 23;
+    static Amogus sus = new Amogus;
     int a;
 }
 
 int main(){
-    int[] a = new int[5];
-    a[0] = 25;
-    a[3] = 2;
-    printf("%d",a[0]);
-
-    ABC b = new ABC;
-    b.a = 554;
-    printf("%d",b.a);
-
-    ABC[] arr = new ABC[5];
-    arr[0] = new ABC;
-    arr[0].a = 256;
-    printf("%d\n",arr[0].a);
-    return 5;
+    Amogus a = new Amogus;
+    a.gaming = 25;
+    a.test = 76;
+    printf("%d",a.gaming);
+    ABC::sus.test = 253;
+    ABC::sus.gaming = 84;
+    printf("%d",ABC::sus.gaming);
+    ABC::c = 98;
+    return ABC::c;
 }

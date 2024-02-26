@@ -42,7 +42,7 @@ typedef unsigned int uint;
         }
     }
 
-    Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_funcs(extended_funcs){}
+Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_funcs(extended_funcs){}
 
      std::vector<Token> Tokenizer::tokenize(const std::string&file){
         m_src = read(file);
@@ -76,137 +76,137 @@ typedef unsigned int uint;
                     comment = 2;
                     continue;
                 }else if(peak(1).has_value() && peak(1).value() == '='){
-                    m_tokens.push_back({.type = TokenType::div_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::div_eq,lineCount,file);
                     consume();
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::div,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::div,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '!'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::notequal,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::notequal,lineCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '|'){
-                    m_tokens.push_back({.type = TokenType::_xor,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_xor,lineCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.push_back({.type = TokenType::_not,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_not,lineCount,file);
                 }
             }else if(peak().value() == '>'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::bigequal,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::bigequal,lineCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.push_back({.type = TokenType::big,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::big,lineCount,file);
                     continue;
                 }
             }else if(peak().value() == '<'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::smallequal,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::smallequal,lineCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.push_back({.type = TokenType::small,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::small,lineCount,file);
                     continue;
                 }
             }else if(peak().value() == '='){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::equal,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::equal,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::eq,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '&'){
                 consume();
                 if(peak().has_value() && peak().value() == '&'){
-                    m_tokens.push_back({.type = TokenType::_and,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_and,lineCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.push_back({.type = TokenType::_bitAnd,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_bitAnd,lineCount,file);
                 }
             }else if(peak().value() == '|'){
                 consume();
                 if(peak().has_value() && peak().value() == '|'){
-                    m_tokens.push_back({.type = TokenType::_or,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_or,lineCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.push_back({.type = TokenType::_bitOr,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::_bitOr,lineCount,file);
                 }
             }else if(peak().value() == '+'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::plus_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::plus_eq,lineCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '+'){
-                    m_tokens.push_back({.type = TokenType::inc,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::inc,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::plus,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::plus,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '-'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::sub_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::sub_eq,lineCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '-'){
-                    m_tokens.push_back({.type = TokenType::dec,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::dec,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::sub,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::sub,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '*'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::mul_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::mul_eq,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::mul,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::mul,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '/'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::div_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::div_eq,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::div,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::div,lineCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '*'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.push_back({.type = TokenType::pow_eq,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::pow_eq,lineCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::pow,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::pow,lineCount,file);
                     consume();
                     continue;
                 }
@@ -224,12 +224,12 @@ typedef unsigned int uint;
                     buf.push_back(consume());
                 }
                 consume();
-                m_tokens.push_back({.type = TokenType::str,.value = buf,.line = lineCount,.file = file});
+                m_tokens.emplace_back(TokenType::str,lineCount,file,buf);
                 buf.clear();
                 continue;
             }else if(peak().value() == '\'') {
                 consume();
-                if(peak().has_value() && peak().value() != '\'')m_tokens.push_back({.type = TokenType::_char_lit,.value = std::string{consume()},.line = lineCount,.file = file});
+                if(peak().has_value() && peak().value() != '\'')m_tokens.emplace_back(TokenType::_char_lit,lineCount,file,std::string{consume()});
                 consume();
             }else if(peak().value() == '#'){
                 consume();
@@ -240,17 +240,17 @@ typedef unsigned int uint;
                 while(peak().has_value() && std::isspace(peak().value())){
                     consume();
                 }
-                m_tokens.push_back({.type = TokenType::info,.value = buf});
+                m_tokens.emplace_back(TokenType::info,lineCount,file,buf);
                 buf.clear();
                 continue;
             }else if(peak().value() == ':') {
                 consume();
                 if(peak().value() == ':') {
                     consume();
-                    m_tokens.push_back({.type =  TokenType::dConnect,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::dConnect,lineCount,file);
                     continue;
                 }
-                m_tokens.push_back({.type =  TokenType::next,.line = lineCount,.file = file});
+                m_tokens.emplace_back(TokenType::next,lineCount,file);
                 continue;
             }else if(std::isalpha(peak().value()) || peak().value() == '_'){
                 buf.push_back(consume());
@@ -263,28 +263,31 @@ typedef unsigned int uint;
                 }
                 if(peak().has_value() && peak().value() == '('){
                     if(FUNCTIONS.count(buf)){
-                        m_tokens.push_back({.type = FUNCTIONS.at(buf)});
+                        m_tokens.emplace_back(FUNCTIONS.at(buf),lineCount,file);
                         buf.clear();
                         continue;
                     }else if(m_extended_funcs.count(buf)){
-                        m_tokens.push_back({.type = TokenType::externFunc,.value = buf,.line = lineCount,.file = file});
+                        m_tokens.emplace_back(TokenType::externFunc,lineCount,file,buf);
                         buf.clear();
                         continue;
                     }else{
-                        m_tokens.push_back({.type = TokenType::id,.value = buf,.line = lineCount,.file = file});
+                        m_tokens.emplace_back(TokenType::id,lineCount,file,buf);
                         buf.clear();
                         continue;
                     }
                 }else if(IGEL_TOKENS.count(buf)){
-                    m_tokens.push_back({.type = IGEL_TOKENS.at(buf),.line = lineCount,.file = file});
+                    m_tokens.emplace_back(IGEL_TOKENS.at(buf),lineCount,file);
                     buf.clear();
                     continue;
                 }else if(REPLACE.count(buf)){
-                    m_tokens.push_back(REPLACE.at(buf));
+                    Token t = REPLACE.at(buf);
+                    t.line = lineCount;
+                    t.file = file;
+                    m_tokens.push_back(t);
                     buf.clear();
                     continue;
                 }else {
-                    m_tokens.push_back({.type = TokenType::id,.value = buf,.line = lineCount,.file = file});
+                    m_tokens.emplace_back(TokenType::id,lineCount,file,buf);
                     buf.clear();
                     continue;
                 }
@@ -295,11 +298,11 @@ typedef unsigned int uint;
                     buf.push_back(consume());
                 }
                 if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
-                m_tokens.push_back({.type = TokenType::int_lit,.value = buf,.line = lineCount,.file = file});
+                m_tokens.emplace_back(TokenType::int_lit,lineCount,file,buf);
                 buf.clear();
                 continue;
             }else if(IGEL_TOKEN_CHAR.count(peak().value())){
-                m_tokens.push_back({.type = IGEL_TOKEN_CHAR.at(consume()),.line = lineCount,.file = file});
+                m_tokens.emplace_back(IGEL_TOKEN_CHAR.at(consume()),lineCount,file);
                 continue;
             }else if(std::isspace(peak().value())){
                 consume();

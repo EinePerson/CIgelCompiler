@@ -21,10 +21,17 @@ struct IgFunction;
 
 
 struct Var {
-    explicit Var(AllocaInst* alloc,bool _signed) : alloc(alloc),_signed(_signed){}
+    explicit Var(AllocaInst* alloc,bool _signed) : alloc(alloc),_signed(_signed) {}
     virtual ~Var() = default;
-    AllocaInst* alloc;
+    Value* alloc = nullptr;
     char _signed = -1;
+
+    Type* getType() {
+        Type* ty;
+        if(llvm::AllocaInst::classof(alloc))ty = static_cast<AllocaInst*>(alloc)->getAllocatedType();
+        else if(GlobalVariable::classof(alloc))ty = static_cast<GlobalVariable*>(alloc)->getValueType();
+        return ty;
+    }
 };
 
 struct ArrayVar : Var {
@@ -75,8 +82,10 @@ public:
     void createVar(const std::string&name,Type* type,Value* val,bool _signed);
     void createVar(std::string name,Var* var);
     void createVar(Argument* arg,bool _signed, const std::string&typeName);
-private:
 
+    void createStaticVar(std::string name,Value* val,Var* var);
+private:
+    BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
     bool setupFlag = false;
     std::string m_target_triple;
