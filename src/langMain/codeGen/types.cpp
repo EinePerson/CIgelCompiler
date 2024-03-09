@@ -62,6 +62,7 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
           var = static_cast<ArrayVar*>(Generator::instance->getVar(Igel::Mangler::mangleName(cont)));
           _signed = var->_signed;
           if(var->typeName.has_value()) {
+               //Check if struct or class
                auto strRet = Generator::instance->m_file->findStruct(var->typeName.value()->mangle());
                Generator::structRet = strRet.value().second;
           }
@@ -215,6 +216,137 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      return ptr;
 }
 
+llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
+     if(call) {
+          call->generate(builder);
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
+               auto str = Generator::instance->m_file->findClass(func.value()->retTypeName);
+               if(!str)return nullptr;
+               Generator::typeNameRet = str.value().second;
+               uint fid = str.value().second->varIdMs[acc.value.value()];
+               return builder->CreateLoad(str.value().second->types[fid],this->generatePointer(builder));
+          }else return nullptr;
+     }
+
+     Value* val;
+     Class* str = nullptr;
+     ClassVar* var = nullptr;
+     if(contained) {
+          val = contained.value()->generate(builder);
+          str = Generator::classRet;
+     }else {
+          var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          val = builder->CreateLoad(var->type,var->alloc);
+     }
+     if(!str && !var) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
+     Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+     Generator::typeNameRet = str?str:var->clazz;
+     if(var) {
+          Generator::classRet = var->clazz;
+          return builder->CreateLoad(var->types[fid],ptr);
+     }
+
+     if(str->typeName[fid] != nullptr) {
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid]->mangle()))Generator::classRet = strT.value().second;
+          else Generator::classRet = nullptr;
+     }else Generator::classRet = nullptr;
+     return ptr;
+}
+
+llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
+     if(call) {
+          Value* val = call->generate(builder);
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
+               auto str = Generator::instance->m_file->findClass(func.value()->retTypeName);
+               if(!str)return nullptr;
+               Generator::typeNameRet = str.value().second;
+               uint fid = str->second->varIdMs[acc.value.value()];
+               return  builder->CreateStructGEP(str.value().first,val,fid);
+
+          }else return nullptr;
+     }
+     Value* val;
+     Class* str = nullptr;
+     ClassVar* var = nullptr;
+     if(contained) {
+          val = contained.value()->generatePointer(builder);
+          str = Generator::classRet;
+     }else {
+          var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          val = builder->CreateLoad(var->type,var->alloc);
+          val->print(outs());
+     }
+
+     if(!str && !var) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     //TODO add error when variable name is not contained in the struct
+     const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
+     Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+     Generator::typeNameRet = str?str:var->clazz;
+     if(var) {
+          Generator::classRet = var->clazz;
+          return ptr;
+     }
+
+     if(str->typeName[fid] != nullptr) {
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid]->mangle()))Generator::classRet = strT.value().second;
+          else Generator::classRet = nullptr;
+     }else Generator::classRet = nullptr;
+     return ptr;
+}
+
+llvm::Value* NodeTermClassAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
+     if(call) {
+          Value* val = call->generate(builder);
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
+               auto str = Generator::instance->m_file->findClass(func.value()->retTypeName);
+               if(!str)return nullptr;
+               Generator::typeNameRet = str.value().second;
+               uint fid = str->second->varIdMs[acc.value.value()];
+               return  val;
+
+          }
+     }
+
+     Value* val;
+     Class* str = nullptr;
+     ClassVar* var = nullptr;
+     if(contained) {
+          val = contained.value()->generatePointer(builder);
+          str = Generator::classRet;
+     }else {
+          var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          val = builder->CreateLoad(var->type,var->alloc);
+     }
+
+     if(!str && !var) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     //TODO add error when variable name is not contained in the struct
+     const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
+     Generator::typeNameRet = str?str:var->clazz;
+     if(var) {
+          Generator::classRet = var->clazz;
+          return val;
+     }
+
+     if(str->typeName[fid] != nullptr) {
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid]->mangle()))Generator::classRet = strT.value().second;
+          else Generator::classRet = nullptr;
+     }else Generator::classRet = nullptr;
+     return val;
+}
+
 llvm::Value* NodeStmtLet::generate(llvm::IRBuilder<>* builder) {
      if(_static) {
           GlobalValue* val = new GlobalVariable(*Generator::instance->m_module,type?type:builder->getPtrTy(),final,GlobalValue::ExternalLinkage,
@@ -244,7 +376,7 @@ std::string NodeStmtPirimitiv::mangle() {
 }
 
 std::string NodeStmtNew::mangle() {
-     return Igel::Mangler::mangleName(this);
+     return Igel::Mangler::mangle(this->name);
 }
 
 std::string NodeStmtArr::mangle() {
@@ -268,9 +400,35 @@ std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>*
                std::string str = structT.value().second->vars[i]->name;
                if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
                else var->signage.push_back(false);
-               //var->signage.push_back(let-> <= TokenType::_long);
                var->vars[str] = i;
           }
+          return {gen,var};
+     }else {
+          std::cerr << "Undeclarde Type " << typeName->mangle() << std::endl;
+          exit(EXIT_FAILURE);
+     }
+}
+
+std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* builder) {
+     if(auto clazz = Generator::instance->m_file->findClass(typeName->mangle())) {
+          auto type = PointerType::get(builder->getContext(),0);
+          AllocaInst* alloc = builder->CreateAlloca(type);
+          Value* gen = term->generate(builder);
+          builder->CreateStore(gen,alloc);
+
+          auto var = new ClassVar(alloc);
+          var->type = builder->getPtrTy();
+          var->strType = clazz.value().first;
+          var->clazz = clazz.value().second;
+          var->types = clazz.value().second->types;
+          for(size_t i = 0;i < clazz.value().second->vars.size();i++) {
+               NodeStmtLet* let = clazz.value().second->vars[i];
+               std::string str = clazz.value().second->vars[i]->name;
+               if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
+               else var->signage.push_back(false);
+               var->vars[str] = i + 1;
+          }
+          for (uint i = 0; i < clazz.value().second->funcs.size();i++)var->funcs[clazz.value().second->funcs[i]->name] = i;
           return {gen,var};
      }else {
           std::cerr << "Undeclarde Type " << typeName->mangle() << std::endl;
@@ -459,10 +617,12 @@ llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
      if(op == TokenType::eq) {
           return builder->CreateStore(expr->generate(builder),val);
      }else {
-          Value* load = builder->CreateLoad(val->getType(),val);
+          Value* load = id->generate(builder); //builder->CreateLoad(val->getType(),val);
           Value* _new = nullptr;
           if(expr != nullptr)_new = expr->generate(builder);
-          load = builder->CreateLoad(static_cast<AllocaInst*>(val)->getAllocatedType(),val);
+          //load = builder->CreateLoad(/*val->getType()->isPointerTy()?val->getType():*/static_cast<AllocaInst*>(val)->getAllocatedType(),val);
+          load->print(outs());
+          val->print(outs());
           Value* res = generateReassing(load,_new,op,builder);
           return builder->CreateStore(res,val);
      }
@@ -504,7 +664,7 @@ llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
 }
 
 std::string IgFunction::mangle() {
-     return Igel::Mangler::mangle(this,paramType,paramTypeName,signage);
+     return Igel::Mangler::mangle(this,paramType,paramTypeName,signage,member,constructor);
 }
 
 int Types::getSize(TokenType type) {
@@ -550,12 +710,148 @@ std::string Struct::mangle() {
      return Igel::Mangler::mangleTypeName(this);
 }
 
-void Class::generateSig(llvm::IRBuilder<>* builder) {
+void NamesSpace::generateSig(llvm::IRBuilder<>* builder) {
+     for(auto func : funcs)Generator::instance->genFuncSig(func);
+     for(auto cont : contained) {
+          if(auto type = dynamic_cast<IgType*>(cont))type->generateSig(builder);
+     }
+}
 
+void NamesSpace::generate(llvm::IRBuilder<>* builder) {
+     for(auto func : funcs)Generator::instance->genFunc(func);
+     for(auto cont : contained) {
+          if(auto type = dynamic_cast<IgType*>(cont))type->generate(builder);
+     }
+}
+
+void Class::generateSig(llvm::IRBuilder<>* builder) {
+     if(wasGen)return;
+     wasGen = true;
+     if(extending.has_value())extending.value()->generateSig(builder);
+     for(uint i = 0; i < this->types.size();i++) {
+          if(types[i] == nullptr) {
+               std::cerr << "Type is not set in " << mangle() << std::endl;
+          }
+          auto tIL = (ulong) types[i];
+          switch (const ulong tI = tIL) {
+               case 1:
+               case 2:
+                    types[i] = PointerType::get(builder->getContext(),0);
+               break;
+               default:
+                    break;
+               case 0:
+                    std::cerr << "Unkown type id: " << tI << std::endl;
+               exit(EXIT_FAILURE);
+          }
+     }
+     std::vector<Type*> types {builder->getPtrTy()};
+     std::vector<BeContained*> names {new Name("")};
+     std::vector<bool> sing = {true};
+     if(hasCustContructor) {
+          types.insert(constructor->paramType.begin(),constructor->paramType.end(),types.end());
+          names.insert(constructor->paramTypeName.begin(),constructor->paramTypeName.end(),names.end());
+          sing.insert(constructor->signage.begin(),constructor->signage.end(),sing.end());
+     }
+     FunctionType* ty = FunctionType::get(builder->getVoidTy(),{types},false);
+     Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,types,names,sing,true),*Generator::instance->m_module);
+     if(!constructor) {
+          constructor = new IgFunction;
+          constructor->paramTypeName = names;
+          constructor->paramType = types;
+          constructor->signage = sing;
+          constructor->constructor = true;
+     }
+     constructor->_return = builder->getVoidTy();
+     constructor->retTypeName = "";
+     constructor->llvmFunc = func;
+     for(size_t i = extending.has_value();i < func->arg_size();i++)func->getArg(i)->setName(names[i - extending.has_value()]->mangle());
+     strType = StructType::create(builder->getContext(),mangle());
+
+     Generator::instance->m_file->classes[mangle()] = {strType,this};
 }
 
 void Class::generate(llvm::IRBuilder<>* builder) {
+     if(fullGen)return;
+     fullGen = true;
+     types.insert(types.begin(),builder->getPtrTy());
+     strType->setBody(types,false);
 
+     //Function* func = Generator::instance->m_module->getFunction(Igel::Mangler::mangle(this,types,names,sing,true));
+     BasicBlock* entry = BasicBlock::Create(*Generator::m_contxt,"entry",constructor->llvmFunc);
+          //entry->getModule();
+     builder->SetInsertPoint(entry);
+     Type* ptr = PointerType::get(*Generator::m_contxt,0);
+     AllocaInst* alloc = builder->CreateAlloca(ptr);
+     builder->CreateStore(constructor->llvmFunc->getArg(0),alloc);
+     LoadInst* load = builder->CreateLoad(alloc->getAllocatedType(),alloc);
+
+     typeNameVar = builder->CreateGlobalString(name,"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
+     StructType* tIT = extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
+     StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});
+     typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
+          {ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy())}),"_ZTI" + Igel::Mangler::mangle(this));
+     std::vector<Constant*> vtablefuncs {ConstantPointerNull::get(builder->getPtrTy()),typeInfo};
+
+     //TODO insert destructors into vtable
+     Constant* vtableInit = ConstantArray::get(ArrayType::get(ptr,funcs.size() + 2 /*nullptr and type info*/ + 0 /*Destructors*/),{vtablefuncs});
+     vtable = new GlobalVariable(*Generator::instance->m_module,vtableInit->getType(),true,GlobalValue::ExternalLinkage,vtableInit,
+          "_ZTV" + Igel::Mangler::mangle(this));
+     if(extending.has_value()) {
+          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, vtable, 2)),(Constant*) typeNameVar,extending.value()->typeInfo};
+          typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
+     }else {
+          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, vtable, 2)),(Constant*) typeNameVar};
+          typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
+     }
+
+     Constant* vtG = ConstantExpr::getGetElementPtr(vtable->getValueType(),vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(2)},true,0);
+     builder->CreateStore(vtG,load);
+
+     Generator::instance->m_vars.emplace_back();
+     if(extending.has_value() && !extending.value()->hasCustContructor)builder->CreateCall(extending.value()->constructor->llvmFunc,alloc);
+     for (size_t i = extending.has_value();i < vars.size();i++) {
+          if(!vars[i]->_static) {
+               Value* val = builder->CreateStructGEP(strType,load,i + 1);
+               Value* gen = vars[i]->generate(builder);
+               builder->CreateStore(gen,val);
+               std::string str = vars[i]->name;
+               varIdMs[str] = i + 1;
+          }else vars[i]->generate(builder);
+     }
+
+     for (int i = 0; i < funcs.size();i++) {
+          funcs[i]->paramName.insert(funcs[i]->paramName.begin(),"");
+          funcs[i]->paramType.insert(funcs[i]->paramType.begin(),builder->getPtrTy());
+          funcs[i]->paramTypeName.insert(funcs[i]->paramTypeName.begin(),nullptr);
+          funcs[i]->signage.insert(funcs[i]->signage.begin(),false);
+          funcs[i]->member = true;
+          funcs[i]->supper = this;
+          Generator::instance->genFuncSig(funcs[i]);
+          Generator::instance->genFunc(funcs[i],true);
+
+          funcIdMs[funcs[i]->name] = i;
+     }
+     Generator::instance->m_vars.pop_back();
+     builder->SetInsertPoint(entry);
+     //TODO insert destructors into vtable
+     vtablefuncs.reserve(funcs.size() + 0);
+     for (auto func : funcs)vtablefuncs.push_back(func->llvmFunc);
+     vtableInit = ConstantArray::get(ArrayType::get(ptr,funcs.size() + 2 /*nullptr and type info*/ + 0 /*Destructors*/),{vtablefuncs});
+     vtable->setInitializer(vtableInit);
+
+     if(hasCustContructor) {
+          Generator::instance->m_vars.emplace_back();
+          for(size_t i = 1;i < constructor->llvmFunc->arg_size();i++){
+               constructor->llvmFunc->getArg(i)->setName(constructor->paramName[i - 1]);
+               Generator::instance->createVar(constructor->llvmFunc->getArg(i),constructor->signage[i - 1],constructor->llvmFunc->getArg(i)->getType()->isPointerTy()?constructor->paramTypeName[i - 1]->mangle():"");
+          }
+          constructor->scope->generate(builder);
+          Generator::instance->m_vars.pop_back();
+     }
+
+     builder->CreateRetVoid();
+     builder->SetInsertPoint((BasicBlock*) nullptr);
 }
 
 std::string Class::mangle() {
@@ -626,7 +922,25 @@ llvm::Value* NodeTermIntLit::generate(llvm::IRBuilder<>* builder) {
 }
 
 llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
-     if(contained)contained.value()->generate(builder);
+     if(contained) {
+          if(auto clazzAcc = dynamic_cast<NodeTermClassAcces*>(contained.value())) {
+               auto ptr = clazzAcc->generateClassPointer(builder);
+               //auto val = builder->CreateLoad(ptr->getType(),ptr);
+               auto vtable = builder->CreateLoad(ptr->getType(),ptr);
+               Class* clazz = Generator::classRet;
+               if(!clazz->funcIdMs.contains(name->name)) {
+                    std::cerr << "Unkown function " << name->name;
+                    exit(EXIT_FAILURE);
+               }
+               uint fid = clazz->funcIdMs[name->name];
+               auto funcPtrGEP = builder->CreateInBoundsGEP(vtable->getType(),vtable,builder->getInt64(fid));
+               auto funcPtr = builder->CreateLoad(builder->getPtrTy(),funcPtrGEP);
+               std::vector<Value*> vals{ptr};
+               vals.reserve(exprs.size());
+               for (auto expr : exprs) vals.push_back(expr->generate(builder));
+               return builder->CreateCall(clazz->funcs[fid]->llvmFunc->getFunctionType(),funcPtr,vals);
+          }else contained.value()->generate(builder);
+     }
      std::vector<llvm::Value*> vals;
      vals.reserve(exprs.size());
      typeNames.clear();
@@ -653,8 +967,35 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
      return val;
 }
 
-llvm::Value* NodeTermNew::generate(llvm::IRBuilder<>* builder) {
-     return Generator::instance->genStructVar(typeName);
+llvm::Value* NodeTermStructNew::generate(llvm::IRBuilder<>* builder) {
+     return Generator::instance->genStructVar(typeName->mangle());
+}
+
+llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
+     if(auto clazz = Generator::instance->m_file->findClass(typeName->mangle())){
+          std::vector<Type*> types {builder->getPtrTy()};
+          std::vector<BeContained*> names {new Name("")};
+          std::vector<bool> sing = {true};
+          if(!paramType.empty()) {
+               types.insert(paramType.begin(),paramType.end(),types.end());
+               names.insert(paramTypeName.begin(),paramTypeName.end(),names.end());
+               sing.insert(signage.begin(),signage.end(),sing.end());
+          }
+
+          FunctionType* type = FunctionType::get(PointerType::get(builder->getContext(),0),{Type::getInt64Ty(builder->getContext())},false);
+          const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("GC_malloc",type);
+          Value* ptr = builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(builder->getContext()),Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first)));
+          ArrayRef<Type*> llvmTypes {types};
+          auto calle = Generator::instance->m_module->getOrInsertFunction(Igel::Mangler::mangle(typeName,types,names,sing,true),builder->getVoidTy(),llvmTypes);
+
+          std::vector<Value*> params {ptr};
+          params.reserve(exprs.size());
+          for (auto expr : exprs) params.push_back(expr->generate(builder));
+          builder->CreateCall(calle,params);
+          return ptr;
+     }
+     std::cerr << "Unknown type " << typeName << std::endl;
+     exit(EXIT_FAILURE);
 }
 
 llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {

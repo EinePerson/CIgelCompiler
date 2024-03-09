@@ -172,7 +172,11 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     m_tokens.emplace_back(TokenType::dec,lineCount,file);
                     consume();
                     continue;
-                }else {
+                }else if(peak().has_value() && peak().value() == '>') {
+                    m_tokens.emplace_back(TokenType::ptrConnect,lineCount,file);
+                    consume();
+                    continue;
+                }else{
                     m_tokens.emplace_back(TokenType::sub,lineCount,file);
                     consume();
                     continue;

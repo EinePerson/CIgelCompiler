@@ -32,7 +32,7 @@ public:
 
     std::optional<NodeStmtLet*> parseLet(bool _static,bool final,std::optional<BeContained*> contP = {});
     std::optional<NodeStmtPirimitiv*> parsePirim(bool _static,bool final);
-    std::optional<NodeStmtStructNew*> parseStrNew(bool _static,bool final,std::optional<BeContained*> contP = {});
+    std::optional<NodeStmtNew*> parseNew(bool _static,bool final,std::optional<BeContained*> contP = {});
     std::optional<NodeStmtArr*> parseArrNew(bool _static,bool final,std::optional<BeContained*> contP = {});
 
     std::optional<NodeStmtScope*> parseScope();

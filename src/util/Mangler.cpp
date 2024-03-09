@@ -20,7 +20,7 @@ std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
     conts.push_back(cpy);
     while (cpy->contType.has_value() && cpy->contType.value() != nullptr) {
         cpy = cpy->contType.value();
-        conts.push_back(cpy->contType.value());
+        conts.push_back(cpy);
     }
 
     str += conts[conts.size() - 1]->name;
@@ -36,9 +36,9 @@ std::string Igel::Mangler::mangleName(BeContained *cont) {
     return "_Z" + mangle(cont);
 }
 
-std::string Igel::Mangler::mangle(BeContained* cont) {
+std::string Igel::Mangler::mangle(BeContained* cont,bool member,bool constructor) {
     std::string str;
-    if(cont->contType.has_value() && cont->contType.value() != nullptr) {
+    if((cont->contType.has_value() && cont->contType.value() != nullptr) || member) {
         std::vector<BeContained*> conts;
         BeContained* cpy = cont;
         conts.push_back(cpy);
@@ -52,6 +52,7 @@ std::string Igel::Mangler::mangle(BeContained* cont) {
             str += std::to_string(conts[i]->name.size());
             str += conts[i]->name;
         }
+        if(constructor)str += "C2";
         str += "E";
     }else {
         str += std::to_string(cont->name.size());
@@ -65,9 +66,9 @@ std::string Igel::Mangler::mangle(std::string name) {
     return "_Z" + std::to_string(name.size()) + name;
 }
 
-std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage) {
+std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor) {
     std::string str;
-    for(uint i = 0;i < types.size();i++) {
+    for(uint i = member;i < types.size();i++) {
         std::string name;
         char c = -2;
         if(types[i]->isIntegerTy(8))c = 'c';
@@ -81,15 +82,15 @@ std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<Be
         if(c >= 0)str += c;
         else str += name;
     }
-    if(types.empty())str += "v";
+    if(types.empty() || (member && types.size() == 1))str += "v";
     return str;
 }
 
-std::string Igel::Mangler::mangle(BeContained* cont, std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage) {
+std::string Igel::Mangler::mangle(BeContained* cont, std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor) {
     if(cont->name == "main")return "main";
     std::string str = "_Z";
-    str += mangle(cont);
+    str += mangle(cont,member,constructor);
     if(str == "_Z6printf")return str;
-    str += mangle(std::move(types),std::move(typeNames),std::move(signage));
+    str += mangle(std::move(types),std::move(typeNames),std::move(signage),member,constructor);
     return str;
 }

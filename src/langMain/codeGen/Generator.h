@@ -51,6 +51,18 @@ struct StructVar final : Var {
     Struct* str = nullptr;
 };
 
+struct ClassVar final : Var {
+    explicit ClassVar(AllocaInst* alloc) : Var(alloc,false) {}
+    std::unordered_map<std::string,uint> vars;
+    std::vector<Type*> types;
+    std::vector<bool> signage;
+
+    std::unordered_map<std::string,uint> funcs;
+    PointerType* type = nullptr;
+    StructType* strType = nullptr;
+    Class* clazz = nullptr;
+};
+
 class Generator {
 
 public:
@@ -65,7 +77,7 @@ public:
 
     std::pair<Function*,FuncSig*> genFuncSig(IgFunction* func);
 
-    void genFunc(IgFunction* func);
+    void genFunc(IgFunction* func,bool member = false);
 
     void reset(SrcFile* file);
 
@@ -106,6 +118,7 @@ public:
     static std::vector<bool> unreachableFlag;
     static bool lastUnreachable;;
     static Struct* structRet;
+    static Class* classRet;
     static BeContained* typeNameRet;
 };
 

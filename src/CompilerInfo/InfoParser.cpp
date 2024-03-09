@@ -197,6 +197,11 @@ std::optional<std::pair<llvm::StructType*,Struct*>> Header::findStruct(std::stri
     return {};
 }
 
+std::optional<std::pair<llvm::StructType*, Class*>> Header::findClass(std::string name) {
+        //TODO add parsing and finding of classes from header files
+        return {};
+}
+
 
 std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name,std::vector<Type*> types) {
         if(funcs.contains(name)) {
@@ -256,6 +261,23 @@ std::optional<std::pair<llvm::StructType*,Struct*>> SrcFile::findStruct(std::str
         }
         return {};
     }
+
+std::optional<std::pair<llvm::StructType*, Class*>> SrcFile::findClass(std::string name) {
+        if(classes.contains(name)) {
+            return classes.at(name);
+        }
+        for (const auto &item: includes){
+            if(auto ret = item->findClass(name)){
+                return ret;
+            }
+        }
+        for (const auto &item: _using){
+            if(auto ret = item->findClass(name)){
+                return ret;
+            }
+        }
+        return {};
+}
 
 void Directory::genFile(std::string path) {
         if(!mkdir(path.c_str(),0777)){

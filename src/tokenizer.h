@@ -108,6 +108,8 @@ enum class TokenType{
     ///Double Connector ::
     dConnect,
 
+    ///for class acces ->
+    ptrConnect,
     _struct,
     _class,
     interface,

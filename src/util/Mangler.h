@@ -18,11 +18,10 @@ namespace Igel {
     public:
         static std::string mangleTypeName(BeContained* cont);
         static std::string mangleName(BeContained* cont);
-        static std::string mangle(BeContained* cont);
+        static std::string mangle(BeContained* cont,bool member = false,bool constructor = false);
         static std::string mangle(std::string name);
-        //static std::string mangleImpl(BeContained* cont);
-        static std::string mangle(std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
-        static std::string mangle(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage);
+        static std::string mangle(std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member = false,bool constructor = false);
+        static std::string mangle(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member = false,bool constructor = false);
     };
 }
 #endif //MANGLER_H

@@ -66,6 +66,7 @@ struct Header {
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name,std::vector<llvm::Type*> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
+    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
 };
 
 struct SrcFile{
@@ -86,10 +87,12 @@ struct SrcFile{
     //std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
     std::unordered_map<std::string,IgFunction*> funcs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
+    std::unordered_map<std::string,std::pair<llvm::StructType*,Class*>> classes;
 
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type *> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
+    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
 };
 
 struct Directory{
@@ -99,7 +102,7 @@ struct Directory{
     std::vector<Directory*> includes;
     std::string name;
 
-    void genFile(std::string path);
+    static void genFile(std::string path);
 };
 
 struct Info{

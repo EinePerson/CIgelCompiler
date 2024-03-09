@@ -1,42 +1,48 @@
-/*namespace Igel{
+namespace Igel{
 
-    struct Test{
+    /*struct Test{
         Test t;
         int a;
         int b;
         //int[] arr;
-    }
-
-    void abc(){
-
-    }
+    }*/
 
     class Gaming{
-        void test(){
+        int i = 0;
+        int j = 5;
 
+        void gaming(){
+            printf("%d",23);
+        }
+
+        void test(){
+            printf("%d",53);
+        }
+
+        void sus(){
+            this->i++;
+            printf("%d",40);
         }
     }
-}*/
+}
 
 struct Amogus{
     int test;
     int gaming;
 }
 
-struct ABC{
+/*struct ABC{
     static int c = 23;
-    static Amogus sus = new Amogus;
+    //static Amogus sus = new Amogus;
     int a;
-}
+}*/
 
 int main(){
-    Amogus a = new Amogus;
-    a.gaming = 25;
-    a.test = 76;
-    printf("%d",a.gaming);
-    ABC::sus.test = 253;
-    ABC::sus.gaming = 84;
-    printf("%d",ABC::sus.gaming);
-    ABC::c = 98;
-    return ABC::c;
+    Igel::Gaming g = new Igel::Gaming();
+    g->i = 64;
+    printf("%d",g->i);
+    printf("%d",g->j);
+    g->sus();
+    printf("%d",g->i);
+    return 0;
 }

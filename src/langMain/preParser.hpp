@@ -48,7 +48,8 @@ public:
                 }
                 consume();
                 if(peak().value().type != TokenType::id)err("Expected type name");
-                file->nameTypeMap[peak().value().value.value()] = type;;
+                file->nameTypeMap[peak().value().value.value()] = type;
+                type->name = peak().value().value.value();
                 file->typeNames.push_back(consume().value.value());
             }else consume();
         }

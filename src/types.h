@@ -14,6 +14,9 @@ struct Var;
 struct IgFunction;
 
 //#include "langMain/codeGen/Generator.h"
+
+struct SrcFile;
+
 namespace Types {
     int getSize(TokenType type);
 }
@@ -134,7 +137,9 @@ struct NodeTermId final : NodeTerm{
 };
 
 struct Name final : BeContained {
-
+    explicit Name(std::string name) {
+        this->name = name;
+    }
     NodeTermId* getId() {
         auto id = new NodeTermId;
         id->cont = this;
@@ -168,6 +173,15 @@ struct NodeTermStructAcces final : NodeTerm {
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
+struct NodeTermClassAcces final : NodeTerm {
+    NodeTermFuncCall* call = nullptr;
+    BeContained* id = nullptr;
+    Token acc;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generateClassPointer(llvm::IRBuilder<>* builder);
+};
+
 struct NodeTermFuncCall final : NodeTerm{
     BeContained* name = nullptr;
     std::vector<NodeExpr*> exprs;
@@ -181,8 +195,21 @@ struct NodeTermFuncCall final : NodeTerm{
     };
 };
 
-struct NodeTermNew final : NodeTerm {
-    std::string typeName;
+struct NodeTermStructNew final : NodeTerm {
+    BeContained* typeName = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
+        throw IllegalGenerationException("Cannot generate pointer to new instruction");
+    };
+};
+
+struct NodeTermClassNew final : NodeTerm {
+    std::vector<NodeExpr*> exprs;
+    BeContained* typeName;
+    std::vector<bool> signage {};
+    std::vector<llvm::Type*> paramType {};
+    std::vector<BeContained*> paramTypeName {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -194,7 +221,7 @@ struct NodeTermArrNew final : NodeTerm {
     char sid;
     bool _signed;
     std::vector<NodeExpr*> size;
-    std::optional<std::string> typeName;
+    std::optional<BeContained*> typeName;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -380,6 +407,12 @@ struct NodeStmtStructNew final : NodeStmtNew{
     std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 };
 
+struct NodeStmtClassNew final : NodeStmtNew {
+    NodeTerm* term = nullptr;
+
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
+};
+
 struct NodeStmtArr final : NodeStmtLet{
     NodeTerm* term = nullptr;
     char sid = -1;
@@ -473,7 +506,7 @@ struct NodeStmtContinue final : NodeStmt {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
-
+struct Class;
 
 struct IgFunction final : BeContained{
     std::vector<llvm::Type*> paramType;
@@ -485,8 +518,11 @@ struct IgFunction final : BeContained{
     bool returnSigned;
     bool _static = false;
     bool final = false;
+    bool member = false;
+    bool constructor = false;
     NodeStmtScope* scope = nullptr;
     llvm::Function* llvmFunc = nullptr;
+    std::optional<Class*> supper {};
 
     std::string mangle() override;
 };
@@ -494,17 +530,15 @@ struct IgFunction final : BeContained{
 //BEGIN OF TYPES
 
 struct IgType : BeContained {
-    explicit IgType(bool gen) : BeContained(), gen(gen){}
+    explicit IgType() = default;
     //virtual ~IgType() = default;
-    ///weather the type is able to be generated
-    bool gen;
 
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
 };
 
 struct Struct final : IgType {
-    Struct() : IgType(true){}
+    Struct() : IgType(){}
     std::vector<NodeStmtLet*> vars;
     std::vector<NodeStmtLet*> staticVars;
     std::vector<std::string> varIds;
@@ -526,21 +560,17 @@ struct Struct final : IgType {
  * \brief A type that can contain different types;
  */
 struct ContainableType : IgType {
-    explicit ContainableType(bool gen) : IgType(gen){}
+    explicit ContainableType() = default;
     std::vector<BeContained*> contained {};
 };
 
 struct NamesSpace final : ContainableType {
-    NamesSpace() : ContainableType(false){}
+    NamesSpace() : ContainableType(){}
     std::vector<IgFunction*> funcs {};
 
-    void generateSig(llvm::IRBuilder<>* builder) override {
-        throw IllegalGenerationException("Cannot generate namespace");
-    }
+    void generateSig(llvm::IRBuilder<>* builder) override;
 
-    void generate(llvm::IRBuilder<>* builder) override{
-        throw IllegalGenerationException("Cannot generate namespace");
-    }
+    void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override {
         throw IllegalGenerationException("Cannot mangle namespace");
@@ -548,7 +578,9 @@ struct NamesSpace final : ContainableType {
 };
 
 struct Interface final : ContainableType {
-    Interface() : ContainableType(false){}
+    Interface() : ContainableType(){}
+
+    std::vector<IgFunction*> funcs;
 
     std::string mangle() override {
         throw IllegalGenerationException("Cannot mangle interface");
@@ -564,17 +596,36 @@ struct Interface final : ContainableType {
 };
 
 struct Class final : ContainableType {
-    Class() : ContainableType(true){}
+    Class() : ContainableType(){}
     std::vector<NodeStmtLet*> vars;
-    std::vector<std::string> varIds;
-    std::vector<llvm::Type*> types {};
-    std::vector<BeContained*> typeName;
+    //std::vector<std::string> varIds;
     std::unordered_map<std::string,uint> varIdMs;
+
+    std::vector<NodeStmtLet*> staticVars;
+    std::unordered_map<std::string,BeContained*> staticTypeName;
+
+    std::vector<llvm::Type*> types {};
+    std::vector<llvm::Type*> staticTypes {};
+    std::vector<BeContained*> typeName;
+
     llvm::StructType* strType = nullptr;
     std::optional<Class*> extending = {};
     std::vector<Interface*> implementing {};
 
     std::vector<IgFunction*> funcs;
+    std::unordered_map<std::string,uint> funcIdMs;
+
+    IgFunction* constructor = nullptr;
+    bool hasCustContructor = false;
+
+    ///\brief generateSig was called
+    bool wasGen = false;
+    ///\brief generate was called
+    bool fullGen = false;
+
+    llvm::GlobalVariable* typeNameVar = nullptr;
+    llvm::GlobalVariable* typeInfo = nullptr;
+    llvm::GlobalVariable* vtable = nullptr;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
