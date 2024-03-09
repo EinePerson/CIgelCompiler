@@ -1,4 +1,5 @@
-add classes (vtable), add name mangeling,add interfaces;
+add final variables;
+add interfaces;
 add enums;
 type casting;
 add partly libraries;
