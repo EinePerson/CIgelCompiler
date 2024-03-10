@@ -367,7 +367,10 @@ std::pair<llvm::Value*, Var*> NodeStmtPirimitiv::generateImpl(llvm::IRBuilder<>*
 
      //Generator::instance->createVar(mangle(),Generator::getType(static_cast<TokenType>(sid)),val,sid <= 3);
      AllocaInst* alloc = nullptr;
-     if(builder->GetInsertBlock())alloc = builder->CreateAlloca(type);
+     if(builder->GetInsertBlock()) {
+          alloc = builder->CreateAlloca(type);
+          builder->CreateStore(val,alloc);
+     }
      return {val,new Var{alloc,_signed}};
 }
 

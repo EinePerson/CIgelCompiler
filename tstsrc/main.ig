@@ -38,11 +38,7 @@ struct Amogus{
 }*/
 
 int main(){
-    Igel::Gaming g = new Igel::Gaming();
-    g->i = 64;
-    printf("%d",g->i);
-    printf("%d",g->j);
-    g->sus();
-    printf("%d",g->i);
-    return 0;
+    int i = -4;
+    printf("%d",i);
+    return i;
 }

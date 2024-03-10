@@ -176,6 +176,17 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     m_tokens.emplace_back(TokenType::ptrConnect,lineCount,file);
                     consume();
                     continue;
+                }else if(std::isdigit(peak().value())){
+                    buf.push_back('-');
+                    buf.push_back(consume());
+                    while (isNum())
+                    {
+                        buf.push_back(consume());
+                    }
+                    if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
+                    m_tokens.emplace_back(TokenType::int_lit,lineCount,file,buf);
+                    buf.clear();
+                    continue;
                 }else{
                     m_tokens.emplace_back(TokenType::sub,lineCount,file);
                     consume();
