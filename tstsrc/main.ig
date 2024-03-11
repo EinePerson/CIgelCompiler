@@ -1,4 +1,4 @@
-namespace Igel{
+//namespace Igel{
 
     /*struct Test{
         Test t;
@@ -9,7 +9,7 @@ namespace Igel{
 
     class Gaming{
         int i = 0;
-        int j = 5;
+        int j = 0;
 
         void gaming(){
             printf("%d",23);
@@ -24,7 +24,7 @@ namespace Igel{
             printf("%d",40);
         }
     }
-}
+//}
 
 struct Amogus{
     int test;
@@ -38,7 +38,9 @@ struct Amogus{
 }*/
 
 int main(){
-    int i = -4;
-    printf("%d",i);
-    return i;
+    Gaming[] a = new Gaming[5];
+    a[0] = new Gaming();
+    a[0]->i = 73;
+    printf("%d",a[0]->i);
+    return 0;
 }

@@ -107,10 +107,6 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                         }
                         tryConsume(TokenType::closeParenth,"Expected ')'");
                         term = _nCz;
-                    }else if(dynamic_cast<Struct*>(typeName.value())) {
-                        auto cr = new NodeTermStructNew;
-                        cr->typeName = typeName.value();
-                        return cr;
                     }
                 }else err("Expected type name");
             } else if(tryConsume(TokenType::null)) {
@@ -410,29 +406,12 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
     else return {};
     Token varName = tryConsume(TokenType::id,"Expected name");
     if(dynamic_cast<Struct*>(cont)) {
-        if(peak().value().type == TokenType::eq) {
-            auto strNew = new NodeStmtStructNew;
-            strNew->typeName = cont;
-            if(cont->contType.has_value())strNew->contType = cont->contType;
-            if(cont->contType.has_value())strNew->contType = cont->contType.value();
-            strNew->name = varName.value.value();
-            tryConsume(TokenType::eq,"Expected '='");
-            if(auto t = parseTerm())
-                strNew->term = t.value();
-            else err("Expected Term after '='");
-            tryConsume(TokenType::semi,"Expected ';'");
-            strNew->final = final;
-            strNew->_static = _static;
-            if(varHolder)strNew->contType = varHolder;
-            return strNew;
-        }
         if(peak().value().type == TokenType::semi) {
             auto strNew = new NodeStmtStructNew;
             strNew->type = reinterpret_cast<Type *>(2);
             strNew->typeName = cont;
             if(cont->contType.has_value())strNew->contType = cont->contType.value();
             strNew->name = varName.value.value();
-            strNew->term = new NodeTermNull;
             consume();
             strNew->final = final;
             strNew->_static = _static;

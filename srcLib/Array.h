@@ -8,5 +8,5 @@ extern "C"{
     * \param arr the array sizes for every dimension
     * \return the pointer to the array
     */
-    long* newArray(char size,int idX,unsigned long* arr);
+    long* newArray(unsigned int size,int idX,unsigned long* arr);
 }

@@ -233,10 +233,7 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         m_currentVar++;
         m_sVarId.push_back(0);
         m_vars.emplace_back();
-        FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
-        const FunctionCallee _new = m_module->getOrInsertFunction("GC_malloc",type);
-        Value* var = m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),m_module->getDataLayout().getTypeSizeInBits(structT.value().first)));
-        //TODO add checking weather malloc returned 0
+        Value* var = m_builder->CreateAlloca(structT.value().first);
         std::unordered_map<std::string,uint> vars;
         for (size_t i = 0;i < structT.value().second->vars.size();i++) {
             if(!structT.value().second->vars[i]->_static) {
@@ -325,7 +322,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
         if(auto structT = Generator::instance->m_file->findStruct(typeName)){
             auto var = new StructVar(alloc);
             var->str = structT.value().second;
-            var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
+            //var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
             var->strType = structT.value().first;
             var->types = structT.value().second->types;
             for(size_t i = 0;i < structT.value().second->vars.size();i++) {

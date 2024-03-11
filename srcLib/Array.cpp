@@ -6,8 +6,13 @@
 #include <cstring>
 
 extern "C"{
-    long* newArray(char size,int idX,unsigned long* arr) {
-        if(idX == 0)return static_cast<long*>(GC_MALLOC(arr[0] * size + sizeof(unsigned long)));
+    long* newArray(unsigned int size,int idX,unsigned long* arr) {
+        if(idX == 0) {
+            long* ptr = static_cast<long*>(GC_MALLOC(arr[0] * size + sizeof(unsigned long)));
+            memset(ptr,0,arr[0] * size + sizeof(unsigned long));
+            ptr[0] = arr[0];
+            return ptr;
+        }
         long* ptr = static_cast<long*>(GC_MALLOC(arr[idX] * sizeof(void*) + sizeof(unsigned long)));
         long l = arr[idX];
         ptr[0] = l;

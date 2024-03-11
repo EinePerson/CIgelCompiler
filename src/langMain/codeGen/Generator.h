@@ -46,7 +46,6 @@ struct StructVar final : Var {
     std::unordered_map<std::string,uint> vars;
     std::vector<Type*> types;
     std::vector<bool> signage;
-    PointerType* type = nullptr;
     StructType* strType = nullptr;
     Struct* str = nullptr;
 };

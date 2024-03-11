@@ -195,15 +195,6 @@ struct NodeTermFuncCall final : NodeTerm{
     };
 };
 
-struct NodeTermStructNew final : NodeTerm {
-    BeContained* typeName = nullptr;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
-
-    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
-        throw IllegalGenerationException("Cannot generate pointer to new instruction");
-    };
-};
-
 struct NodeTermClassNew final : NodeTerm {
     std::vector<NodeExpr*> exprs;
     BeContained* typeName;
@@ -402,8 +393,6 @@ struct NodeStmtNew : NodeStmtLet{
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
-    NodeTerm* term = nullptr;
-
     std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 };
 
