@@ -8,6 +8,9 @@
 #include "Generator.h"
 #include "../../util/Mangler.h"
 
+//Name for the specifier of an array length
+#define ARR_LENGTH "length"
+
 llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           return contained.value()->generate(builder);
@@ -16,6 +19,7 @@ llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
      if(auto str = dynamic_cast<StructVar*>(var)) {
           Generator::typeNameRet = str->str;
           Generator::structRet = str->str;
+          Generator::classRet = nullptr;
      }
      _signed = var->_signed;
      return builder->CreateLoad(var->getType(),var->alloc);
@@ -29,16 +33,228 @@ llvm::Value* NodeTermId::generatePointer(llvm::IRBuilder<>* builder) {
      if(auto str = dynamic_cast<StructVar*>(var)){
           Generator::typeNameRet = str->str;
           Generator::structRet = str->str;
+          Generator::classRet = nullptr;
      }
      //if(auto arr = dynamic_cast<ArrayVar*>(var))Generator::typeNameRet.
      Value* ptr = var->alloc;
      return ptr;
 }
 
+llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
+     Generator::arrRet = false;
+     if(call) {
+          Value* val = call->generate(builder);
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
+               auto clz = Generator::instance->m_file->findClass(func.value()->retTypeName);
+               auto str = Generator::instance->m_file->findStruct(func.value()->retTypeName);
+               if(!clz || !str)return nullptr;
+
+               if(clz.has_value())Generator::typeNameRet = clz.value().second;
+               else Generator::typeNameRet = str.value().second;
+
+               if(acc.value.value() == ARR_LENGTH && Generator::arrRet) {
+                    return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,0);
+               }
+               uint fid = clz.value().second?clz->second->varIdMs[acc.value.value()]:str->second->varIdMs[acc.value.value()];
+               return  builder->CreateLoad(clz.has_value()?clz.value().second->types[fid]:str.value().second->types[fid],this->generatePointer(builder));
+
+          }else return nullptr;
+     }
+
+     Value* val;
+     bool isClz;
+
+     Struct* str = nullptr;
+     StructVar* var = nullptr;
+
+     Class* clz = nullptr;
+     ClassVar* clzVar = nullptr;
+     if(contained) {
+          val = contained.value()->generatePointer(builder);
+          if(Generator::structRet) {
+               str = Generator::structRet;
+               Generator::structRet = nullptr;
+               isClz = false;
+          }else {
+               val = contained.value()->generate(builder);
+               clz = Generator::classRet;
+               Generator::classRet = nullptr;
+               isClz = true;
+          }
+     }else {
+          if(var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()))) {
+               val = var->alloc;
+               isClz = false;
+          }else if(clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()))){
+               val = builder->CreateLoad(clzVar->type,clzVar->alloc);
+               isClz = true;
+          }else {
+               auto arrVar = dynamic_cast<ArrayVar*>(Generator::instance->getVar(id->mangle()));
+               if(!arrVar || acc.value.value() != ARR_LENGTH) {
+                    std::cerr << "Expected array length" << std::endl;
+                    exit(EXIT_FAILURE);
+               }
+
+               val = arrVar->alloc;
+               if(arrVar->typeName.has_value() && Generator::instance->m_file->findClass(arrVar->typeName.value()->mangle()))val = builder->CreateLoad(builder->getPtrTy(),val);
+               val = builder->CreateInBoundsGEP(val->getType(),val,builder->getInt64(0));
+               return builder->CreateLoad(builder->getInt64Ty(),val);
+          }
+          //TODO add lenght for Array Var
+     }
+
+     if(!(str || var || clz || clzVar)) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     if(!isClz) {
+          uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
+          if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
+          Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+          Generator::typeNameRet = str?str:var->str;
+          if(var) {
+               Generator::structRet = var->str;
+               Generator::classRet = nullptr;
+               return builder->CreateLoad(var->types[fid],ptr);
+          }
+
+          if(str->typeName[fid] != nullptr) {
+               if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
+                    Generator::structRet = strT.value().second;
+                    Generator::classRet = nullptr;
+               }
+               else Generator::structRet = nullptr;
+          }else Generator::structRet = nullptr;
+          return ptr;
+     }else {
+          uint fid = clzVar ? clzVar->vars[acc.value.value()]:clz->varIdMs[acc.value.value()];
+          if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
+          Generator::arrRet = false;
+          Value* ptr = builder->CreateStructGEP(clzVar?clzVar->strType:clz->strType,val,fid);
+          Generator::typeNameRet = clz?clz:clzVar->clazz;
+          if(clzVar) {
+               Generator::classRet = clzVar->clazz;
+               Generator::structRet = nullptr;
+               return builder->CreateLoad(clzVar->types[fid],ptr);
+          }
+
+          if(clz->typeName[fid - 1] != nullptr) {
+               if(const auto strT = Generator::instance->m_file->findClass(clz->typeName[fid - 1]->mangle())) {
+                    Generator::classRet = strT.value().second;
+                    Generator::structRet = nullptr;
+               }
+               else Generator::classRet = nullptr;
+          }else Generator::classRet = nullptr;
+          return builder->CreateLoad(clz->types[fid - 1],ptr);
+     }
+}
+
+llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
+     Generator::arrRet = false;
+     if(call) {
+          Value* val = call->generate(builder);
+          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
+               auto clz = Generator::instance->m_file->findClass(func.value()->retTypeName);
+               auto str = Generator::instance->m_file->findStruct(func.value()->retTypeName);
+               if(!clz || !str)return nullptr;
+
+               if(clz.has_value())Generator::typeNameRet = clz.value().second;
+               else Generator::typeNameRet = str.value().second;
+
+               if(acc.value.value() == ARR_LENGTH && Generator::arrRet) {
+                    return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,0);
+               }
+               uint fid = clz.value().second?clz->second->varIdMs[acc.value.value()]:str->second->varIdMs[acc.value.value()];
+               return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,fid);
+
+          }else return nullptr;
+     }
+
+     Value* val;
+     bool isClz;
+
+     Struct* str = nullptr;
+     StructVar* var = nullptr;
+
+     Class* clz = nullptr;
+     ClassVar* clzVar = nullptr;
+     if(contained) {
+          val = contained.value()->generatePointer(builder);
+          if(Generator::structRet) {
+               str = Generator::structRet;
+               Generator::structRet = nullptr;
+               isClz = false;
+          }else {
+               val = contained.value()->generate(builder);
+               clz = Generator::classRet;
+               Generator::classRet = nullptr;
+               isClz = true;
+          }
+     }else {
+          if(var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()))) {
+               val = var->alloc;
+               isClz = false;
+          }else {
+               clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+               val = builder->CreateLoad(clzVar->type,clzVar->alloc);
+               isClz = true;
+          }
+     }
+
+     if(!(str || var || clz || clzVar)) {
+          std::cerr << "Neither contained value nor variable" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     if(!isClz) {
+          //TODO add error when variable name is not contained in the struct
+          uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
+          if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
+          Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
+          Generator::typeNameRet = str?str:var->str;
+          if(var) {
+               Generator::structRet = var->str;
+               return ptr;
+          }
+
+          if(str->typeName[fid] != nullptr) {
+               if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
+                    Generator::structRet = strT.value().second;
+                    Generator::classRet = nullptr;
+               }
+               else Generator::structRet = nullptr;
+          }else Generator::structRet = nullptr;
+          return ptr;
+     }else {
+          //TODO add error when variable name is not contained in the struct
+          uint fid = clzVar ? clzVar->vars[acc.value.value()]:clz->varIdMs[acc.value.value()];
+          if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
+          Value* ptr = builder->CreateStructGEP(clzVar?clzVar->strType:clz->strType,val,fid);
+          Generator::typeNameRet = clzVar?clzVar->clazz:clz;
+          if(clzVar) {
+               Generator::classRet = clzVar->clazz;
+               Generator::structRet = nullptr;
+               return ptr;
+          }
+
+          if(clz->typeName[fid - 1] != nullptr) {
+               if(const auto strT = Generator::instance->m_file->findClass(clz->typeName[fid - 1]->mangle())) {
+                    Generator::classRet = strT.value().second;
+                    Generator::structRet = nullptr;
+               }
+               else Generator::classRet = nullptr;
+          }else Generator::classRet = nullptr;
+          return ptr;
+     }
+}
+
 llvm::Value* NodeTermArrayAcces::generate(llvm::IRBuilder<>* builder) {
+     Generator::arrRet = true;
      if(contained) {
           if(dynamic_cast<NodeTermStructAcces*>(contained.value())) {
                Struct* str = Generator::structRet;
+               Generator::structRet = nullptr;
                uint fid = str->varIdMs[Igel::Mangler::mangleName(cont)];
                if(auto strRet = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
                     Generator::typeNameRet = strRet.value().second;
@@ -62,8 +278,14 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
           if(var = dynamic_cast<ArrayVar*>(Generator::instance->getVar(Igel::Mangler::mangleName(cont)))) {
                _signed = var->_signed;
                if(var->typeName.has_value()) {
-                    if(auto strRet = Generator::instance->m_file->findStruct(var->typeName.value()->mangle()))Generator::structRet = strRet.value().second;
-                    if(auto clazzRet = Generator::instance->m_file->findClass(var->typeName.value()->mangle()))Generator::classRet = clazzRet.value().second;
+                    if(auto strRet = Generator::instance->m_file->findStruct(var->typeName.value()->mangle())) {
+                         Generator::structRet = strRet.value().second;
+                         Generator::classRet = nullptr;
+                    }
+                    else if(auto clazzRet = Generator::instance->m_file->findClass(var->typeName.value()->mangle())) {
+                         Generator::classRet = clazzRet.value().second;
+                         Generator::structRet = nullptr;
+                    }
                }
           }
      }
@@ -76,11 +298,11 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Type* ty;
      if(llvm::AllocaInst::classof(var->alloc))ty = static_cast<AllocaInst*>(var->alloc)->getAllocatedType();
      else if(GlobalVariable::classof(var->alloc))ty = static_cast<GlobalVariable*>(var->alloc)->getValueType();
-     while (i < exprs.size() - 1) {
+     while (i < exprs.size() - 1 && exprs.size() >= 1) {
           Value* val = builder->CreateLoad(ptr?ptr->getType():ty,ptr?ptr:var->alloc);
           Value* idx = builder->CreateAdd(builder->getInt64(1),exprs[i]->generate(builder));
           idx = builder->CreateMul(idx,builder->getInt64(8));
-          ptr = builder->CreateInBoundsGEP(builder->getPtrTy(),val,idx);
+          ptr = builder->CreateInBoundsGEP(builder->getInt8Ty(),val,idx);
           i++;
      }
 
@@ -126,6 +348,19 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      //return ep;
 }
 
+llvm::Value* NodeTermArrayLength::generate(llvm::IRBuilder<>* builder) {
+     arr->exprs.pop_back();
+     Value* val = arr->generate(builder);
+     val = builder->CreateInBoundsGEP(val->getType(),val,builder->getInt64(0));
+     return builder->CreateLoad(builder->getInt64Ty(),val);
+}
+
+llvm::Value* NodeTermArrayLength::generatePointer(llvm::IRBuilder<>* builder) {
+     arr->exprs.pop_back();
+     Value* val = arr->generate(builder);
+     return builder->CreateInBoundsGEP(val->getType(),val,builder->getInt64(0));
+}
+
 llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      if(call) {
           call->generate(builder);
@@ -146,6 +381,7 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generate(builder);
           str = Generator::structRet;
+          Generator::structRet = nullptr;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
           val = var->alloc;//builder->CreateLoad(var->type,var->alloc);
@@ -160,11 +396,15 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      Generator::typeNameRet = str?str:var->str;
      if(var) {
           Generator::structRet = var->str;
+          Generator::classRet = nullptr;
           return builder->CreateLoad(var->types[fid],ptr);
      }
 
      if(str->typeName[fid] != nullptr) {
-          if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle()))Generator::structRet = strT.value().second;
+          if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
+               Generator::structRet = strT.value().second;
+               Generator::classRet = nullptr;
+          }
           else Generator::structRet = nullptr;
      }else Generator::structRet = nullptr;
      return ptr;
@@ -190,6 +430,7 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
+          Generator::structRet = nullptr;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
           val = var->alloc;//builder->CreateLoad(var->type,var->alloc);
@@ -206,11 +447,15 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Generator::typeNameRet = str?str:var->str;
      if(var) {
           Generator::structRet = var->str;
+          Generator::classRet = nullptr;
           return ptr;
      }
 
      if(str->typeName[fid] != nullptr) {
-          if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle()))Generator::structRet = strT.value().second;
+          if(const auto strT = Generator::instance->m_file->findStruct(str->typeName[fid]->mangle())) {
+               Generator::structRet = strT.value().second;
+               Generator::classRet = nullptr;
+          }
           else Generator::structRet = nullptr;
      }else Generator::structRet = nullptr;
      return ptr;
@@ -248,11 +493,15 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
           Generator::classRet = var->clazz;
+          Generator::structRet = nullptr;
           return builder->CreateLoad(var->types[fid],ptr);
      }
 
      if(str->typeName[fid - 1] != nullptr) {
-          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid - 1]->mangle()))Generator::classRet = strT.value().second;
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid - 1]->mangle())) {
+               Generator::classRet = strT.value().second;
+               Generator::structRet = nullptr;
+          }
           else Generator::classRet = nullptr;
      }else Generator::classRet = nullptr;
      return builder->CreateLoad(str->types[fid - 1],ptr);
@@ -292,11 +541,15 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
           Generator::classRet = var->clazz;
+          Generator::structRet = nullptr;
           return ptr;
      }
 
      if(str->typeName[fid - 1] != nullptr) {
-          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid - 1]->mangle()))Generator::classRet = strT.value().second;
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid - 1]->mangle())) {
+               Generator::classRet = strT.value().second;
+               Generator::structRet = nullptr;
+          }
           else Generator::classRet = nullptr;
      }else Generator::classRet = nullptr;
      return ptr;
@@ -336,11 +589,15 @@ llvm::Value* NodeTermClassAcces::generateClassPointer(llvm::IRBuilder<>* builder
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
           Generator::classRet = var->clazz;
+          Generator::structRet = nullptr;
           return val;
      }
 
      if(str->typeName[fid] != nullptr) {
-          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid]->mangle()))Generator::classRet = strT.value().second;
+          if(const auto strT = Generator::instance->m_file->findClass(str->typeName[fid]->mangle())) {
+               Generator::classRet = strT.value().second;
+               Generator::structRet = nullptr;
+          }
           else Generator::classRet = nullptr;
      }else Generator::classRet = nullptr;
      return val;
@@ -988,7 +1245,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
 
           FunctionType* type = FunctionType::get(PointerType::get(builder->getContext(),0),{Type::getInt64Ty(builder->getContext())},false);
           const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("GC_malloc",type);
-          Value* ptr = builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(builder->getContext()),Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first)));
+          Value* ptr = builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(builder->getContext()),Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8));
           ArrayRef<Type*> llvmTypes {types};
           auto calle = Generator::instance->m_module->getOrInsertFunction(Igel::Mangler::mangle(typeName,types,names,sing,true),builder->getVoidTy(),llvmTypes);
 
@@ -1006,22 +1263,28 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
      const FunctionCallee _sizNes = Generator::instance->m_module->getOrInsertFunction("malloc",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
      Value* sizes = builder->CreateCall(_sizNes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),8 * size.size()));
      Value* ptr = builder->CreateInBoundsGEP(IntegerType::getInt64Ty(builder->getContext()),sizes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),0));
-     Value* sz = size[0]->generate(builder);
+     Value* sz = size.back()->generate(builder);
      if(!sz->getType()->isIntegerTy(64))sz = builder->CreateSExt(sz,builder->getInt64Ty());
      builder->CreateStore(sz,ptr);
-     for (uint i = 1; i < size.size();i++) {
+     uint j = 1;
+     for (uint i = size.size() - 2; i < 0xFFFFFFFF;i--) {
           sz = size[i]->generate(builder);
           if(!sz->getType()->isIntegerTy(64))sz = builder->CreateSExt(sz,builder->getInt64Ty());
-          ptr = builder->CreateInBoundsGEP(IntegerType::getInt64Ty(builder->getContext()),sizes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),i));
+          ptr = builder->CreateInBoundsGEP(IntegerType::getInt64Ty(builder->getContext()),sizes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),j));
           builder->CreateStore(sz,ptr);
+          j++;
      }
      const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("newArray",builder->getPtrTy(),
           IntegerType::getInt32Ty(builder->getContext()),IntegerType::getInt32Ty(builder->getContext()),PointerType::get(builder->getContext(),0));
      uint sizeB = 0;
+
      if(typeName.has_value()) {
           if(auto str = Generator::instance->m_file->findStruct(typeName.value()->mangle())) {
+
                sizeB = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(str.value().first) / 8;
-          }else sizeB = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(getType(static_cast<TokenType>(sid))) / 8;
+          }else if(auto clazz = Generator::instance->m_file->findClass(typeName.value()->mangle())) {
+               sizeB = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8;
+          }
      }else sizeB = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(getType(static_cast<TokenType>(sid))) / 8;
      Value* arr = builder->CreateCall(_new,{ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),sizeB),
           ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),size.size() - 1),sizes});

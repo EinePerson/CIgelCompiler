@@ -9,6 +9,7 @@
 
 #include "tokenizer.h"
 #include "exceptionns/Generator.h"
+//#include "langMain/parsing/Parser.h"
 
 struct Var;
 struct IgFunction;
@@ -19,6 +20,13 @@ struct SrcFile;
 
 namespace Types {
     int getSize(TokenType type);
+
+    enum class VarType {
+        PirimVar,
+        ArrayVar,
+        StructVar,
+        ClassVar,
+    };
 }
 
 std::pair<llvm::FunctionCallee,bool> getFunction(std::string name,std::vector<llvm::Type *> types);
@@ -28,7 +36,6 @@ llvm::Type* getType(TokenType type);
 struct NodeStmtScope;
 struct NodeStmt;
 struct IgType;
-
 /**
  * \brief every type extending this may have a super type
  */
@@ -158,10 +165,27 @@ struct NodeTermParen final : NodeTerm {
     };
 };
 
+struct NodeTermAcces final : NodeTerm {
+    NodeTermFuncCall* call = nullptr;
+    BeContained* id = nullptr;
+    Token acc;
+
+    llvm::Value * generate(llvm::IRBuilder<> *builder) override;
+
+    llvm::Value * generatePointer(llvm::IRBuilder<> *builder) override;
+};
+
 struct NodeTermArrayAcces final : NodeTerm{
     BeContained* cont = nullptr;
     std::vector<NodeExpr*> exprs;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeTermArrayLength final :NodeTerm {
+    NodeTermArrayAcces* arr = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
@@ -521,6 +545,9 @@ struct IgFunction final : BeContained{
 struct IgType : BeContained {
     explicit IgType() = default;
     //virtual ~IgType() = default;
+
+    std::unordered_map<std::string,Types::VarType> varTypes = {};
+    std::unordered_map<std::string,std::string> varTypeNames = {};
 
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;

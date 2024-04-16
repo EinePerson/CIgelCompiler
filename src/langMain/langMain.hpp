@@ -6,12 +6,16 @@
 #include "./parsing/Parser.h"
 #include "../CompilerInfo/OptionsParser.h"
 #include "codeGen/Generator.h"
+#include "parsing/Indexer.h"
+#include "parsing/PreParser.h"
 
 //TODO Update Dependencies
 const static std::vector<std::string> COMPILER_LIBS {"./libs/libigc.a","./libs/libgc.a","./libs/libgccpp.a"};
+
+
 class LangMain{
     public:
-        explicit LangMain(Info* info,Options* options): m_info(info),m_options(options), m_tokenizer(), m_parser(info), m_gen() {
+        explicit LangMain(Info* info,Options* options): m_info(info),m_options(options), m_tokenizer(),m_indexer(info),m_preParser(info), m_parser(), m_gen() {
         }
 
         void compile(){
@@ -19,8 +23,11 @@ class LangMain{
                 if(!file->tokens.empty())continue;
                 const auto tokens = m_tokenizer.tokenize(file->fullName);
                 file->tokens = tokens;
+                m_indexer.index(file);
+                m_preParser.parse(file);
+                m_parser.parseProg(file);
             }
-            m_parser.parse(m_info);
+
             genDir("./build");
             genDir("./build/cmp");
             for (const auto src : m_info->src)genDir("./build/cmp/",src);
@@ -35,7 +42,7 @@ class LangMain{
                 outFiles << "./build/cmp/" << file->fullName << ".bc ";
             }
             for (const auto& lib : m_info->libs) outFiles << lib << " ";
-            for (auto compiler_libs : COMPILER_LIBS) outFiles << compiler_libs << " ";
+            for (const auto& compiler_libs : COMPILER_LIBS) outFiles << compiler_libs << " ";
 
             std::string temp = outFiles.str();
             const char* str1 = temp.c_str();
@@ -73,7 +80,11 @@ private:
     Info* m_info;
     Options* m_options;
     Tokenizer m_tokenizer;
-    PreParser m_parser;
+
+    Indexer m_indexer;
+    PreParser m_preParser;
+    Parser m_parser;
+
     Generator* m_gen;
     std::stringstream content;
 };

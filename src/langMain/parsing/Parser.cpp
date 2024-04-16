@@ -3,6 +3,7 @@
 //
 
 #include "Parser.h"
+#include "../../types.h"
 
 #include <llvm/Support/CommandLine.h>
 
@@ -113,30 +114,56 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 return new NodeTermNull;
             }
             if(tryConsume(TokenType::connector)) {
-                auto termT = new NodeTermStructAcces;
-                if(auto val = dynamic_cast<NodeTermId*>(term))
+                auto termT = new NodeTermAcces;
+                bool length = false;
+                if(auto val = dynamic_cast<NodeTermId*>(term)) {
                     termT->id = val->cont;
-                if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
-                if(dynamic_cast<NodeTermArrayAcces*>(term))termT->contained = term;
 
-                auto termF = peak();
-                if(peak(1).has_value() && peak(1).value().type != TokenType::connector && peak(1).value().type != TokenType::openBracket && peak(1).value().type != TokenType::openParenth)consume();
-                if(!termF)return term;
-                termT->acc = termF.value();
-                term = termT;
-            }else if(tryConsume(TokenType::ptrConnect)) {
+                }
+                if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
+                if(dynamic_cast<NodeTermArrayAcces*>(term)) {
+                    if(peak().has_value() && peak().value().type == TokenType::id && peak().value().value.value() == "length") {
+                        length = true;
+                    }
+                    termT->contained = term;
+                }
+
+                if(length) {
+                    auto len = new NodeTermArrayLength;
+                    len->arr = dynamic_cast<NodeTermArrayAcces*>(term);
+                    term = len;
+                }else {
+                    auto termF = peak();
+                    if(peak(1).has_value() && peak(1).value().type != TokenType::connector && peak(1).value().type != TokenType::openBracket && peak(1).value().type != TokenType::openParenth)consume();
+                    if(!termF)return term;
+                    termT->acc = termF.value();
+                    term = termT;
+                }
+            }/*else if(tryConsume(TokenType::ptrConnect)) {
                 auto termT = new NodeTermClassAcces;
+                bool length = false;
                 if(auto val = dynamic_cast<NodeTermId*>(term))
                     termT->id = val->cont;
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
-                if(dynamic_cast<NodeTermArrayAcces*>(term))termT->contained = term;
+                if(dynamic_cast<NodeTermArrayAcces*>(term)) {
+                    if(peak().has_value() && peak().value().type == TokenType::id && peak().value().value.value() == "length") {
+                        length = true;
+                    }
+                    termT->contained = term;
+                }
 
-                auto termF = peak();
-                if(peak(1).has_value() && peak(1).value().type != TokenType::ptrConnect && peak(1).value().type != TokenType::openBracket && peak(1).value().type != TokenType::openParenth)consume();
-                if(!termF)return term;
-                termT->acc = termF.value();
-                term = termT;
-            }
+                if(length) {
+                    auto len = new NodeTermArrayLength;
+                    len->arr = dynamic_cast<NodeTermArrayAcces*>(term);
+                    term = len;
+                }else {
+                    auto termF = peak();
+                    if(peak(1).has_value() && peak(1).value().type != TokenType::ptrConnect && peak(1).value().type != TokenType::openBracket && peak(1).value().type != TokenType::openParenth)consume();
+                    if(!termF)return term;
+                    termT->acc = termF.value();
+                    term = termT;
+                }
+            }*/
             if(!term)return {};
             if(auto ro = parseTerm()) {
                 NodeTerm* r = ro.value();
@@ -213,9 +240,11 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
         std::optional<NodeStmtScope*> Parser::parseScope(){
             if(!tryConsume(TokenType::openCurl).has_value())return {};
             auto scope = new NodeStmtScope;
+            varTypes.emplace_back();
             while(auto stmt = parseStmt()){
                 scope->stmts.push_back(stmt.value());
             }
+            varTypes.pop_back();
             tryConsume(TokenType::closeCurl,"Expected '}'");
             return scope;
         }
@@ -382,7 +411,7 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
         if(peak().value().type == TokenType::semi){
             consume();
             auto intLit = new NodeTermIntLit;
-            Token tok(TokenType::int_lit,-1,"","0");
+            Token tok(TokenType::int_lit,-1,-1,"","0");
             intLit->_signed = false;
             intLit->int_lit = tok;
             pirim->expr = intLit;
@@ -395,6 +424,7 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
         pirim->final = final;
         pirim->_static = _static;
         if(varHolder)pirim->contType = varHolder;
+        varTypes.back()[pirim->name] = Types::VarType::PirimVar;
         return pirim;
     }
     return {};
@@ -416,6 +446,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
+            varTypes.back()[strNew->name] = Types::VarType::StructVar;
             return strNew;
         }
     }else if(dynamic_cast<Class*>(cont)) {
@@ -433,6 +464,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
+            varTypes.back()[strNew->name] = Types::VarType::ClassVar;
             return strNew;
         }
         if(peak().value().type == TokenType::semi) {
@@ -446,6 +478,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
+            varTypes.back()[strNew->name] = Types::VarType::ClassVar;
             return strNew;
         }
     }
@@ -474,6 +507,7 @@ std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::op
         arr->final = final;
         arr->_static = _static;
         if(varHolder)arr->contType = varHolder;
+        varTypes.back()[arr->name] = Types::VarType::ArrayVar;
         return arr;
     }
     IgType* cont;
@@ -504,6 +538,7 @@ std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::op
         arr->final = final;
         arr->_static = _static;
         if(varHolder)arr->contType = varHolder;
+        varTypes.back()[arr->name] = Types::VarType::ArrayVar;
         return arr;
     }
     return {};
@@ -753,6 +788,7 @@ std::optional<IgType*> Parser::parseType() {
                     tryConsume(TokenType::openCurl,"Expected '{'");
                     m_super.push_back(clazz);
 
+                    varTypes.emplace_back();
                     while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
                         if(auto stmt = parseStmt()) {
                             if(auto var = dynamic_cast<NodeStmtLet*>(stmt.value())) {
@@ -769,7 +805,7 @@ std::optional<IgType*> Parser::parseType() {
                             clazz->contained.push_back(type.value());
                         } else err("Expected Type or Variable");
                     }
-
+                    varTypes.pop_back();
                     tryConsume(TokenType::closeCurl,"Expected '}'");
                     m_super.pop_back();
                     return clazz;

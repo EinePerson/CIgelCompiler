@@ -1,24 +1,27 @@
 #include "Array.h"
-#include "../bdwgc/include/gc_cpp.h"
 
-#include <cstdio>
-#include <cstdlib>
+#include <iostream>
 #include <cstring>
 
+#include "../bdwgc/include/gc.h"
+
 extern "C"{
-    long* newArray(unsigned int size,int idX,unsigned long* arr) {
+
+    void* newArray(unsigned int size,int idX,unsigned long* arr) {
         if(idX == 0) {
-            long* ptr = static_cast<long*>(GC_MALLOC(arr[0] * size + sizeof(unsigned long)));
+            void* ptr = GC_MALLOC(arr[0] * size + sizeof(unsigned long));
+            ///NULL init
             memset(ptr,0,arr[0] * size + sizeof(unsigned long));
-            ptr[0] = arr[0];
+            memcpy(ptr,arr,8);
             return ptr;
         }
-        long* ptr = static_cast<long*>(GC_MALLOC(arr[idX] * sizeof(void*) + sizeof(unsigned long)));
-        long l = arr[idX];
-        ptr[0] = l;
+        void* ptr = GC_MALLOC(arr[idX] * sizeof(void*) + sizeof(unsigned long));
+        ((long*)ptr)[0] = arr[idX];
         for(unsigned long i = 0;i < arr[idX];i++) {
-            (ptr + 8)[i] = reinterpret_cast<long>(newArray(size, idX - 1, arr));
+            void* _n = newArray(size,idX - 1,arr);
+            memcpy(((long*)ptr) + 1 + i,&_n,8);
         }
         return ptr;
     }
+
 }

@@ -12,6 +12,7 @@
 
 struct Options{
     std::optional<std::string> infoFile;
+    Info* info = new Info;
 };
 
 class OptionsParser {
@@ -26,6 +27,7 @@ public:
 private:
     std::vector<std::string> m_options;
     std::vector<std::string> m_files;
+    Options* m_opts = nullptr;
 };
 
 

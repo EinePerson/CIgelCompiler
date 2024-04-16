@@ -127,18 +127,20 @@ enum class TokenType{
 std::optional<int> prec(TokenType type);
 
 struct Token{
-    Token():type(TokenType::uninit),line(-1) {}
-    Token(const TokenType type, const uint line,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), file(std::move(file)) {}
+    Token():type(TokenType::uninit),line(-1),_char(-1) {}
+    Token(const TokenType type, const uint line,const uint _char,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), file(std::move(file)),_char(_char) {}
     Token(const Token& other) {
         type = other.type;
         value = other.value;
         line = other.line;
         file = other.file;
+        _char = other._char;
     }
 
     TokenType type;
     std::optional<std::string> value;
     uint line;
+    uint _char;
     std::string file;
 
     Token& operator=(Token other){
@@ -222,8 +224,8 @@ class Tokenizer{
     };
 
     const std::map<std::string,Token> REPLACE = {
-            {"false",Token(TokenType::int_lit,(uint) -1,"","0Z")},
-            {"true",Token(TokenType::int_lit,(uint) -1,"","1Z")},
+            {"false",Token(TokenType::int_lit,(uint) -1,-1,"","0Z")},
+            {"true",Token(TokenType::int_lit,(uint) -1,-1,"","1Z")},
     };
 
    const std::map<char,TokenType> IGEL_TOKEN_CHAR = {
@@ -267,17 +269,18 @@ class Tokenizer{
    std::vector<Token> tokenize(const std::string&file);
 
 private:
-        [[nodiscard]] std::optional<char> peak(uint count = 0) const{
+        [[nodiscard]] std::optional<char> peak(uint count = 0) {
             if(m_I + count >= m_src.length())return {};
-            else return m_src.at(m_I + count);
+            return m_src.at(m_I + count);
         };
 
         char consume(){
+            charCount++;
             return m_src.at(m_I++);
         }
 
         void err(const std::string&err) const {
-            std::cerr << err << "\n" << "   at: " <<  m_tokens.back().file << ":" << m_tokens.back().line << std::endl;
+            std::cerr << err << "\n" << "   at: " <<  m_tokens.back().file << ":" << m_tokens.back().line << ":" << m_tokens.back()._char << std::endl;
             exit(EXIT_FAILURE);
         }
 
@@ -302,4 +305,5 @@ private:
         size_t m_I = 0;
         std::set<std::string> m_extended_funcs;
         std::vector<Token> m_tokens {};
+        uint charCount = 0;
 };

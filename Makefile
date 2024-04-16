@@ -48,10 +48,10 @@ cmake_force:
 SHELL = /bin/sh
 
 # The CMake executable.
-CMAKE_COMMAND = /home/igel/.local/share/JetBrains/Toolbox/apps/clion-nova/bin/cmake/linux/x64/bin/cmake
+CMAKE_COMMAND = /home/igel/.local/share/JetBrains/Toolbox/apps/clion-2/bin/cmake/linux/x64/bin/cmake
 
 # The command to remove a file.
-RM = /home/igel/.local/share/JetBrains/Toolbox/apps/clion-nova/bin/cmake/linux/x64/bin/cmake -E rm -f
+RM = /home/igel/.local/share/JetBrains/Toolbox/apps/clion-2/bin/cmake/linux/x64/bin/cmake -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -68,7 +68,7 @@ CMAKE_BINARY_DIR = /d/compiler
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "No interactive CMake dialog available..."
-	/home/igel/.local/share/JetBrains/Toolbox/apps/clion-nova/bin/cmake/linux/x64/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
+	/home/igel/.local/share/JetBrains/Toolbox/apps/clion-2/bin/cmake/linux/x64/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
 .PHONY : edit_cache
 
 # Special rule for the target edit_cache
@@ -78,7 +78,7 @@ edit_cache/fast: edit_cache
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake to regenerate build system..."
-	/home/igel/.local/share/JetBrains/Toolbox/apps/clion-nova/bin/cmake/linux/x64/bin/cmake --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+	/home/igel/.local/share/JetBrains/Toolbox/apps/clion-2/bin/cmake/linux/x64/bin/cmake --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
 # Special rule for the target rebuild_cache
@@ -290,6 +290,30 @@ src/langMain/codeGen/types.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/codeGen/types.cpp.s
 .PHONY : src/langMain/codeGen/types.cpp.s
 
+src/langMain/parsing/Indexer.o: src/langMain/parsing/Indexer.cpp.o
+.PHONY : src/langMain/parsing/Indexer.o
+
+# target to build an object file
+src/langMain/parsing/Indexer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/Indexer.cpp.o
+.PHONY : src/langMain/parsing/Indexer.cpp.o
+
+src/langMain/parsing/Indexer.i: src/langMain/parsing/Indexer.cpp.i
+.PHONY : src/langMain/parsing/Indexer.i
+
+# target to preprocess a source file
+src/langMain/parsing/Indexer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/Indexer.cpp.i
+.PHONY : src/langMain/parsing/Indexer.cpp.i
+
+src/langMain/parsing/Indexer.s: src/langMain/parsing/Indexer.cpp.s
+.PHONY : src/langMain/parsing/Indexer.s
+
+# target to generate assembly for a file
+src/langMain/parsing/Indexer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/Indexer.cpp.s
+.PHONY : src/langMain/parsing/Indexer.cpp.s
+
 src/langMain/parsing/Parser.o: src/langMain/parsing/Parser.cpp.o
 .PHONY : src/langMain/parsing/Parser.o
 
@@ -313,6 +337,30 @@ src/langMain/parsing/Parser.s: src/langMain/parsing/Parser.cpp.s
 src/langMain/parsing/Parser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/Parser.cpp.s
 .PHONY : src/langMain/parsing/Parser.cpp.s
+
+src/langMain/parsing/PreParser.o: src/langMain/parsing/PreParser.cpp.o
+.PHONY : src/langMain/parsing/PreParser.o
+
+# target to build an object file
+src/langMain/parsing/PreParser.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/PreParser.cpp.o
+.PHONY : src/langMain/parsing/PreParser.cpp.o
+
+src/langMain/parsing/PreParser.i: src/langMain/parsing/PreParser.cpp.i
+.PHONY : src/langMain/parsing/PreParser.i
+
+# target to preprocess a source file
+src/langMain/parsing/PreParser.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/PreParser.cpp.i
+.PHONY : src/langMain/parsing/PreParser.cpp.i
+
+src/langMain/parsing/PreParser.s: src/langMain/parsing/PreParser.cpp.s
+.PHONY : src/langMain/parsing/PreParser.s
+
+# target to generate assembly for a file
+src/langMain/parsing/PreParser.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/langMain/parsing/PreParser.cpp.s
+.PHONY : src/langMain/parsing/PreParser.cpp.s
 
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
@@ -436,9 +484,15 @@ help:
 	@echo "... src/langMain/codeGen/types.o"
 	@echo "... src/langMain/codeGen/types.i"
 	@echo "... src/langMain/codeGen/types.s"
+	@echo "... src/langMain/parsing/Indexer.o"
+	@echo "... src/langMain/parsing/Indexer.i"
+	@echo "... src/langMain/parsing/Indexer.s"
 	@echo "... src/langMain/parsing/Parser.o"
 	@echo "... src/langMain/parsing/Parser.i"
 	@echo "... src/langMain/parsing/Parser.s"
+	@echo "... src/langMain/parsing/PreParser.o"
+	@echo "... src/langMain/parsing/PreParser.i"
+	@echo "... src/langMain/parsing/PreParser.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"

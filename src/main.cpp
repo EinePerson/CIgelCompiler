@@ -24,7 +24,7 @@ std::string read(const std::string& name){
 }
 
 int main(int argc,char* argv[]) {
-    if(argc < 2){
+    /*if(argc < 2){
         std::cerr << "Incorrect arguments, type help for more information" << std::endl;
         return EXIT_FAILURE;
     }
@@ -32,7 +32,8 @@ int main(int argc,char* argv[]) {
     if(strcmp(argv[1], "help" ) == 0 ){
         std::cout << "Help:\n   First arg should be igel Compiler file(.igc)\n";
         return EXIT_SUCCESS;
-    }
+    }*/
+
     OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 

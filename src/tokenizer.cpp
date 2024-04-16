@@ -52,9 +52,13 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
 
         char comment = 0;
         uint lineCount = 1;
+        charCount = 0;
         while (peak().has_value())
         {
-            if(peak().value() == '\n')lineCount++;
+            if(peak().value() == '\n') {
+                lineCount++;
+                charCount = 0;
+            }
             if(comment){
                 if(peak().value() == '\n' && comment == 1){
                     consume();
@@ -76,104 +80,104 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     comment = 2;
                     continue;
                 }else if(peak(1).has_value() && peak(1).value() == '='){
-                    m_tokens.emplace_back(TokenType::div_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::div_eq,lineCount,charCount,file);
                     consume();
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::div,lineCount,file);
+                    m_tokens.emplace_back(TokenType::div,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '!'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::notequal,lineCount,file);
+                    m_tokens.emplace_back(TokenType::notequal,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '|'){
-                    m_tokens.emplace_back(TokenType::_xor,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_xor,lineCount,charCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::_not,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_not,lineCount,charCount,file);
                 }
             }else if(peak().value() == '>'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::bigequal,lineCount,file);
+                    m_tokens.emplace_back(TokenType::bigequal,lineCount,charCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::big,lineCount,file);
+                    m_tokens.emplace_back(TokenType::big,lineCount,charCount,file);
                     continue;
                 }
             }else if(peak().value() == '<'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::smallequal,lineCount,file);
+                    m_tokens.emplace_back(TokenType::smallequal,lineCount,charCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::small,lineCount,file);
+                    m_tokens.emplace_back(TokenType::small,lineCount,charCount,file);
                     continue;
                 }
             }else if(peak().value() == '='){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::equal,lineCount,file);
+                    m_tokens.emplace_back(TokenType::equal,lineCount,charCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '&'){
                 consume();
                 if(peak().has_value() && peak().value() == '&'){
-                    m_tokens.emplace_back(TokenType::_and,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_and,lineCount,charCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::_bitAnd,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_bitAnd,lineCount,charCount,file);
                 }
             }else if(peak().value() == '|'){
                 consume();
                 if(peak().has_value() && peak().value() == '|'){
-                    m_tokens.emplace_back(TokenType::_or,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_or,lineCount,charCount,file);
                     consume();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::_bitOr,lineCount,file);
+                    m_tokens.emplace_back(TokenType::_bitOr,lineCount,charCount,file);
                 }
             }else if(peak().value() == '+'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::plus_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::plus_eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '+'){
-                    m_tokens.emplace_back(TokenType::inc,lineCount,file);
+                    m_tokens.emplace_back(TokenType::inc,lineCount,charCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::plus,lineCount,file);
+                    m_tokens.emplace_back(TokenType::plus,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '-'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::sub_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::sub_eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '-'){
-                    m_tokens.emplace_back(TokenType::dec,lineCount,file);
+                    m_tokens.emplace_back(TokenType::dec,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '>') {
-                    m_tokens.emplace_back(TokenType::ptrConnect,lineCount,file);
+                    m_tokens.emplace_back(TokenType::ptrConnect,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(std::isdigit(peak().value())){
@@ -184,44 +188,44 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                         buf.push_back(consume());
                     }
                     if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
-                    m_tokens.emplace_back(TokenType::int_lit,lineCount,file,buf);
+                    m_tokens.emplace_back(TokenType::int_lit,lineCount,charCount,file,buf);
                     buf.clear();
                     continue;
                 }else{
-                    m_tokens.emplace_back(TokenType::sub,lineCount,file);
+                    m_tokens.emplace_back(TokenType::sub,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '*'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::mul_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::mul_eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::mul,lineCount,file);
+                    m_tokens.emplace_back(TokenType::mul,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '/'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::div_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::div_eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::div,lineCount,file);
+                    m_tokens.emplace_back(TokenType::div,lineCount,charCount,file);
                     consume();
                     continue;
                 }
             }else if(peak().value() == '*'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
-                    m_tokens.emplace_back(TokenType::pow_eq,lineCount,file);
+                    m_tokens.emplace_back(TokenType::pow_eq,lineCount,charCount,file);
                     consume();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::pow,lineCount,file);
+                    m_tokens.emplace_back(TokenType::pow,lineCount,charCount,file);
                     consume();
                     continue;
                 }
@@ -239,12 +243,12 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     buf.push_back(consume());
                 }
                 consume();
-                m_tokens.emplace_back(TokenType::str,lineCount,file,buf);
+                m_tokens.emplace_back(TokenType::str,lineCount,charCount,file,buf);
                 buf.clear();
                 continue;
             }else if(peak().value() == '\'') {
                 consume();
-                if(peak().has_value() && peak().value() != '\'')m_tokens.emplace_back(TokenType::_char_lit,lineCount,file,std::string{consume()});
+                if(peak().has_value() && peak().value() != '\'')m_tokens.emplace_back(TokenType::_char_lit,lineCount,charCount,file,std::string{consume()});
                 consume();
             }else if(peak().value() == '#'){
                 consume();
@@ -255,17 +259,17 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                 while(peak().has_value() && std::isspace(peak().value())){
                     consume();
                 }
-                m_tokens.emplace_back(TokenType::info,lineCount,file,buf);
+                m_tokens.emplace_back(TokenType::info,lineCount,charCount,file,buf);
                 buf.clear();
                 continue;
             }else if(peak().value() == ':') {
                 consume();
                 if(peak().value() == ':') {
                     consume();
-                    m_tokens.emplace_back(TokenType::dConnect,lineCount,file);
+                    m_tokens.emplace_back(TokenType::dConnect,lineCount,charCount,file);
                     continue;
                 }
-                m_tokens.emplace_back(TokenType::next,lineCount,file);
+                m_tokens.emplace_back(TokenType::next,lineCount,charCount,file);
                 continue;
             }else if(std::isalpha(peak().value()) || peak().value() == '_'){
                 buf.push_back(consume());
@@ -278,20 +282,20 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                 }
                 if(peak().has_value() && peak().value() == '('){
                     if(FUNCTIONS.count(buf)){
-                        m_tokens.emplace_back(FUNCTIONS.at(buf),lineCount,file);
+                        m_tokens.emplace_back(FUNCTIONS.at(buf),lineCount,charCount,file);
                         buf.clear();
                         continue;
                     }else if(m_extended_funcs.count(buf)){
-                        m_tokens.emplace_back(TokenType::externFunc,lineCount,file,buf);
+                        m_tokens.emplace_back(TokenType::externFunc,lineCount,charCount,file,buf);
                         buf.clear();
                         continue;
                     }else{
-                        m_tokens.emplace_back(TokenType::id,lineCount,file,buf);
+                        m_tokens.emplace_back(TokenType::id,lineCount,charCount,file,buf);
                         buf.clear();
                         continue;
                     }
                 }else if(IGEL_TOKENS.count(buf)){
-                    m_tokens.emplace_back(IGEL_TOKENS.at(buf),lineCount,file);
+                    m_tokens.emplace_back(IGEL_TOKENS.at(buf),lineCount,charCount,file);
                     buf.clear();
                     continue;
                 }else if(REPLACE.count(buf)){
@@ -302,7 +306,7 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     buf.clear();
                     continue;
                 }else {
-                    m_tokens.emplace_back(TokenType::id,lineCount,file,buf);
+                    m_tokens.emplace_back(TokenType::id,lineCount,charCount,file,buf);
                     buf.clear();
                     continue;
                 }
@@ -313,11 +317,11 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     buf.push_back(consume());
                 }
                 if(peak().has_value() && std::isalpha(peak().value()))buf.push_back(consume());
-                m_tokens.emplace_back(TokenType::int_lit,lineCount,file,buf);
+                m_tokens.emplace_back(TokenType::int_lit,lineCount,charCount,file,buf);
                 buf.clear();
                 continue;
             }else if(IGEL_TOKEN_CHAR.count(peak().value())){
-                m_tokens.emplace_back(IGEL_TOKEN_CHAR.at(consume()),lineCount,file);
+                m_tokens.emplace_back(IGEL_TOKEN_CHAR.at(consume()),lineCount,charCount,file);
                 continue;
             }else if(std::isspace(peak().value())){
                 consume();

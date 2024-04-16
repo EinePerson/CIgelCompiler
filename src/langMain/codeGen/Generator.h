@@ -13,12 +13,14 @@
 #include <llvm/Target/TargetMachine.h>
 
 #include "../../CompilerInfo/InfoParser.h"
+#include "../../types.h"
 
 using namespace llvm;
 
 struct SrcFile;
 struct IgFunction;
-
+struct BeContained;
+struct Struct;
 
 struct Var {
     explicit Var(AllocaInst* alloc,bool _signed) : alloc(alloc),_signed(_signed) {}
@@ -118,6 +120,7 @@ public:
     static bool lastUnreachable;;
     static Struct* structRet;
     static Class* classRet;
+    static bool arrRet;
     static BeContained* typeNameRet;
 };
 

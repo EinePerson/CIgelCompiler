@@ -21,6 +21,10 @@ add_executable(igel
         src/util/Mangler.h
         src/exceptionns/Generator.h
         src/util/Mangler.cpp
+        src/langMain/parsing/Indexer.cpp
+        src/langMain/parsing/Indexer.h
+        src/langMain/parsing/PreParser.cpp
+        src/langMain/parsing/PreParser.h
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 

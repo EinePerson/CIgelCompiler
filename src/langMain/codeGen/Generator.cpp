@@ -45,6 +45,7 @@ std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>
 bool Generator::lastUnreachable = false;
 Struct* Generator::structRet = nullptr;
 Class* Generator::classRet = nullptr;
+bool Generator::arrRet = false;
 BeContained* Generator::typeNameRet = nullptr;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {

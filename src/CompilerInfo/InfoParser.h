@@ -10,6 +10,9 @@
 #include <utility>
 #include <vector>
 #include <functional>
+#include <map>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Type.h>
 #include <sys/stat.h>
 #include "../types.h"
 
