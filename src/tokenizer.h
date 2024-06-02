@@ -108,8 +108,6 @@ enum class TokenType{
     ///Double Connector ::
     dConnect,
 
-    ///for class acces ->
-    ptrConnect,
     _struct,
     _class,
     interface,
@@ -122,6 +120,10 @@ enum class TokenType{
     null,
     _static,
     final,
+
+    _try,
+    _catch,
+    _throw,
 };
 
 std::optional<int> prec(TokenType type);
@@ -214,9 +216,10 @@ class Tokenizer{
 
             {"static",TokenType::_static},
             {"final",TokenType::final},
-    };
 
-    const std::map<std::string,TokenType> FUNCTIONS = {
+            {"try",TokenType::_try},
+            {"catch",TokenType::_catch},
+            {"throw",TokenType::_throw},
             {"if",TokenType::_if},
             {"for",TokenType::_for},
             {"while",TokenType::_while},

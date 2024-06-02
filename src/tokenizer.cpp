@@ -5,12 +5,12 @@
 typedef unsigned int uint;
 
     std::map<std::string,std::function<llvm::FunctionCallee()>> Tokenizer::LIB_FUNCS {
-        {"_Z4exit",[]() -> FunctionCallee {
+        {"_Z4exit",[]() -> llvm::FunctionCallee {
             std::vector<Type*> params = {Type::getInt32Ty(*Generator::instance->m_contxt)};
             FunctionType *fType = FunctionType::get(Type::getVoidTy(*Generator::instance->m_contxt), params, false);
             return Generator::instance->m_module->getOrInsertFunction("exit",fType);
         }},
-        {"_Z6printf",[]() -> FunctionCallee {
+        {"_Z6printf",[]() -> llvm::FunctionCallee {
             std::vector<Type*> params = {PointerType::get(*Generator::instance->m_contxt,0)};
             FunctionType *fType = FunctionType::get(Type::getVoidTy(*Generator::instance->m_contxt), params, true);
             return Generator::instance->m_module->getOrInsertFunction("printf",fType);
@@ -177,7 +177,7 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     consume();
                     continue;
                 }else if(peak().has_value() && peak().value() == '>') {
-                    m_tokens.emplace_back(TokenType::ptrConnect,lineCount,charCount,file);
+                    m_tokens.emplace_back(TokenType::connector,lineCount,charCount,file);
                     consume();
                     continue;
                 }else if(std::isdigit(peak().value())){
@@ -273,28 +273,14 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                 continue;
             }else if(std::isalpha(peak().value()) || peak().value() == '_'){
                 buf.push_back(consume());
-                while (peak().has_value() && (std::isalnum(peak().value()) || peak().value() == '_'))
-                {
+                while (peak().has_value() && (std::isalnum(peak().value()) || peak().value() == '_')){
                     buf.push_back(consume());
                 }
                 while(peak().has_value() && std::isspace(peak().value())){
                     consume();
                 }
-                if(peak().has_value() && peak().value() == '('){
-                    if(FUNCTIONS.count(buf)){
-                        m_tokens.emplace_back(FUNCTIONS.at(buf),lineCount,charCount,file);
-                        buf.clear();
-                        continue;
-                    }else if(m_extended_funcs.count(buf)){
-                        m_tokens.emplace_back(TokenType::externFunc,lineCount,charCount,file,buf);
-                        buf.clear();
-                        continue;
-                    }else{
-                        m_tokens.emplace_back(TokenType::id,lineCount,charCount,file,buf);
-                        buf.clear();
-                        continue;
-                    }
-                }else if(IGEL_TOKENS.count(buf)){
+
+                if(IGEL_TOKENS.count(buf)){
                     m_tokens.emplace_back(IGEL_TOKENS.at(buf),lineCount,charCount,file);
                     buf.clear();
                     continue;
@@ -305,7 +291,10 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     m_tokens.push_back(t);
                     buf.clear();
                     continue;
-                }else {
+                }else if(m_extended_funcs.count(buf)) {
+                    m_tokens.emplace_back(TokenType::externFunc,lineCount,charCount,file,buf);
+                    buf.clear();
+                }else{
                     m_tokens.emplace_back(TokenType::id,lineCount,charCount,file,buf);
                     buf.clear();
                     continue;

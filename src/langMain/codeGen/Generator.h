@@ -97,6 +97,8 @@ public:
     void createVar(Argument* arg,bool _signed, const std::string&typeName);
 
     void createStaticVar(std::string name,Value* val,Var* var);
+
+    void initInfo();
 private:
     BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
@@ -114,6 +116,9 @@ public:
     std::vector<BasicBlock*> next;
     std::vector<SwitchInst*> _switch;
     Info* m_info;
+    BasicBlock* unreach = nullptr;
+    GlobalVariable* cxx_pointer_type_info = nullptr;
+    GlobalVariable* cxx_class_type_info = nullptr;
     static Generator* instance;
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
@@ -122,6 +127,8 @@ public:
     static Class* classRet;
     static bool arrRet;
     static BeContained* typeNameRet;
+    static std::vector<BasicBlock*> catches;
+    static std::vector<BasicBlock*> catchCont;
 };
 
 

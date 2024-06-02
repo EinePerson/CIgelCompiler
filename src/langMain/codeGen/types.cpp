@@ -3,6 +3,7 @@
 //
 
 #include <llvm/IR/Verifier.h>
+#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/JSON.h>
 
 #include "Generator.h"
@@ -22,6 +23,9 @@ llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
           Generator::classRet = nullptr;
      }
      _signed = var->_signed;
+     if(auto clazz = dynamic_cast<ClassVar*>(var)) {
+          Generator::typeNameRet = clazz->clazz;
+     }
      return builder->CreateLoad(var->getType(),var->alloc);
 }
 
@@ -37,6 +41,9 @@ llvm::Value* NodeTermId::generatePointer(llvm::IRBuilder<>* builder) {
      }
      //if(auto arr = dynamic_cast<ArrayVar*>(var))Generator::typeNameRet.
      Value* ptr = var->alloc;
+     if(auto clazz = dynamic_cast<ClassVar*>(var)) {
+          Generator::typeNameRet = clazz->clazz;
+     }
      return ptr;
 }
 
@@ -701,7 +708,7 @@ std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* 
 
 Value* createArr(std::vector<Value*> sizes,std::vector<Type*> types,uint i,llvm::IRBuilder<>* builder) {
      if(i == 0)return ConstantInt::get(types[i],0);
-     const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("_Znam",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
+     const llvm::FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("_Znam",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
      Value* var = builder->CreateCall(_new,builder->CreateMul(sizes[i - 1],ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),12)));
 
      return var;
@@ -729,9 +736,12 @@ llvm::Value* NodeStmtExit::generate(llvm::IRBuilder<>* builder) {
 llvm::Value* NodeStmtScope::generate(llvm::IRBuilder<>* builder) {
      llvm::Value* val = nullptr;
      Generator::lastUnreachable = false;
+     Generator::instance->m_vars.emplace_back();
      for (const auto stmt : stmts) {
+          if(Generator::lastUnreachable)break;
           val = stmt->generate(builder);
      }
+     Generator::instance->m_vars.pop_back();
      return val;
 };
 
@@ -924,6 +934,150 @@ llvm::Value* NodeStmtContinue::generate(llvm::IRBuilder<>* builder) {
      return val;
 }
 
+llvm::Value * NodeStmtThrow::generate(llvm::IRBuilder<> *builder) {
+     llvm::FunctionCallee cxa_Throw = Generator::instance->m_module->getOrInsertFunction("__cxa_throw",FunctionType::get(builder->getVoidTy(),
+          {builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()},false));
+     llvm::FunctionCallee cxa_alloc = Generator::instance->m_module->getOrInsertFunction("__cxa_allocate_exception",FunctionType::get(builder->getPtrTy(),builder->getInt64Ty(),false));
+     llvm::FunctionCallee cpy = Generator::instance->m_module->getOrInsertFunction("memcpy",FunctionType::get(builder->getVoidTy(),
+          {builder->getPtrTy(),builder->getPtrTy(),builder->getInt64Ty()},false));
+
+     Generator::typeNameRet = nullptr;
+     Value* val = expr->generatePointer(builder);
+     std::optional<std::pair<StructType*,Class*>> clazz = Generator::instance->m_file->findClass(Generator::typeNameRet->mangle());
+     if(!clazz.has_value()) {
+          std::cerr << "Could not find class " << Generator::typeNameRet << std::endl;
+          exit(1);
+     }
+     if(!Generator::instance->unreach) {
+          Generator::instance->unreach = BasicBlock::Create(builder->getContext(),"unreachable",builder->GetInsertBlock()->getParent());
+     }
+     Generator::lastUnreachable = true;
+     Value* excep = builder->CreateCall(cxa_alloc,builder->getInt64(8));
+     builder->CreateStore(val,excep);
+     //builder->CreateCall(cpy,{excep,expr->generatePointer(builder),builder->getInt64(Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8)});
+     if(Generator::catches.empty()) {
+          builder->CreateCall(cxa_Throw,{excep,clazz.value().second->typeInfoPointVar,ConstantPointerNull::get(builder->getPtrTy())});
+          return  builder->CreateUnreachable();
+     }else return builder->CreateInvoke(cxa_Throw,Generator::instance->unreach,Generator::catches.back(),{excep,clazz.value().second->typeInfoPointVar,ConstantPointerNull::get(builder->getPtrTy())});
+}
+
+llvm::Value * NodeStmtCatch::generate(llvm::IRBuilder<> *builder) {
+     std::cerr << "Cannot generate a Catch directly use NodeStmtTry" << std::endl;
+     exit(EXIT_FAILURE);
+}
+
+llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
+     llvm::FunctionCallee typeIdC = Generator::instance->m_module->getOrInsertFunction("llvm.eh.typeid.for",FunctionType::get(builder->getInt32Ty(),builder->getPtrTy(),false));
+     llvm::FunctionCallee begin_Catch = Generator::instance->m_module->getOrInsertFunction("__cxa_begin_catch",FunctionType::get(builder->getPtrTy(),builder->getPtrTy(),false));
+     llvm::FunctionCallee end_Catch = Generator::instance->m_module->getOrInsertFunction("__cxa_end_catch",{builder->getVoidTy()});
+
+     Function* funcPers = Generator::instance->m_module->getFunction("__gxx_personality_v0");
+     if(!funcPers) {
+          Generator::instance->m_module->getOrInsertFunction("__gxx_personality_v0",{builder->getInt32Ty()});
+          funcPers = Generator::instance->m_module->getFunction("__gxx_personality_v0");
+     }
+     Function* func = builder->GetInsertBlock()->getParent();
+     func->setPersonalityFn(funcPers);
+
+     BasicBlock* _catch = BasicBlock::Create(builder->getContext(), "catchM", func);
+     BasicBlock* cont = nullptr; /*= BasicBlock::Create(builder->getContext(), "cont", func);*/
+     Generator::catches.push_back(_catch);
+     Generator::catchCont.push_back(cont);
+     generateS(scope,builder);
+     if(!Generator::lastUnreachable)builder->CreateBr(cont);
+     Generator::catchCont.pop_back();
+     Generator::catches.pop_back();
+
+     builder->SetInsertPoint(_catch);
+     LandingPadInst* land = builder->CreateLandingPad(StructType::get(builder->getContext(),{builder->getPtrTy(),builder->getInt32Ty()}), 2);
+     std::vector<BasicBlock*> catchesBB {};
+     std::vector<BasicBlock*> catchSwitch {};
+
+     Value* exP = builder->CreateExtractValue(land,0);
+     Value* tid = builder->CreateExtractValue(land,1);
+
+     for (auto & i : catch_) {
+          if(catch_.size() > 1) {
+               BasicBlock* _cs = BasicBlock::Create(builder->getContext(), "catchswitch", func);
+               catchSwitch.push_back(_cs);
+          }
+
+          BasicBlock* BB = BasicBlock::Create(builder->getContext(), "catch", func);
+          builder->SetInsertPoint(BB);
+          if(!catchesBB.empty())BB->moveAfter(catchesBB.back());
+
+          Generator::lastUnreachable = false;
+          Generator::instance->m_vars.emplace_back();
+
+          auto clazz = Generator::instance->m_file->findClass(i->typeName->mangle());
+          Value* varRet = builder->CreateCall(begin_Catch,{exP});
+          AllocaInst* alloc = builder->CreateAlloca(builder->getPtrTy());
+          Value* varLoad = builder->CreateLoad(builder->getPtrTy(),varRet);
+          builder->CreateStore(varLoad,alloc);
+          auto var = new ClassVar(alloc);
+          var->type = builder->getPtrTy();
+          var->strType = clazz.value().first;
+          var->clazz = clazz.value().second;
+          var->types = clazz.value().second->types;
+          for(size_t i = 0;i < clazz.value().second->vars.size();i++) {
+               NodeStmtLet* let = clazz.value().second->vars[i];
+               std::string str = clazz.value().second->vars[i]->name;
+               if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
+               else var->signage.push_back(false);
+               var->vars[str] = i + 1;
+          }
+          for (uint i = 0; i < clazz.value().second->funcs.size();i++)var->funcs[clazz.value().second->funcs[i]->name] = i;
+          Generator::instance->createVar("_Z" + std::to_string(i->varName.size()) + i->varName,var);
+
+          for (const auto stmt : i->scope->stmts) {
+               if(Generator::lastUnreachable)break;
+               stmt->generate(builder);
+          }
+          if(!Generator::lastUnreachable) {
+               if(!cont)cont = BasicBlock::Create(builder->getContext(), "cont", func);
+               builder->CreateCall(end_Catch);
+               builder->CreateBr(cont);
+          }
+          Generator::instance->m_vars.pop_back();
+
+          catchesBB.push_back(BB);
+          land->addClause(clazz->second->typeInfoPointVar);
+     }
+
+     builder->SetInsertPoint(_catch);
+     if(catchesBB.size() == 1) {
+          builder->CreateBr(catchesBB[0]);
+     }else {
+          for (int i = 0;i < catchSwitch.size() - 1;i++) {
+               if(i == 0) {
+                    catchSwitch[0]->moveAfter(_catch);
+               }else {
+                    catchSwitch[i]->moveAfter(catchSwitch[i] - 1);
+               }
+               builder->SetInsertPoint(catchSwitch[i]);
+
+               std::optional<std::pair<StructType*,Class*>> clazz = Generator::instance->m_file->findClass(catch_[i]->typeName->mangle());
+               if(!clazz.has_value()) {
+                    std::cerr << "Could not find class " << catch_[i]->typeName << std::endl;
+                    exit(1);
+               }
+               Value* ctId = builder->CreateCall(typeIdC,clazz.value().second->typeInfo);
+               Value* cmp = builder->CreateICmpEQ(ctId,tid);
+               builder->CreateCondBr(cmp,catchesBB[i],catchSwitch[i + 1]);
+          }
+          catchSwitch.back()->moveAfter(catchSwitch[catchSwitch.size() - 2]);
+          builder->SetInsertPoint(catchSwitch.back());
+          builder->CreateBr(catchesBB[catchSwitch.size() - 1]);
+     }
+
+     if(!catchSwitch.empty())catchesBB.front()->moveAfter(catchSwitch.back());
+     else catchesBB.front()->moveAfter(_catch);
+     if(cont)cont->moveAfter(catchesBB.back());
+     builder->SetInsertPoint(cont);
+
+     return cont;
+}
+
 std::string IgFunction::mangle() {
      return Igel::Mangler::mangle(this,paramType,paramTypeName,signage,member,constructor);
 }
@@ -1047,11 +1201,19 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      builder->CreateStore(constructor->llvmFunc->getArg(0),alloc);
      LoadInst* load = builder->CreateLoad(alloc->getAllocatedType(),alloc);
 
-     typeNameVar = builder->CreateGlobalString(name,"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
+     Generator::instance->initInfo();
+
+     //TODO make extending and make throwables extend Exception
+     typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
+     typeNamePointVar = builder->CreateGlobalString("P" + Igel::Mangler::mangle(this),"_ZTSP" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
      StructType* tIT = extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
-     StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});
+          StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});
      typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
           {ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy())}),"_ZTI" + Igel::Mangler::mangle(this));
+     StructType* tIPT = StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getInt32Ty(),builder->getPtrTy()});
+     typeInfoPointVar = new GlobalVariable(*Generator::instance->m_module,tIPT,true,GlobalVariable::ExternalLinkage,ConstantStruct::get(tIPT,
+          {(Constant*) builder->CreateConstGEP1_64(ptr,Generator::instance->cxx_pointer_type_info,2),typeNamePointVar,
+               ConstantInt::get(builder->getInt32Ty(),0),typeInfo}),"_ZTIP" + Igel::Mangler::mangle(this));
      std::vector<Constant*> vtablefuncs {ConstantPointerNull::get(builder->getPtrTy()),typeInfo};
 
      //TODO insert destructors into vtable
@@ -1059,10 +1221,10 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      vtable = new GlobalVariable(*Generator::instance->m_module,vtableInit->getType(),true,GlobalValue::ExternalLinkage,vtableInit,
           "_ZTV" + Igel::Mangler::mangle(this));
      if(extending.has_value()) {
-          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, vtable, 2)),(Constant*) typeNameVar,extending.value()->typeInfo};
+          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2)),(Constant*) typeNameVar,extending.value()->typeInfo};
           typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
      }else {
-          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, vtable, 2)),(Constant*) typeNameVar};
+          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2)),(Constant*) typeNameVar};
           typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
      }
 
@@ -1244,7 +1406,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
           }
 
           FunctionType* type = FunctionType::get(PointerType::get(builder->getContext(),0),{Type::getInt64Ty(builder->getContext())},false);
-          const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("GC_malloc",type);
+          const llvm::FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("GC_malloc",type);
           Value* ptr = builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(builder->getContext()),Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8));
           ArrayRef<Type*> llvmTypes {types};
           auto calle = Generator::instance->m_module->getOrInsertFunction(Igel::Mangler::mangle(typeName,types,names,sing,true),builder->getVoidTy(),llvmTypes);
@@ -1253,6 +1415,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
           params.reserve(exprs.size());
           for (auto expr : exprs) params.push_back(expr->generate(builder));
           builder->CreateCall(calle,params);
+          Generator::typeNameRet = typeName;
           return ptr;
      }
      std::cerr << "Unknown type " << typeName << std::endl;
@@ -1260,7 +1423,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
 }
 
 llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
-     const FunctionCallee _sizNes = Generator::instance->m_module->getOrInsertFunction("malloc",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
+     const llvm::FunctionCallee _sizNes = Generator::instance->m_module->getOrInsertFunction("malloc",PointerType::get(builder->getContext(),0),IntegerType::getInt64Ty(builder->getContext()));
      Value* sizes = builder->CreateCall(_sizNes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),8 * size.size()));
      Value* ptr = builder->CreateInBoundsGEP(IntegerType::getInt64Ty(builder->getContext()),sizes,ConstantInt::get(IntegerType::getInt64Ty(builder->getContext()),0));
      Value* sz = size.back()->generate(builder);
@@ -1274,7 +1437,7 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
           builder->CreateStore(sz,ptr);
           j++;
      }
-     const FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("newArray",builder->getPtrTy(),
+     const llvm::FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("newArray",builder->getPtrTy(),
           IntegerType::getInt32Ty(builder->getContext()),IntegerType::getInt32Ty(builder->getContext()),PointerType::get(builder->getContext(),0));
      uint sizeB = 0;
 
@@ -1288,7 +1451,7 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
      }else sizeB = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(getType(static_cast<TokenType>(sid))) / 8;
      Value* arr = builder->CreateCall(_new,{ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),sizeB),
           ConstantInt::get(IntegerType::getInt32Ty(builder->getContext()),size.size() - 1),sizes});
-     const FunctionCallee del = Generator::instance->m_module->getOrInsertFunction("free",builder->getVoidTy(),builder->getPtrTy());
+     const llvm::FunctionCallee del = Generator::instance->m_module->getOrInsertFunction("free",builder->getVoidTy(),builder->getPtrTy());
      builder->CreateCall(del,sizes);
      return arr;
 }

@@ -47,6 +47,8 @@ Struct* Generator::structRet = nullptr;
 Class* Generator::classRet = nullptr;
 bool Generator::arrRet = false;
 BeContained* Generator::typeNameRet = nullptr;
+std::vector<BasicBlock*> Generator::catches {};
+std::vector<BasicBlock*> Generator::catchCont {};
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -142,6 +144,11 @@ void Generator::genFunc(IgFunction* func,bool member) {
     func->scope->generate(m_builder.get());
     m_vars.pop_back();
     if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
+    if(unreach) {
+        m_builder->SetInsertPoint(unreach);
+        m_builder->CreateUnreachable();
+        unreach = nullptr;
+    }
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
         exit(EXIT_FAILURE);
     }
@@ -260,7 +267,7 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
 auto Generator::exitG(Value* exitCode) const -> Value* {
     std::vector<Type*> params = {Type::getInt32Ty(*m_contxt)};
     FunctionType *fType = FunctionType::get(Type::getVoidTy(*m_contxt), params, false);
-    FunctionCallee exitFunc = m_module->getOrInsertFunction("exit",fType);
+    llvm::FunctionCallee exitFunc = m_module->getOrInsertFunction("exit",fType);
     Value* ret = m_builder->CreateCall(exitFunc, {exitCode});
 
     return ret;
@@ -268,7 +275,7 @@ auto Generator::exitG(Value* exitCode) const -> Value* {
 
 Value* Generator::_new() const {
     FunctionType* type = FunctionType::get(PointerType::get(*m_contxt,0),{Type::getInt64Ty(*m_contxt)},false);
-    const FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
+    const llvm::FunctionCallee _new = m_module->getOrInsertFunction("_Znwm",type);
     return m_builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(*m_contxt),0));
 }
 
@@ -383,4 +390,15 @@ void Generator::createStaticVar(std::string name, Value* val,Var* var) {
         exit(EXIT_FAILURE);
     }
     m_vars.back()[name] = var;
+}
+
+void Generator::initInfo() {
+    if(!cxx_pointer_type_info) {
+        cxx_pointer_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv119__pointer_type_infoE",
+          nullptr,GlobalValue::NotThreadLocal,0,true);;
+    }
+    if(!cxx_class_type_info) {
+        cxx_class_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv117__class_type_infoE",
+          nullptr,GlobalValue::NotThreadLocal,0,true);
+    }
 }

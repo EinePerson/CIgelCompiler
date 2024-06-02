@@ -263,6 +263,46 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 return parseFor();
             }else if(auto _while = tryConsume(TokenType::_while)) {
                 return parseWhile();
+            }else if(auto _try = tryConsume(TokenType::_try)) {
+                auto stmtTry = new NodeStmtTry;
+                if(auto scope = parseScope()) {
+                    stmtTry->scope = scope.value();
+                }else {
+                    err("Expected Scope after 'try'");
+                }
+                uint _catch = 0;
+                while(auto _catchT = tryConsume(TokenType::_catch)) {
+                    _catch++;
+                    tryConsume(TokenType::openParenth,"Expected '('");
+                    auto _catchCl = new NodeStmtCatch;
+                    if(auto cont = parseContained()) {
+                        _catchCl->typeName = cont.value();
+                    }else {
+                        err("Expected Type name after 'catch'");
+                    }
+
+                    _catchCl->varName = tryConsume(TokenType::id,"Expected identifier").value.value();
+
+                    tryConsume(TokenType::closeParenth,"Expected ')'");
+                    if(auto scope = parseScope()) {
+                        _catchCl->scope = scope.value();
+                    }else {
+                        err("Expected Scope after 'catch'");
+                    }
+                    stmtTry->catch_.push_back(_catchCl);
+                }
+
+                if(_catch == 0)err("At least one catch clause is required after a try");
+                return stmtTry;
+            }else if(tryConsume(TokenType::_throw)) {
+                auto _throw = new NodeStmtThrow;
+                if(auto expr = parseExpr()) {
+                    _throw->expr = expr.value();
+                }else {
+                    err("Expected Expression after 'throw'");
+                }
+                tryConsume(TokenType::semi,"Expected ';'");
+                return _throw;
             }else if(auto _switchT = tryConsume(TokenType::_switch)) {
                 auto* _switch = new NodeStmtSwitch;
                 tryConsume(TokenType::openParenth,"Expected '('");

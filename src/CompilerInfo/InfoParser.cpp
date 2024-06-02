@@ -2,7 +2,6 @@
 // Created by igel on 06.11.23.
 //
 
-#include "llvm/ADT/Triple.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"

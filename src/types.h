@@ -519,6 +519,27 @@ struct NodeStmtContinue final : NodeStmt {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
+struct NodeStmtThrow final : NodeStmt{
+    NodeExpr* expr = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeStmtCatch final : NodeStmt{
+    BeContained* typeName;
+    std::string varName;
+    NodeStmtScope* scope;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
+class FunctionCallee;
+
+struct NodeStmtTry final : NodeStmt{
+    static FunctionCallee* call;
+    NodeStmtScope* scope {};
+    std::vector<NodeStmtCatch*> catch_ {};
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
+
 struct Class;
 
 struct IgFunction final : BeContained{
@@ -642,6 +663,9 @@ struct Class final : ContainableType {
     llvm::GlobalVariable* typeNameVar = nullptr;
     llvm::GlobalVariable* typeInfo = nullptr;
     llvm::GlobalVariable* vtable = nullptr;
+
+    llvm::GlobalVariable* typeNamePointVar = nullptr;
+    llvm::GlobalVariable* typeInfoPointVar = nullptr;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
