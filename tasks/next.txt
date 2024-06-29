@@ -1,6 +1,5 @@
-add extending, throwables common super class;
+add throwables common super class;
 add final variables;
-add interfaces;
 add enums;
 type casting;
 add template classes;
@@ -9,5 +8,3 @@ add debug info;
 add header parsing for include and usage of c(++) files;
 add package manager;
 add phi;
-
-add exceptions, try/catch;

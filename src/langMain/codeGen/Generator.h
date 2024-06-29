@@ -119,6 +119,7 @@ public:
     BasicBlock* unreach = nullptr;
     GlobalVariable* cxx_pointer_type_info = nullptr;
     GlobalVariable* cxx_class_type_info = nullptr;
+    Function* cxx_pure_virtual = nullptr;
     static Generator* instance;
     static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
@@ -129,6 +130,8 @@ public:
     static BeContained* typeNameRet;
     static std::vector<BasicBlock*> catches;
     static std::vector<BasicBlock*> catchCont;
+    static bool contained;
+    static bool stump;
 };
 
 

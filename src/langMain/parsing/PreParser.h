@@ -28,6 +28,8 @@ public:
 
     void err(const std::string&err) const;
 
+    bool parseContained();
+
 private:
     Info* m_info;
     SrcFile* currentFile = nullptr;

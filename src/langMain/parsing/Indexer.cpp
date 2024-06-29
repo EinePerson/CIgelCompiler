@@ -25,24 +25,42 @@ void Indexer::index(SrcFile* file) {
         if(!b)break;
     }
     while (peak().has_value()) {
-        if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enum) {
+        if((peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enum) || peak().value().type == TokenType::_abstract) {
             IgType* type = nullptr;
             bool cont = false;
             switch (peak().value().type) {
                 case TokenType::_struct:  type = new Struct;
-                cont = false;
-                if(!m_super.empty())type->contType = m_super.back();
-                break;
-                case TokenType::_class:type = new Class;
-                if(!m_super.empty())type->contType = m_super.back();
-                m_super.push_back(type);
-                cont = true;
-                break;
+                    cont = false;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    break;
+                case TokenType::_abstract:
+                    consume();
+                    if(peak().value().type != TokenType::_class) {
+                        consume();
+                        continue;
+                    }
+                    type = new Class;
+                    dynamic_cast<Class*>(type)->abstract = true;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    m_super.push_back(type);
+                    cont = true;
+                    break;
+                case TokenType::_class:
+                    type = new Class;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    m_super.push_back(type);
+                    cont = true;
+                    break;
                 case TokenType::_namespace: type = new NamesSpace;
-                if(!m_super.empty())type->contType = m_super.back();
-                m_super.push_back(type);
-                cont = true;
-                break;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    m_super.push_back(type);
+                    cont = true;
+                    break;
+                case TokenType::interface: type = new Interface;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    m_super.push_back(type);
+                    cont = true;
+                    break;
                 default: err(&"Unkown type: " [ static_cast<uint>(peak().value().type)]);
             }
             consume();

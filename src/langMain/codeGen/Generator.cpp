@@ -49,6 +49,8 @@ bool Generator::arrRet = false;
 BeContained* Generator::typeNameRet = nullptr;
 std::vector<BasicBlock*> Generator::catches {};
 std::vector<BasicBlock*> Generator::catchCont {};
+bool Generator::contained = false;
+bool Generator::stump = false;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -81,6 +83,10 @@ void Generator::generate() {
 
     for (auto type : m_file->types) {
         type->generateSig(m_builder.get());
+    }
+
+    for (auto type : m_file->types) {
+        type->generatePart(m_builder.get());
     }
 
     for (auto type : m_file->types) {
@@ -150,6 +156,7 @@ void Generator::genFunc(IgFunction* func,bool member) {
         unreach = nullptr;
     }
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
+        m_module->print(outs(), nullptr);
         exit(EXIT_FAILURE);
     }
     func->llvmFunc = llvmFunc;
@@ -209,8 +216,10 @@ void Generator::write() {
     CGSCCAnalysisManager CGAM;
     ModuleAnalysisManager MAM;
 
-    if(verifyModule(*m_module,&outs()))
+    if(verifyModule(*m_module,&outs())) {
+        m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
+    }
 
     if(m_info->hasFlag("Optimize")) {
         PassBuilder PB;
@@ -400,5 +409,9 @@ void Generator::initInfo() {
     if(!cxx_class_type_info) {
         cxx_class_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv117__class_type_infoE",
           nullptr,GlobalValue::NotThreadLocal,0,true);
+    }
+    if(!cxx_pure_virtual) {
+        m_module->getOrInsertFunction("__cxa_pure_virtual",FunctionType::get(m_builder->getVoidTy(),{},false));
+        cxx_pure_virtual = m_module->getFunction("__cxa_pure_virtual");
     }
 }

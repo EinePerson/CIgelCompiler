@@ -94,3 +94,21 @@ std::string Igel::Mangler::mangle(BeContained* cont, std::vector<llvm::Type*> ty
     str += mangle(std::move(types),std::move(typeNames),std::move(signage),member,constructor);
     return str;
 }
+
+char Igel::Mangler::typeToChar(llvm::Type *type, bool _signed) {
+    std::string name;
+    char c = -2;
+    if(type->isIntegerTy(8))c = 'c';
+    else if(type->isIntegerTy(16))c = 's';
+    else if(type->isIntegerTy(32))c = 'i';
+    else if(type->isIntegerTy(64))c = 'l';
+    else if(type->isDoubleTy())c = 'd';
+    else if(type->isFloatTy())c = 'f';
+    else {
+        std::cerr << "Expected pirimitive" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    c += !_signed;
+    if(c >= 0)return c;
+    exit(EXIT_FAILURE);
+}

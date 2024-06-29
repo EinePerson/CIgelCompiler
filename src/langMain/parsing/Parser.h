@@ -39,12 +39,14 @@ public:
     NodeStmtFor* parseFor();
     NodeStmtWhile* parseWhile();
     NodeStmtIf* parseIf();
-    std::optional<IgFunction*> parseFunc();
+    std::optional<IgFunction*> parseFunc(bool constructor = false);
     std::optional<BeContained*> parseContained();
 
     std::optional<IgType*> parseType();
 
     SrcFile* parseProg(SrcFile* file);
+
+    bool isprocedingFund();
 
 private:
     [[nodiscard]] std::optional<Token> peak(const int count = 0) const{

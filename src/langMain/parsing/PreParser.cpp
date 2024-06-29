@@ -83,8 +83,33 @@ void PreParser::parseScope(bool contain,bool parenth) {
                     parseScope(false);
                     m_super.pop_back();
                     break;
+                case TokenType::_abstract:
+                    if(peak().value().type != TokenType::_class)break;
+                    consume();
                 case TokenType::_class:
+                    if(tryConsume(TokenType::extends)) {
+                        tryConsume(TokenType::id,"Expected type name");
+                    }
+                    if(tryConsume(TokenType::implements)) {
+                        bool b = false;
+                        while (tryConsume(TokenType::id)) {
+                            b = tryConsume(TokenType::comma).has_value();
+                        }
+                        if(b)err("Expected type name");
+                    }
                 case TokenType::_namespace:
+                    m_super.push_back(type);
+                    parseScope(true);
+                    m_super.pop_back();
+                    break;
+                case TokenType::interface:
+                    if(tryConsume(TokenType::extends)) {
+                        bool b = false;
+                        while (tryConsume(TokenType::id)) {
+                            b = tryConsume(TokenType::comma).has_value();
+                        }
+                        if(b)err("Expected type name");
+                    }
                     m_super.push_back(type);
                     parseScope(true);
                     m_super.pop_back();
@@ -126,4 +151,12 @@ void PreParser::err(const std::string&err) const {
     std::cerr << err << "\n" << "   at: " << (peak().has_value()?peak().value().file:peak(-1).value().file) << ":" << (peak().has_value()?peak().value().line:peak(-1).value().line) << ":"
     << (peak().has_value()?peak().value()._char:peak(-1).value()._char) << std::endl;
     exit(EXIT_FAILURE);
+}
+
+bool PreParser::parseContained() {
+    while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {
+        tryConsume(TokenType::id);
+        tryConsume(TokenType::dConnect);
+    }
+    return peak().value().type == TokenType::dConnect;
 }

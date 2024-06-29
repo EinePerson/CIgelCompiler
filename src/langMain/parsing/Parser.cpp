@@ -345,6 +345,21 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 consume();
                 tryConsume(TokenType::semi,"Expected ';'");
                 return new NodeStmtContinue;
+            }else if(peak().has_value() && peak().value().type == TokenType::super) {
+                tryConsume(TokenType::super);
+                tryConsume(TokenType::openParenth,"Expected '('");
+                auto* call = new NodeStmtSuperConstructorCall;
+                if(!dynamic_cast<Class*>(m_super.back()))err("Call to super constructor can only be done in a class");
+                call->_this = dynamic_cast<Class*>(m_super.back());
+                bool comma = true;
+                while (auto expr = parseExpr()) {
+                    if(!comma)err("Expected ','");
+                    call->exprs.push_back(expr.value());
+                    comma = tryConsume(TokenType::comma).has_value();
+                }
+                tryConsume(TokenType::closeParenth,"Expected ')'");
+                if(semi)tryConsume(TokenType::semi,"Expected ';'");
+                return call;
             }else if(peak().has_value() && peak().value().type == TokenType::id) {
                 BeContained* cont;
                 if(auto co = parseContained())cont = co.value();
@@ -465,6 +480,7 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
         pirim->_static = _static;
         if(varHolder)pirim->contType = varHolder;
         varTypes.back()[pirim->name] = Types::VarType::PirimVar;
+        m_sidFlag = -1;
         return pirim;
     }
     return {};
@@ -689,26 +705,55 @@ NodeStmtFor* Parser::parseFor() {
             return stmt_if;
         }
 
-        std::optional<IgFunction*> Parser::parseFunc(){
+        std::optional<IgFunction*> Parser::parseFunc(bool constructor){
             auto func = new IgFunction;
-            func->final = tryConsume(TokenType::final).has_value();
-            func->_static = tryConsume(TokenType::_static).has_value();
-            if(!m_super.empty()) {
-                func->contType = m_super.back();
-                m_super.back()->contained.push_back(func);
-            }else func->_static = true;
+            if(!constructor) {
+                func->final = tryConsume(TokenType::final).has_value();
+                func->_static = tryConsume(TokenType::_static).has_value();
+                func->abstract = tryConsume(TokenType::_abstract).has_value();
+                func->_override = tryConsume(TokenType::_override).has_value();
+                if(func->_static && (func->final || func->abstract || func->_override)) {
+                    err("Static Function cannot be final, abstract or override");
+                    return {};
+                }
+                if(func->final && func->abstract) {
+                    err("Abstract function cannot be final");
+                    return {};
+                }
+                if(func->_override && func->abstract) {
+                    err("Abstract function cannot be override");
+                    return {};
+                }
 
-            if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void || peak().value().type == TokenType::id)) {
-                Token ret = consume();
-                if(!ret.value.has_value())func->retTypeName = ret.value.value();
-                else func->retTypeName = "";
-                func->_return = getType(ret.type);
-                func->returnSigned = false;
+                if(!m_super.empty()) {
+                    func->contType = m_super.back();
+                    m_super.back()->contained.push_back(func);
+                    if(dynamic_cast<Interface*>(m_super.back()))func->abstract = true;
+                }else func->_static = true;
+            }else {
+                func->final = true;
+                func->_static = false;
+                func->abstract = false;
+                func->_override = false;
             }
-            else if(peak().has_value() && (peak().value().type == TokenType::_float || peak().value().type == TokenType::_double)) {
-                func->_return = getType(consume().type);
-                func->returnSigned = true;
-            }else return {};
+
+            if(!constructor) {
+                if(peak().has_value() && (peak().value().type <= TokenType::_ulong || peak().value().type == TokenType::_void || peak().value().type == TokenType::id)) {
+                    Token ret = consume();
+                    if(!ret.value.has_value())func->retTypeName = ret.value.value();
+                    else func->retTypeName = "";
+                    func->_return = getType(ret.type);
+                    func->returnSigned = false;
+                }
+                else if(peak().has_value() && (peak().value().type == TokenType::_float || peak().value().type == TokenType::_double)) {
+                    func->_return = getType(consume().type);
+                    func->returnSigned = true;
+                }else return {};
+            }else {
+                func->retTypeName = "";
+                func->returnSigned = false;
+                func->_return = Type::getVoidTy(*Generator::m_contxt);
+            }
 
             auto hname = tryConsume(TokenType::id,"Expected identifier").value;
 
@@ -733,10 +778,14 @@ NodeStmtFor* Parser::parseFor() {
             }
 
             tryConsume(TokenType::closeParenth,"Expected ')'");
-            if(auto scope = parseScope())func->scope = scope.value();
-            else {
-                err("Expected Scope");
-            }
+            if(!func->abstract) {
+                if(auto scope = parseScope())func->scope = scope.value();
+                else {
+                    err("Expected Scope");
+                }
+            }else if(parseScope()){
+                err("Abstract function cannot have body");
+            }else tryConsume(TokenType::semi,"Expected ';' after function definition of abstract function");
 
             func->name = hname.value();
 
@@ -744,6 +793,7 @@ NodeStmtFor* Parser::parseFor() {
         }
 
 std::optional<BeContained*> Parser::parseContained() {
+    if (peak().value().type != TokenType::id) return {};
     //if(peak(1).value().type != TokenType::dConnect)return {};
     IgType* cont = nullptr;
     while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {
@@ -797,6 +847,12 @@ std::optional<IgType*> Parser::parseType() {
                     }
                     return str;
                 }
+                case TokenType::_abstract:{
+                    if(peak().value().type != TokenType::_class)break;
+                    consume();
+                    Class* clazz = dynamic_cast<Class *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    clazz->abstract = true;
+                }
                 case TokenType::_class: {
                     Class* clazz = dynamic_cast<Class *>(m_file->nameTypeMap[peak().value().value.value()]);
                     if(!m_super.empty()) {
@@ -804,12 +860,13 @@ std::optional<IgType*> Parser::parseType() {
                         m_super.back()->contained.push_back(clazz);
                     }
 
+                    clazz->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     if(tryConsume(TokenType::extends)) {
                         if(auto cont = parseContained()) {
                             if(auto ext = dynamic_cast<Class*>(m_file->nameTypeMap[cont.value()->mangle()])) {
                                 clazz->extending = ext;
-                            }err("Can only extend classes");
-                        }err("Expected class name after \"extending\"");
+                            }else err("Can only extend classes");
+                        }else err("Expected class name after \"extending\"");
                     }
 
                     if(tryConsume(TokenType::implements)) {
@@ -819,31 +876,36 @@ std::optional<IgType*> Parser::parseType() {
                             if(auto imp = dynamic_cast<Interface*>(m_file->nameTypeMap[cont.value()->mangle()])){
                                 clazz->implementing.push_back(imp);
                                 next = tryConsume(TokenType::comma).has_value();
-                            }err("Can only implement interfaces");
+                            }else err("Can only implement interfaces");
                         }
                         if(clazz->implementing.empty())err("Expected interface name after \"implements\"");
                     }
 
-                    clazz->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     tryConsume(TokenType::openCurl,"Expected '{'");
                     m_super.push_back(clazz);
 
                     varTypes.emplace_back();
                     while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
-                        if(auto stmt = parseStmt()) {
+                        if(peak().value().type == TokenType::id && peak().value().value.value() == clazz->name && peak(1).has_value() && peak(1).value().type == TokenType::openParenth) {
+                            auto func = parseFunc(true);
+                            if(!func.has_value())err("Expected constructor after typename");
+                            clazz->constructors.push_back(func.value());
+                        }else if(isprocedingFund()) {
+                            if(auto func = parseFunc()) {
+                                clazz->funcs.push_back(func.value());
+                            }else err("Expected function definition");
+                        }else if(auto stmt = parseStmt()) {
                             if(auto var = dynamic_cast<NodeStmtLet*>(stmt.value())) {
-                                if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt.value()))clazz->typeName.push_back(type);
+                                if(auto type = dynamic_cast<NodeStmtNew*>(stmt.value()))clazz->typeName.push_back(type);
                                 else clazz->typeName.emplace_back(nullptr);
                                 clazz->vars.push_back(var);
                                 clazz->types.push_back(var->type);
                             }else {
-                                err("Only Fields/Attributes/Variables are allowed in structs");
+                                err("Only Fields/Attributes/Variables are allowed in classes");
                             }
-                        }else if(auto func = parseFunc()) {
-                            clazz->funcs.push_back(func.value());
                         }else if(auto type = parseType()) {
                             clazz->contained.push_back(type.value());
-                        } else err("Expected Type or Variable");
+                        } else err("Expected Type or Variable or Type");
                     }
                     varTypes.pop_back();
                     tryConsume(TokenType::closeCurl,"Expected '}'");
@@ -864,12 +926,39 @@ std::optional<IgType*> Parser::parseType() {
                             if(auto func = parseFunc()) {
                                 nmspc->funcs.push_back(func.value());
                             }else if(auto type = parseType()) {
-                                //nmspc->contained.push_back(type.value());
+                                nmspc->contained.push_back(type.value());
                             }else err("Expected type or function in namespace");
                     }
                     tryConsume(TokenType::closeCurl,"Expected '}'");
                     m_super.pop_back();
                     return nmspc;
+                }
+                case TokenType::interface: {
+                    Interface* intf = dynamic_cast<Interface *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    intf->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+                    m_super.push_back(intf);
+                    if(tryConsume(TokenType::extends)) {
+                        bool next = true;
+                        while (auto cont = parseContained()) {
+                            if(!next)err("Expected comma between typenames");
+                            if(auto imp = dynamic_cast<Interface*>(m_file->nameTypeMap[cont.value()->mangle()])){
+                                intf->extending.push_back(imp);
+                                next = tryConsume(TokenType::comma).has_value();
+                            }else err("Can only implement interfaces");
+                        }
+                        if(intf->extending.empty())err("Expected interface name after \"implements\"");
+                    }
+                    tryConsume(TokenType::openCurl,"Expected '{' after type declaration");
+                    while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
+                        if(auto func = parseFunc()) {
+                            intf->funcs.push_back(func.value());
+                        }else if(auto type = parseType()) {
+                            intf->contained.push_back(type.value());
+                        }else err("Expected type or function in namespace");
+                    }
+                    tryConsume(TokenType::closeCurl,"Expected '}'");
+                    m_super.pop_back();
+                    return intf;
                 }
                 default:
                     return {};
@@ -892,3 +981,24 @@ std::optional<IgType*> Parser::parseType() {
             file->tokenPtr = m_I;
             return file;
         }
+
+bool Parser::isprocedingFund() {
+    if(!peak(2).has_value())return false;
+    int i = 0;
+    i += peak(i).value().type == TokenType::final;
+    i += peak(i).value().type == TokenType::_static;
+    i += peak(i).value().type == TokenType::_abstract;
+    i += peak(i).value().type == TokenType::_override;
+    if(!(peak(i).has_value() && (peak(i).value().type == TokenType::id || peak(i).value().type <= TokenType::_bool || peak(i).value().type == TokenType::_void))) {
+        return false;
+    }
+    i++;
+    if(!(peak(i).has_value() && peak(i).value().type == TokenType::id)) {
+        return false;
+    }
+    i++;
+    if(!(peak(i).has_value() && peak(i).value().type == TokenType::openParenth)) {
+        return false;
+    }
+    return true;
+}

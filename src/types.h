@@ -6,11 +6,13 @@
 #define TYPES_H
 #include <llvm/IR/IRBuilder.h>
 #include <variant>
+#include <llvm/Support/FileSystem.h>
 
 #include "tokenizer.h"
 #include "exceptionns/Generator.h"
 //#include "langMain/parsing/Parser.h"
 
+struct Class;
 struct Var;
 struct IgFunction;
 
@@ -173,6 +175,8 @@ struct NodeTermAcces final : NodeTerm {
     llvm::Value * generate(llvm::IRBuilder<> *builder) override;
 
     llvm::Value * generatePointer(llvm::IRBuilder<> *builder) override;
+
+    llvm::Value* generateClassPointer(llvm::IRBuilder<> *builder);
 };
 
 struct NodeTermArrayAcces final : NodeTerm{
@@ -203,7 +207,7 @@ struct NodeTermClassAcces final : NodeTerm {
     Token acc;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
-    llvm::Value* generateClassPointer(llvm::IRBuilder<>* builder);
+    //llvm::Value* generateClassPointer(llvm::IRBuilder<>* builder);
 };
 
 struct NodeTermFuncCall final : NodeTerm{
@@ -391,6 +395,13 @@ struct NodeStmtFuncCall final : NodeStmt{
     };
 };
 
+struct NodeStmtSuperConstructorCall final : NodeStmt {
+    std::vector<NodeExpr*> exprs {};
+    Class* _this = nullptr;
+
+    llvm::Value * generate(llvm::IRBuilder<> *builder) override;
+};
+
 struct NodeStmtLet : NodeStmt,BeContained{
     llvm::Type* type = nullptr;
     IgType* typeName = nullptr;
@@ -445,6 +456,7 @@ struct NodeStmtExit final : NodeStmt{
 
 struct  NodeStmtScope final : NodeStmt{
     std::vector<NodeStmt*> stmts;
+    int startIndex = 0;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override /*{
         llvm::Value* val = nullptr;
         for (const auto stmt : stmts)
@@ -557,6 +569,8 @@ struct IgFunction final : BeContained{
     NodeStmtScope* scope = nullptr;
     llvm::Function* llvmFunc = nullptr;
     std::optional<Class*> supper {};
+    bool abstract = false;
+    bool _override = false;
 
     std::string mangle() override;
 };
@@ -571,6 +585,7 @@ struct IgType : BeContained {
     std::unordered_map<std::string,std::string> varTypeNames = {};
 
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
+    virtual void generatePart(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
 };
 
@@ -588,6 +603,8 @@ struct Struct final : IgType {
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
+    void generatePart(llvm::IRBuilder<> *builder) override;
+
     void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
@@ -599,6 +616,8 @@ struct Struct final : IgType {
 struct ContainableType : IgType {
     explicit ContainableType() = default;
     std::vector<BeContained*> contained {};
+
+    virtual std::vector<std::vector<IgFunction*>> getFuncsRec() = 0;
 };
 
 struct NamesSpace final : ContainableType {
@@ -607,10 +626,18 @@ struct NamesSpace final : ContainableType {
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
+    void generatePart(llvm::IRBuilder<> *builder) override {
+
+    };
+
     void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override {
         throw IllegalGenerationException("Cannot mangle namespace");
+    }
+
+    std::vector<std::vector<IgFunction*>> getFuncsRec() override {
+        return {funcs};
     }
 };
 
@@ -618,18 +645,32 @@ struct Interface final : ContainableType {
     Interface() : ContainableType(){}
 
     std::vector<IgFunction*> funcs;
+    std::vector<Interface*> extending {};
 
-    std::string mangle() override {
-        throw IllegalGenerationException("Cannot mangle interface");
-    };
+    std::string mangle() override;
 
     void generateSig(llvm::IRBuilder<>* builder) override {
 
     };
 
-    void generate(llvm::IRBuilder<>* builder) override {
+    void generatePart(llvm::IRBuilder<> *builder) override {
 
     };
+
+    void generate(llvm::IRBuilder<>* builder) override {
+
+    }
+
+    std::vector<std::vector<IgFunction*>> getFuncsRec() override {
+        std::vector<std::vector<IgFunction*>> funcsRet {};
+        if(!funcs.empty()) funcsRet.push_back(funcs);
+
+        for(auto& e : extending){
+            auto extFuncs = e->getFuncsRec();
+            funcsRet.insert(funcsRet.end(),extFuncs.begin(),extFuncs.end());
+        }
+        return funcsRet;
+    }
 };
 
 struct Class final : ContainableType {
@@ -646,17 +687,25 @@ struct Class final : ContainableType {
     std::vector<BeContained*> typeName;
 
     llvm::StructType* strType = nullptr;
+
+    uint vTablePtrs = 0;
     std::optional<Class*> extending = {};
     std::vector<Interface*> implementing {};
+    bool final = false;
 
     std::vector<IgFunction*> funcs;
-    std::unordered_map<std::string,uint> funcIdMs;
+    std::unordered_map<uint,std::unordered_map<uint,IgFunction*>> funcMap;
+    std::unordered_map<std::string,std::pair<uint,uint>> funcIdMs;
 
-    IgFunction* constructor = nullptr;
-    bool hasCustContructor = false;
+    std::vector<IgFunction*> constructors {};
+    std::optional<IgFunction*> defaulfConstructor = {};
+
+    bool abstract = false;
 
     ///\brief generateSig was called
     bool wasGen = false;
+    ///\brief generatePart was called
+    bool partGen = false;
     ///\brief generate was called
     bool fullGen = false;
 
@@ -669,9 +718,38 @@ struct Class final : ContainableType {
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
+    void generatePart(llvm::IRBuilder<> *builder) override;
+
     void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
+
+    std::vector<std::vector<IgFunction *>> getFuncsRec() override {
+        std::vector<std::vector<IgFunction *>> funcsRet {funcs};
+        if(extending.has_value()) {
+            auto extFuncs = extending.value()->getFuncsRec();
+            funcsRet[0].insert(funcsRet[0].begin(),extFuncs[0].begin(),extFuncs[0].end());
+            extFuncs.erase(extFuncs.begin());
+            auto extFuncRet = extending.value()->getFuncsRec();
+            funcsRet.insert(funcsRet.end(),extFuncRet.begin(),extFuncRet.end());
+        }
+
+        for(const auto& e : implementing){
+            auto funccpy = e->getFuncsRec();
+            funcsRet.reserve(funccpy.size());
+            for(auto& f : funccpy){
+                funcsRet.push_back(f);
+            }
+        }
+        return funcsRet;
+    }
 };
+
+namespace Igel {
+    inline void errAt(const Token &t) {
+        std::cerr << "\n at: " << t.file << ":" << t.line << ":" << t._char << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
 
 #endif //TYPES_H

@@ -117,6 +117,9 @@ enum class TokenType{
     extends,
     implements,
     _abstract,
+    _override,
+    super,
+
     null,
     _static,
     final,
@@ -130,7 +133,7 @@ std::optional<int> prec(TokenType type);
 
 struct Token{
     Token():type(TokenType::uninit),line(-1),_char(-1) {}
-    Token(const TokenType type, const uint line,const uint _char,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), file(std::move(file)),_char(_char) {}
+    Token(const TokenType type, const uint line,const uint _char,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), _char(_char),file(std::move(file)) {}
     Token(const Token& other) {
         type = other.type;
         value = other.value;
@@ -151,6 +154,7 @@ struct Token{
         this->value = other.value;
         this->line = other.line;
         this->file = other.file;
+        this->_char = other._char;
         return *this;
     }
 };
@@ -213,6 +217,8 @@ class Tokenizer{
             {"abstract",TokenType::_abstract},
             {"extends",TokenType::extends},
             {"implements",TokenType::implements},
+            {"override",TokenType::_override},
+            {"super",TokenType::super},
 
             {"static",TokenType::_static},
             {"final",TokenType::final},
