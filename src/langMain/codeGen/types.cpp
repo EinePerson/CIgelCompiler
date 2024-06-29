@@ -34,6 +34,7 @@ llvm::Value* NodeTermId::generatePointer(llvm::IRBuilder<>* builder) {
           return contained.value()->generatePointer(builder);
      }
      Var* var = Generator::instance->getVar(Igel::Mangler::mangleName(cont));
+     Generator::_final = var->_final;
      if(auto str = dynamic_cast<StructVar*>(var)){
           Generator::typeNameRet = str->str;
           Generator::structRet = str->str;
@@ -63,6 +64,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                     return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,0);
                }
                uint fid = clz.value().second?clz->second->varIdMs[acc.value.value()]:str->second->varIdMs[acc.value.value()];
+               Generator::_final = clz.value().second?clz->second->finals[acc.value.value()]:str->second->finals[acc.value.value()];
                return  builder->CreateLoad(clz.has_value()?clz.value().second->types[fid]:str.value().second->types[fid],this->generatePointer(builder));
 
           }else return nullptr;
@@ -81,21 +83,25 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
           val = contained.value()->generatePointer(builder);
           if(Generator::structRet) {
                str = Generator::structRet;
+               Generator::_final = str->finals[acc.value.value()];
                Generator::structRet = nullptr;
                isClz = false;
           }else {
                Generator::contained = true;
                val = contained.value()->generate(builder);
                clz = Generator::classRet;
+               Generator::_final = clz->finals[acc.value.value()];
                Generator::classRet = nullptr;
                isClz = true;
           }
           Generator::contained = false;
      }else {
           if(var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()))) {
+               Generator::_final = var->str->finals[acc.value.value()];
                val = var->alloc;
                isClz = false;
           }else if(clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()))){
+               Generator::_final = clzVar->clazz->finals[acc.value.value()];
                val = builder->CreateLoad(clzVar->type,clzVar->alloc);
                isClz = true;
           }else {
@@ -230,22 +236,26 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
           val = contained.value()->generatePointer(builder);
           if(Generator::structRet) {
                str = Generator::structRet;
+               Generator::_final = str->finals[acc.value.value()];
                Generator::structRet = nullptr;
                isClz = false;
           }else {
                Generator::contained = true;
                val = contained.value()->generate(builder);
                clz = Generator::classRet;
+               Generator::_final = clz->finals[acc.value.value()];
                Generator::classRet = nullptr;
                isClz = true;
           }
           Generator::contained = false;
      }else {
           if(var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()))) {
+               Generator::_final = var->str->finals[acc.value.value()];
                val = var->alloc;
                isClz = false;
           }else {
-               auto tst = Generator::instance->getVar(id->mangle());
+               auto tst = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+               Generator::_final = tst->clazz->finals[acc.value.value()];
                clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
                val = builder->CreateLoad(clzVar->type,clzVar->alloc);
                isClz = true;
@@ -451,9 +461,11 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generate(builder);
           str = Generator::structRet;
+          Generator::_final = str->finals[acc.value.value()];
           Generator::structRet = nullptr;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
+          Generator::_final = var->str->finals[acc.value.value()];;
           val = var->alloc;//builder->CreateLoad(var->type,var->alloc);
      }
      if(!str && !var) {
@@ -500,9 +512,11 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generatePointer(builder);
           str = Generator::structRet;
+          Generator::_final = str->finals[acc.value.value()];
           Generator::structRet = nullptr;
      }else {
           var = dynamic_cast<StructVar*>(Generator::instance->getVar(id->mangle()));
+          Generator::_final = var->str->finals[acc.value.value()];
           val = var->alloc;//builder->CreateLoad(var->type,var->alloc);
      }
 
@@ -549,8 +563,10 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generate(builder);
           str = Generator::classRet;
+          Generator::_final = str->finals[acc.value.value()];
      }else {
           var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          Generator::_final = var->clazz->finals[acc.value.value()];;
           val = builder->CreateLoad(var->type,var->alloc);
      }
      if(!str && !var) {
@@ -595,8 +611,10 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generate(builder);
           str = Generator::classRet;
+          Generator::_final = str->finals[acc.value.value()];
      }else {
           var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          Generator::_final = var->clazz->finals[acc.value.value()];;
           val = builder->CreateLoad(var->type,var->alloc);
      }
 
@@ -644,8 +662,10 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
      if(contained) {
           val = contained.value()->generatePointer(builder);
           str = Generator::classRet;
+          Generator::_final = str->finals[acc.value.value()];
      }else {
           var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
+          Generator::_final = var->_final;
           val = builder->CreateLoad(var->type,var->alloc);
      }
 
@@ -733,7 +753,7 @@ std::pair<llvm::Value*, Var*> NodeStmtPirimitiv::generateImpl(llvm::IRBuilder<>*
           alloc = builder->CreateAlloca(type);
           builder->CreateStore(val,alloc);
      }
-     return {val,new Var{alloc,_signed}};
+     return {val,new Var{alloc,_signed,final}};
 }
 
 std::string NodeStmtPirimitiv::mangle() {
@@ -754,11 +774,12 @@ std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>*
           //Value* gen = term->generate(builder);
           //builder->CreateStore(gen,alloc);
 
-          auto var = new StructVar(alloc);
+          auto var = new StructVar(alloc,final);
           var->strType = structT.value().first;
           var->str = structT.value().second;
           var->types = structT.value().second->types;
 
+          std::unordered_map<std::string,bool> finals;
           for(size_t i = 0;i < structT.value().second->vars.size();i++) {
                NodeStmtLet* let = structT.value().second->vars[i];
                std::string str = structT.value().second->vars[i]->name;
@@ -768,8 +789,10 @@ std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>*
                if(auto pirim = dynamic_cast<NodeStmtPirimitiv*>(let))var->signage.push_back(pirim->sid <= (char) TokenType::_long);
                else var->signage.push_back(false);
                var->vars[str] = i;
+               finals[structT.value().second->vars[i]->name] = structT.value().second->vars[i]->final;
           }
           if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
+          if(structT.value().second->finals.empty())structT.value().second->finals = finals;
           if(!structT.value().second->strType)structT.value().second->strType = structT.value().first;
           return {alloc,var};
      }else {
@@ -785,7 +808,7 @@ std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* 
           Value* gen = term->generate(builder);
           builder->CreateStore(gen,alloc);
 
-          auto var = new ClassVar(alloc);
+          auto var = new ClassVar(alloc,final);
           var->type = builder->getPtrTy();
           var->strType = clazz.value().first;
           var->clazz = clazz.value().second;
@@ -816,7 +839,7 @@ Value* createArr(std::vector<Value*> sizes,std::vector<Type*> types,uint i,llvm:
 std::pair<llvm::Value*, Var*> NodeStmtArr::generateImpl(llvm::IRBuilder<>* builder) {
      Value* val = llvm::ConstantPointerNull::get(llvm::PointerType::get(builder->getContext(),0));
      if(term)val = term->generate(builder);
-     auto* var = new ArrayVar(builder->CreateAlloca(builder->getPtrTy()),sid <= 3,typeName != nullptr?typeName:(std::optional<BeContained*>) {});
+     auto* var = new ArrayVar(builder->CreateAlloca(builder->getPtrTy()),sid <= 3,final,typeName != nullptr?typeName:(std::optional<BeContained*>) {});
      var->size = size;
      var->type = getType(static_cast<TokenType>(sid));
      builder->CreateStore(val,var->alloc);
@@ -985,7 +1008,13 @@ llvm::Value* NodeStmtSwitch::generate(llvm::IRBuilder<>* builder) {
 
 
 llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
+     Generator::_final = false;
      Value* val = id->generatePointer(builder);
+     if(Generator::_final) {
+          std::cerr << "Cannot modify final variable " << std::endl;
+          if(auto val = dynamic_cast<NodeTermAcces*>(id))Igel::errAt(val->acc);
+          exit(EXIT_FAILURE);
+     }
      if(op == TokenType::eq) {
           return builder->CreateStore(expr->generate(builder),val);
      }else {
@@ -1000,7 +1029,12 @@ llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
 
 llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
      //TODO add exception throwing when IndexOutOfBounds
+     Generator::_final = false;
      Value* ep = acces->generatePointer(builder);
+     if(Generator::_final) {
+          std::cerr << "Cannot modify final variable " << std::endl;
+          exit(EXIT_FAILURE);
+     }
      if(op == TokenType::eq) {
           Value* gen = expr.value()->generate(builder);
           Value* val = builder->CreateStore(gen,ep);
@@ -1113,7 +1147,7 @@ llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
           AllocaInst* alloc = builder->CreateAlloca(builder->getPtrTy());
           Value* varLoad = builder->CreateLoad(builder->getPtrTy(),varRet);
           builder->CreateStore(varLoad,alloc);
-          auto var = new ClassVar(alloc);
+          auto var = new ClassVar(alloc,false);
           var->type = builder->getPtrTy();
           var->strType = clazz.value().first;
           var->clazz = clazz.value().second;
@@ -1337,6 +1371,7 @@ void Class::generatePart(llvm::IRBuilder<> *builder) {
           if(!vars[i]->_static) {
                std::string str = vars[i]->name;
                varIdMs[str] = j + fullFuncs.size();
+               finals[str] = vars[i]->final;
                j++;
           }
      }

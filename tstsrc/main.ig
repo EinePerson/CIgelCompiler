@@ -1,23 +1,12 @@
 int main(){
-    SUS a = new SUS();
-    printf("Test 1\n");
-    printf("%d\n",a.getSUS(74));
-    printf("%d\n",a.c);
-    a.amo = new Amogus();
-    a.amo.e = 420;
+    final SUS a = new SUS();
+    a.c = 69420;
 
-    int i = false?26:73;
-    printf("%d",i);
-
-    a.c = 15;
-    a.b = 69;
-    printf("Test3\n");
-    a.a();
-    printf("%d\n",a.c);
-    a.test();
-    printf("%d\n",a.b);
-    printf("%d\n",a.amo.e);
-    a.gab();
+    try{
+        throw a;
+    }catch(SUS excp){
+        printf("%d\n",excp.c);
+    }
 
     return 0;
 }

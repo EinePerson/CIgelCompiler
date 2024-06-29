@@ -51,6 +51,7 @@ std::vector<BasicBlock*> Generator::catches {};
 std::vector<BasicBlock*> Generator::catchCont {};
 bool Generator::contained = false;
 bool Generator::stump = false;
+bool Generator::_final = false;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -311,14 +312,14 @@ std::optional<Var*> Generator::getOptVar(std::string name, bool _this) {
     return  {};
 }
 
-void Generator::createVar(const std::string&name,Type* type,Value* val,bool _signed) {
+void Generator::createVar(const std::string&name,Type* type,Value* val,bool _signed,bool _final) {
     if(m_currentVar == 0) {
         if(getOptVar(name)) {
             std::cerr << "Identifier already used: " << name << std::endl;
         }
         AllocaInst* alloc = m_builder->CreateAlloca(type);
         m_builder->CreateStore(val,alloc);
-        m_vars.back()[name] = new Var{alloc,_signed};
+        m_vars.back()[name] = new Var{alloc,_signed,_final};
     }
 }
 
@@ -335,7 +336,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
     m_builder->CreateStore(arg,alloc);
     if(arg->getType()->isPointerTy()) {
         if(auto structT = Generator::instance->m_file->findStruct(typeName)){
-            auto var = new StructVar(alloc);
+            auto var = new StructVar(alloc,false);
             var->str = structT.value().second;
             //var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
             var->strType = structT.value().first;
@@ -354,7 +355,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             createVar(Igel::Mangler::mangle(arg->getName().str()),var);
             return;
         }else if(auto clazzT = Generator::instance->m_file->findClass(typeName)){
-            auto var = new ClassVar(alloc);
+            auto var = new ClassVar(alloc,false);
             var->clazz = clazzT.value().second;
             var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
             var->strType = clazzT.value().first;
@@ -374,7 +375,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             return;
         }
     }
-    createVar(Igel::Mangler::mangle(arg->getName().str()),new Var{alloc,_signed});
+    createVar(Igel::Mangler::mangle(arg->getName().str()),new Var{alloc,_signed,false});
 }
 
 void Generator::createStaticVar(std::string name, Value* val,Var* var) {

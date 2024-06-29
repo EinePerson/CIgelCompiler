@@ -167,7 +167,7 @@ struct NodeTermParen final : NodeTerm {
     };
 };
 
-struct NodeTermAcces final : NodeTerm {
+struct NodeTermAcces : NodeTerm {
     NodeTermFuncCall* call = nullptr;
     BeContained* id = nullptr;
     Token acc;
@@ -193,18 +193,18 @@ struct NodeTermArrayLength final :NodeTerm {
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
-struct NodeTermStructAcces final : NodeTerm {
-    NodeTermFuncCall* call = nullptr;
+struct NodeTermStructAcces final : NodeTermAcces {
+    /*NodeTermFuncCall* call = nullptr;
     BeContained* id = nullptr;
-    Token acc;
+    Token acc;*/
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
-struct NodeTermClassAcces final : NodeTerm {
-    NodeTermFuncCall* call = nullptr;
+struct NodeTermClassAcces final : NodeTermAcces {
+    /*NodeTermFuncCall* call = nullptr;
     BeContained* id = nullptr;
-    Token acc;
+    Token acc;*/
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
     //llvm::Value* generateClassPointer(llvm::IRBuilder<>* builder);
@@ -606,6 +606,7 @@ struct Struct final : IgType {
     std::vector<BeContained*> typeName;
     std::unordered_map<std::string,BeContained*> staticTypeName;
     std::unordered_map<std::string,uint> varIdMs;
+    std::unordered_map<std::string,bool> finals;
     llvm::StructType* strType = nullptr;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
@@ -685,6 +686,7 @@ struct Class final : ContainableType {
     std::vector<NodeStmtLet*> vars;
     //std::vector<std::string> varIds;
     std::unordered_map<std::string,uint> varIdMs;
+    std::unordered_map<std::string,bool> finals;
 
     std::vector<NodeStmtLet*> staticVars;
     std::unordered_map<std::string,BeContained*> staticTypeName;

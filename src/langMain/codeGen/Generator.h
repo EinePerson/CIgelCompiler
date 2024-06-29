@@ -23,10 +23,11 @@ struct BeContained;
 struct Struct;
 
 struct Var {
-    explicit Var(AllocaInst* alloc,bool _signed) : alloc(alloc),_signed(_signed) {}
+    explicit Var(AllocaInst* alloc,bool _signed,bool _final) : alloc(alloc),_signed(_signed),_final(_final) {}
     virtual ~Var() = default;
     Value* alloc = nullptr;
     char _signed = -1;
+    bool _final;
 
     Type* getType() {
         Type* ty;
@@ -37,14 +38,14 @@ struct Var {
 };
 
 struct ArrayVar : Var {
-    explicit ArrayVar(AllocaInst* alloc,bool _signed,std::optional<BeContained*> typeName = {}) : Var(alloc,_signed),typeName(typeName) {}
+    explicit ArrayVar(AllocaInst* alloc,bool _signed,bool _final,std::optional<BeContained*> typeName = {}) : Var(alloc,_signed,_final),typeName(typeName) {}
     Type* type = nullptr;
     std::optional<BeContained*> typeName;
     uint size = -1;
 };
 
 struct StructVar final : Var {
-    explicit StructVar(AllocaInst* alloc) : Var(alloc,false) {}
+    explicit StructVar(AllocaInst* alloc,bool _final) : Var(alloc,false,_final) {}
     std::unordered_map<std::string,uint> vars;
     std::vector<Type*> types;
     std::vector<bool> signage;
@@ -53,7 +54,7 @@ struct StructVar final : Var {
 };
 
 struct ClassVar final : Var {
-    explicit ClassVar(AllocaInst* alloc) : Var(alloc,false) {}
+    explicit ClassVar(AllocaInst* alloc,bool _final) : Var(alloc,false,_final) {}
     std::unordered_map<std::string,uint> vars;
     std::vector<Type*> types;
     std::vector<bool> signage;
@@ -92,7 +93,7 @@ public:
     Var* getVar(const std::string&name, bool _this = false);
     std::optional<Var*> getOptVar(std::string name, bool _this = false);
 
-    void createVar(const std::string&name,Type* type,Value* val,bool _signed);
+    void createVar(const std::string&name,Type* type,Value* val,bool _signed,bool _final);
     void createVar(std::string name,Var* var);
     void createVar(Argument* arg,bool _signed, const std::string&typeName);
 
@@ -132,6 +133,7 @@ public:
     static std::vector<BasicBlock*> catchCont;
     static bool contained;
     static bool stump;
+    static bool _final;
 };
 
 
