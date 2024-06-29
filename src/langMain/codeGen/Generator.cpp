@@ -156,7 +156,6 @@ void Generator::genFunc(IgFunction* func,bool member) {
         unreach = nullptr;
     }
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
-        m_module->print(outs(), nullptr);
         exit(EXIT_FAILURE);
     }
     func->llvmFunc = llvmFunc;
@@ -217,7 +216,6 @@ void Generator::write() {
     ModuleAnalysisManager MAM;
 
     if(verifyModule(*m_module,&outs())) {
-        m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
     }
 

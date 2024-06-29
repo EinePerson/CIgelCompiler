@@ -248,6 +248,8 @@ struct NodeTermArrNew final : NodeTerm {
     };
 };
 
+
+
 //BEGIN OF BINARY EXPRESIONS
 
 struct NodeBinExpr : NodeExpr{
@@ -378,6 +380,11 @@ struct NodeBinNeg final : NodeBinExpr {
     }
 };
 
+///\brief Technically a term but design requires it to be of type NodeBinExpr
+struct NodeTermInlineIf final : NodeBinExpr {
+    NodeExpr* cond = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+};
 
 //BEGIN OF STATEMENT NODES
 

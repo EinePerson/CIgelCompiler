@@ -1761,6 +1761,14 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
      return arr;
 }
 
+llvm::Value * NodeTermInlineIf::generate(llvm::IRBuilder<> *builder) {
+     Value* cmp = cond->generate(builder);
+
+     Value* lsV = ls->generate(builder);
+     Value* lsR = rs->generate(builder);
+     return builder->CreateSelect(cmp,lsV,lsR);
+}
+
 std::string Name::mangle() {
      return Igel::Mangler::mangleName(this);
 }

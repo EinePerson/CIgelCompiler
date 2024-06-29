@@ -127,6 +127,9 @@ enum class TokenType{
     _try,
     _catch,
     _throw,
+
+    ///\brief used for inline if statement
+    question,
 };
 
 std::optional<int> prec(TokenType type);

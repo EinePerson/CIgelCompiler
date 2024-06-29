@@ -6,6 +6,9 @@ int main(){
     a.amo = new Amogus();
     a.amo.e = 420;
 
+    int i = false?26:73;
+    printf("%d",i);
+
     a.c = 15;
     a.b = 69;
     printf("Test3\n");

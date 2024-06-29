@@ -22,7 +22,7 @@ public:
             case 'I': return 2;
             case 'S': return 1;
             case 'B': return 0;
-            default: return -1;
+            default: return 2;
         }
     }
 

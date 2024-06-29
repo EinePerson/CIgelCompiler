@@ -17,7 +17,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                         nodeInt->sid = m_sidFlag;
                         m_sidFlag = -1;
                     }else nodeInt->sid = 2;
-                }else nodeInt->sid = 2;
+                }else nodeInt->sid = sid;
                 nodeInt->_signed = nodeInt->sid <= 3;
                 term = nodeInt;
             }else if(auto str = tryConsume(TokenType::str)) {
@@ -225,6 +225,13 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     bit->rs = exprR.value();
                     bit->op = op.type;
                     expr = bit;
+                }else if(op.type == TokenType::question) {
+                    auto _if = new NodeTermInlineIf;
+                    _if->cond = expr;
+                    _if->ls = exprR.value();
+                    tryConsume(TokenType::next,"Expected ':'");
+                    _if->rs = parseExpr(1).value();
+                    expr = _if;
                 }else{
                     err("Unkown operator");
                 }

@@ -20,6 +20,8 @@ typedef unsigned int uint;
     std::optional<int> prec(TokenType type){
         switch (type)
         {
+            case TokenType::question:
+                return 0;
             case TokenType::bigequal:
             case TokenType::equal:
             case TokenType::notequal:
@@ -28,15 +30,15 @@ typedef unsigned int uint;
             case TokenType::big:
             case TokenType::_bitAnd:
             case TokenType::_bitOr:
-                return 0;
+                return 1;
             case TokenType::plus:
             case TokenType::sub:
-                return 1;
+                return 2;
             case TokenType::div:
             case TokenType::mul:
-                return 2;
-            case TokenType::pow:
                 return 3;
+            case TokenType::pow:
+                return 4;
             default:
                 return {};
         }
@@ -89,6 +91,10 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                     consume();
                     continue;
                 }
+            }else if(peak().value() == '?') {
+                consume();
+                m_tokens.emplace_back(TokenType::question,lineCount,charCount,file);
+                continue;
             }else if(peak().value() == '!'){
                 consume();
                 if(peak().has_value() && peak().value() == '='){
