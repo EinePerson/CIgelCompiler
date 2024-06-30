@@ -1,4 +1,3 @@
-add enums;
 type casting;
 add template classes;
 add partly libraries;
@@ -6,4 +5,5 @@ add debug info;
 add header parsing for include and usage of c(++) files;
 add package manager;
 
-add throwables common super class;
+add throwables common super class; //Not needed but nice
+add class enums;

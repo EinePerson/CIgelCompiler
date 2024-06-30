@@ -16,6 +16,10 @@ llvm::Value* NodeTermId::generate(llvm::IRBuilder<>* builder) {
      if(contained) {
           return contained.value()->generate(builder);
      }
+     if(cont->contType.has_value() && dynamic_cast<Enum*>(cont->contType.value())) {
+          auto _enum = dynamic_cast<Enum*>(cont->contType.value());
+          return ConstantInt::get(builder->getInt32Ty(),_enum->valueIdMap[cont->name]);
+     }
      Var* var = Generator::instance->getVar(Igel::Mangler::mangleName(cont));
      if(auto str = dynamic_cast<StructVar*>(var)) {
           Generator::typeNameRet = str->str;
@@ -768,6 +772,21 @@ std::string NodeStmtArr::mangle() {
      return Igel::Mangler::mangleName(this);
 }
 
+std::string NodeStmtEnum::mangle() {
+     return Igel::Mangler::mangle(this->name);
+}
+
+std::pair<llvm::Value *, Var *> NodeStmtEnum::generateImpl(llvm::IRBuilder<> *builder) {
+     Value* val = ConstantInt::get(builder->getInt32Ty(),id);
+
+     AllocaInst* alloc = nullptr;
+     if(builder->GetInsertBlock()) {
+          alloc = builder->CreateAlloca(builder->getInt32Ty());
+          builder->CreateStore(val,alloc);
+     }
+     return {val,new Var{alloc,false,final}};
+}
+
 std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>* builder) {
      if(auto structT = Generator::instance->m_file->findStruct(typeName->mangle())) {
           AllocaInst* alloc = builder->CreateAlloca(structT.value().first);
@@ -915,6 +934,7 @@ llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      }
      parFunc->insert(parFunc->end(),merge);
      builder->SetInsertPoint(merge);
+     Generator::lastUnreachable = false;
      return elseB != nullptr?elseB:then;
 }
 
@@ -950,6 +970,7 @@ llvm::Value* NodeStmtFor::generate(llvm::IRBuilder<>* builder) {
      builder->CreateBr(head);
 
      builder->SetInsertPoint(next);
+     Generator::lastUnreachable = false;
      return next;
 }
 
@@ -979,6 +1000,7 @@ llvm::Value* NodeStmtWhile::generate(llvm::IRBuilder<>* builder) {
      builder->CreateBr(head);
      next->moveAfter(&func->back());
      builder->SetInsertPoint(next);
+     Generator::lastUnreachable = false;
      return next;
 }
 
@@ -1049,6 +1071,7 @@ llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
 };
 
 llvm::Value* NodeStmtReturn::generate(llvm::IRBuilder<>* builder)  {
+     Generator::lastUnreachable = true;
      if(val) {
           return  builder->CreateRet(val.value()->generate(builder));
      }
@@ -1278,6 +1301,22 @@ void NamesSpace::generate(llvm::IRBuilder<>* builder) {
 
 std::string Interface::mangle() {
      return Igel::Mangler::mangleTypeName(this);
+}
+
+std::string Enum::mangle() {
+     return Igel::Mangler::mangleTypeName(this);
+}
+
+void Enum::generateSig(llvm::IRBuilder<> *builder) {
+     if(values.size() > std::pow(2,32)) {
+          std::cerr << "Enum can not hava more then " << std::pow(2,32) << "Entries \n    int " << mangle() << std::endl;
+     }
+}
+
+void Enum::generatePart(llvm::IRBuilder<> *builder) {
+}
+
+void Enum::generate(llvm::IRBuilder<> *builder) {
 }
 
 void Class::generateSig(llvm::IRBuilder<>* builder) {

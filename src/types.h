@@ -456,6 +456,16 @@ struct NodeStmtArr final : NodeStmtLet{
     std::string mangle() override;
 };
 
+struct NodeStmtEnum final : NodeStmtLet {
+    uint id = -1;
+
+    std::string mangle() override;
+
+    std::pair<llvm::Value *, Var *> generateImpl(llvm::IRBuilder<> *builder) override;
+
+
+};
+
 struct NodeStmtExit final : NodeStmt{
     NodeExpr* expr = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
@@ -681,6 +691,19 @@ struct Interface final : ContainableType {
     }
 };
 
+struct Enum final : IgType {
+    std::vector<std::string> values;
+    std::unordered_map<std::string,uint> valueIdMap;
+
+    std::string mangle() override;
+
+    void generateSig(llvm::IRBuilder<> *builder) override;
+
+    void generatePart(llvm::IRBuilder<> *builder) override;
+
+    void generate(llvm::IRBuilder<> *builder) override;
+};
+
 struct Class final : ContainableType {
     Class() : ContainableType(){}
     std::vector<NodeStmtLet*> vars;
@@ -758,6 +781,37 @@ namespace Igel {
     inline void errAt(const Token &t) {
         std::cerr << "\n at: " << t.file << ":" << t.line << ":" << t._char << std::endl;
         exit(EXIT_FAILURE);
+    }
+
+    ///\brief Returns the next size possible to store int bits
+    inline int nextValidVarSize(int bits) {
+        if(bits <= 1)return 1;
+        if(bits <= 8)return 8;
+        if(bits <= 16)return 16;
+        if(bits <= 32)return 32;
+        if(bits <= 64)return 64;
+        return 128;
+    }
+
+    inline llvm::Type* nextValiedIntType(int bits,llvm::IRBuilder<> *builder) {
+        if(bits <= 1)return builder->getInt1Ty();
+        if(bits <= 8)return builder->getInt8Ty();
+        if(bits <= 16)return builder->getInt16Ty();
+        if(bits <= 32)return builder->getInt32Ty();
+        if(bits <= 64)return builder->getInt64Ty();
+        return builder->getInt128Ty();
+    }
+
+    inline llvm::Type* getTypeOfInt(int bits,llvm::IRBuilder<> *builder) {
+        switch (bits) {
+            case 1: return builder->getInt1Ty();
+            case 8: return builder->getInt8Ty();
+            case 16: return builder->getInt16Ty();
+            case 32: return builder->getInt32Ty();
+            case 64: return builder->getInt64Ty();
+            case 128: return builder->getInt128Ty();
+            default: return nullptr;
+        }
     }
 }
 

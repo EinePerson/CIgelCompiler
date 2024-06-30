@@ -61,6 +61,11 @@ void Indexer::index(SrcFile* file) {
                     m_super.push_back(type);
                     cont = true;
                     break;
+                case TokenType::_enum: type = new Enum;
+                    if(!m_super.empty())type->contType = m_super.back();
+                    m_super.push_back(type);
+                    cont = false;
+                    break;
                 default: err(&"Unkown type: " [ static_cast<uint>(peak().value().type)]);
             }
             consume();

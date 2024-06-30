@@ -446,9 +446,22 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
         }
 
 std::optional<NodeStmtLet*> Parser::parseLet(bool _static, bool final, std::optional<BeContained*> contP) {
-    if(contP.has_value()) {
+    if(contP.has_value() && !dynamic_cast<Enum*>(contP.value())){
         if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,contP);
         return parseNew(_static,final,contP);
+    }
+    if(auto _enum = dynamic_cast<Enum*>(contP.value())) {
+        auto newEnum = new NodeStmtEnum;
+        newEnum->typeName = _enum;
+        newEnum->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+        if(tryConsume(TokenType::semi))return newEnum;
+        tryConsume(TokenType::eq,"Expected '='");
+        auto cont = parseContained();
+        if(!cont)err("Expected type");
+        auto id = tryConsume(TokenType::id);
+        newEnum->id = _enum->valueIdMap[cont.value()->name];
+        tryConsume(TokenType::semi);
+        return newEnum;
     }
     if(peak().value().type <= TokenType::_bool)return parsePirim(_static,final);
     BeContained* cont;
@@ -966,6 +979,24 @@ std::optional<IgType*> Parser::parseType() {
                     tryConsume(TokenType::closeCurl,"Expected '}'");
                     m_super.pop_back();
                     return intf;
+                }
+                case TokenType::_enum: {
+                    Enum* _enum = dynamic_cast<Enum*>(m_file->nameTypeMap[peak().value().value.value()]);
+                    _enum->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+                    tryConsume(TokenType::openCurl,"Expected '{' after enum declaration");
+                    int i = 0;
+                    bool comma = false;
+                    while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
+                        if(comma)err("Expected ','");
+                        auto id = tryConsume(TokenType::id,"Expected id");
+                        /*_enum->values.push_back(id.value.value());
+                        _enum->valueIdMap[id.value.value()] = i;
+                        i++;*/
+                        comma = !tryConsume(TokenType::comma).has_value();
+                    }
+                    tryConsume(TokenType::comma);
+                    tryConsume(TokenType::closeCurl);
+                    return _enum;
                 }
                 default:
                     return {};
