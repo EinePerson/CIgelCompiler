@@ -242,6 +242,30 @@ src/CompilerInfo/OptionsParser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/CompilerInfo/OptionsParser.cpp.s
 .PHONY : src/CompilerInfo/OptionsParser.cpp.s
 
+src/exceptionns/GeneratedException.o: src/exceptionns/GeneratedException.cpp.o
+.PHONY : src/exceptionns/GeneratedException.o
+
+# target to build an object file
+src/exceptionns/GeneratedException.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/exceptionns/GeneratedException.cpp.o
+.PHONY : src/exceptionns/GeneratedException.cpp.o
+
+src/exceptionns/GeneratedException.i: src/exceptionns/GeneratedException.cpp.i
+.PHONY : src/exceptionns/GeneratedException.i
+
+# target to preprocess a source file
+src/exceptionns/GeneratedException.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/exceptionns/GeneratedException.cpp.i
+.PHONY : src/exceptionns/GeneratedException.cpp.i
+
+src/exceptionns/GeneratedException.s: src/exceptionns/GeneratedException.cpp.s
+.PHONY : src/exceptionns/GeneratedException.s
+
+# target to generate assembly for a file
+src/exceptionns/GeneratedException.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/exceptionns/GeneratedException.cpp.s
+.PHONY : src/exceptionns/GeneratedException.cpp.s
+
 src/langMain/codeGen/Generator.o: src/langMain/codeGen/Generator.cpp.o
 .PHONY : src/langMain/codeGen/Generator.o
 
@@ -458,6 +482,54 @@ srcLib/Array.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/Array.cpp.s
 .PHONY : srcLib/Array.cpp.s
 
+srcLib/Exception.o: srcLib/Exception.cpp.o
+.PHONY : srcLib/Exception.o
+
+# target to build an object file
+srcLib/Exception.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/Exception.cpp.o
+.PHONY : srcLib/Exception.cpp.o
+
+srcLib/Exception.i: srcLib/Exception.cpp.i
+.PHONY : srcLib/Exception.i
+
+# target to preprocess a source file
+srcLib/Exception.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/Exception.cpp.i
+.PHONY : srcLib/Exception.cpp.i
+
+srcLib/Exception.s: srcLib/Exception.cpp.s
+.PHONY : srcLib/Exception.s
+
+# target to generate assembly for a file
+srcLib/Exception.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/Exception.cpp.s
+.PHONY : srcLib/Exception.cpp.s
+
+srcLib/String.o: srcLib/String.cpp.o
+.PHONY : srcLib/String.o
+
+# target to build an object file
+srcLib/String.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/String.cpp.o
+.PHONY : srcLib/String.cpp.o
+
+srcLib/String.i: srcLib/String.cpp.i
+.PHONY : srcLib/String.i
+
+# target to preprocess a source file
+srcLib/String.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/String.cpp.i
+.PHONY : srcLib/String.cpp.i
+
+srcLib/String.s: srcLib/String.cpp.s
+.PHONY : srcLib/String.s
+
+# target to generate assembly for a file
+srcLib/String.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/libIg.dir/build.make CMakeFiles/libIg.dir/srcLib/String.cpp.s
+.PHONY : srcLib/String.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -478,6 +550,9 @@ help:
 	@echo "... src/CompilerInfo/OptionsParser.o"
 	@echo "... src/CompilerInfo/OptionsParser.i"
 	@echo "... src/CompilerInfo/OptionsParser.s"
+	@echo "... src/exceptionns/GeneratedException.o"
+	@echo "... src/exceptionns/GeneratedException.i"
+	@echo "... src/exceptionns/GeneratedException.s"
 	@echo "... src/langMain/codeGen/Generator.o"
 	@echo "... src/langMain/codeGen/Generator.i"
 	@echo "... src/langMain/codeGen/Generator.s"
@@ -505,6 +580,12 @@ help:
 	@echo "... srcLib/Array.o"
 	@echo "... srcLib/Array.i"
 	@echo "... srcLib/Array.s"
+	@echo "... srcLib/Exception.o"
+	@echo "... srcLib/Exception.i"
+	@echo "... srcLib/Exception.s"
+	@echo "... srcLib/String.o"
+	@echo "... srcLib/String.i"
+	@echo "... srcLib/String.s"
 .PHONY : help
 
 

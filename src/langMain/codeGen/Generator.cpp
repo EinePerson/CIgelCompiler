@@ -54,7 +54,7 @@ bool Generator::stump = false;
 bool Generator::_final = false;
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
-    m_module = std::make_unique<Module>(file->fullName, *m_contxt);
+    m_module = new Module(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
@@ -65,11 +65,39 @@ Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTr
 }
 
 void Generator::setup(SrcFile* file) {
-    m_module = std::make_unique<Module>(file->fullName, *m_contxt);
+    m_module = modules[file];
+    if(!m_module) {
+        create(file);
+        return;
+    }
     m_file = file;
     setupFlag = true;
     instance = this;
     m_vars.push_back({});
+}
+
+void Generator::create(SrcFile *file) {
+    m_module = new Module(file->fullName, *m_contxt);
+    modules[file] = m_module;
+    m_file = file;
+    setupFlag = true;
+    instance = this;
+    m_vars.push_back({});
+}
+
+void Generator::generateSigs() {
+    if(!setupFlag) {
+        std::cerr << "Usage of Uninitalized Generator\n";
+        exit(EXIT_FAILURE);
+    }
+
+    for (auto type : m_file->types) {
+        type->generateSig(m_builder.get());
+    }
+
+    for (auto type : m_file->types) {
+        type->generatePart(m_builder.get());
+    }
 }
 
 Generator::~Generator() = default;
@@ -83,24 +111,16 @@ void Generator::generate() {
     std::map<FuncSig*,Function*> funcs;
 
     for (auto type : m_file->types) {
-        type->generateSig(m_builder.get());
-    }
-
-    for (auto type : m_file->types) {
-        type->generatePart(m_builder.get());
-    }
-
-    for (auto type : m_file->types) {
         type->generate(m_builder.get());
     }
 
     for (const auto& [fst,snd] : m_file->funcs) {
-        auto [func, sig] = genFuncSig(snd);
+        auto [func, sig] = snd->genFuncSig(m_builder.get());
        funcs[sig] = func;
     }
 
     for (const auto& [fst, snd] : m_file->funcs) {
-        genFunc(snd);
+        snd->genFunc(m_builder.get());
     }
 }
 
@@ -120,20 +140,22 @@ Type* Generator::getType(TokenType type) {
 
 
 
-std::pair<Function*,FuncSig*> Generator::genFuncSig(IgFunction* func) {
+/*std::pair<Function*,FuncSig*> Generator::genFuncSig(IgFunction* func) {
     std::vector<Type*> types;
     for(uint i = 0;i < func->paramType.size();i++) {
         types.push_back(func->paramType[i]);
     }
     const ArrayRef<Type*> ref(types);
     FunctionType* type = FunctionType::get(func->_return,ref,false);
+    func->type = type;
     llvm::Function* llvmFunc = Function::Create(type,Function::ExternalLinkage,func->mangle(),m_module.get());
     for(size_t i = 0;i < llvmFunc->arg_size();i++)
         llvmFunc->getArg(i)->setName(func->paramName[llvmFunc->getArg(i)->getArgNo()]);
     return std::make_pair(llvmFunc,new FuncSig(func->mangle(),types,func->_return));
-}
+}*/
 
-void Generator::genFunc(IgFunction* func,bool member) {
+/*void Generator::genFunc(IgFunction* func,bool member) {
+    lastUnreachable = false;
     Function* llvmFunc = m_module->getFunction(func->mangle());
     BasicBlock* entry = BasicBlock::Create(*m_contxt,"entry",llvmFunc);
     m_builder->SetInsertPoint(entry);
@@ -151,25 +173,30 @@ void Generator::genFunc(IgFunction* func,bool member) {
     func->scope->generate(m_builder.get());
     m_vars.pop_back();
     if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
+
+    if(!lastUnreachable) {
+        std::cerr << "No return statement in non void function " << func->mangle() << "\n";
+        exit(EXIT_FAILURE);
+    }
     if(unreach) {
         m_builder->SetInsertPoint(unreach);
         m_builder->CreateUnreachable();
         unreach = nullptr;
     }
     if(llvm::verifyFunction(*llvmFunc,&outs())) {
+        llvmFunc->print(outs());
         exit(EXIT_FAILURE);
     }
     func->llvmFunc = llvmFunc;
-}
+}*/
 
 void Generator::reset(SrcFile* file) {
     m_builder.release();
     //m_contxt.release();
-    m_module.release();
     m_vars.clear();
 
 
-    m_module = std::make_unique<Module>(file->fullName, *m_contxt);
+    m_module = new Module(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
 }
 
@@ -217,6 +244,7 @@ void Generator::write() {
     ModuleAnalysisManager MAM;
 
     if(verifyModule(*m_module,&outs())) {
+        m_module->print(outs(),nullptr);
         exit(EXIT_FAILURE);
     }
 
@@ -240,6 +268,9 @@ void Generator::write() {
     WriteBitcodeToFile(*m_module, dest);
     dest.flush();
 
+    reset();
+
+    
     setupFlag = false;
 
 }
@@ -403,7 +434,7 @@ void Generator::createStaticVar(std::string name, Value* val,Var* var) {
 void Generator::initInfo() {
     if(!cxx_pointer_type_info) {
         cxx_pointer_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv119__pointer_type_infoE",
-          nullptr,GlobalValue::NotThreadLocal,0,true);;
+          nullptr,GlobalValue::NotThreadLocal,0,true);
     }
     if(!cxx_class_type_info) {
         cxx_class_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv117__class_type_infoE",
@@ -413,4 +444,11 @@ void Generator::initInfo() {
         m_module->getOrInsertFunction("__cxa_pure_virtual",FunctionType::get(m_builder->getVoidTy(),{},false));
         cxx_pure_virtual = m_module->getFunction("__cxa_pure_virtual");
     }
+}
+
+void Generator::reset() {
+    for (auto type : m_file->nameTypeMap) type.second->unregister();
+    cxx_pointer_type_info = nullptr;
+    cxx_class_type_info = nullptr;
+    cxx_pure_virtual = nullptr;
 }

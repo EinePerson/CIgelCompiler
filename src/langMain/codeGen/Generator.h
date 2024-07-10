@@ -62,7 +62,7 @@ struct ClassVar final : Var {
     std::unordered_map<std::string,uint> funcs;
     PointerType* type = nullptr;
     StructType* strType = nullptr;
-    Class* clazz = nullptr;
+    ContainableType* clazz = nullptr;
 };
 
 class Generator {
@@ -71,15 +71,18 @@ public:
     explicit Generator(SrcFile* file,Info* info);
     Generator();
     ~Generator();
+    void create(SrcFile* file);
     void setup(SrcFile* file);
+
+    void generateSigs();
 
     void generate();
 
     [[nodiscard]] static Type* getType(TokenType type);
 
-    std::pair<Function*,FuncSig*> genFuncSig(IgFunction* func);
+    //std::pair<Function*,FuncSig*> genFuncSig(IgFunction* func);
 
-    void genFunc(IgFunction* func,bool member = false);
+    //void genFunc(IgFunction* func,bool member = false);
 
     void reset(SrcFile* file);
 
@@ -100,6 +103,8 @@ public:
     void createStaticVar(std::string name,Value* val,Var* var);
 
     void initInfo();
+
+    void reset();
 private:
     BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
@@ -109,9 +114,10 @@ private:
     TargetMachine* m_machine;
     uint m_currentVar = 0;
     std::vector<uint> m_sVarId;
+    std::unordered_map<SrcFile*,Module*> modules;
 public:
     SrcFile* m_file;
-    std::unique_ptr<Module> m_module;
+    Module* m_module;
     std::vector<std::map<std::string, Var*>> m_vars;
     std::vector<BasicBlock*> after;
     std::vector<BasicBlock*> next;

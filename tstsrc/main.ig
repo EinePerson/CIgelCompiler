@@ -1,19 +1,34 @@
-int main(){
-    int i = 74;
-    printf("%d",i);
-    Gaming test = Gaming::test;
-    test = Gaming::sus;
-    if(test == Gaming::sus){
-        return 69;
-    }
+using "tstsrc/exception.ig";
+using "tstsrc/string.ig";
 
+int main(){
+    Test t = new SUS();
+    printf("Test\n");
+    if(t instanceOf SUS)printf("SUS");
+    SUS g = (SUS) t;
     return 0;
 }
 
-enum Gaming{
-    test,
-    sus,
-    amogus,
-    susy,
-    gama
+class Test{
+
 }
+
+class SUS extends Test{
+
+}
+
+class Gaming extends Test{
+
+}
+
+/*class Exception {
+    int i = 0;
+    int j = 0;
+    void print(){
+
+    }
+}*/
+
+/*interface Test{
+
+}*/

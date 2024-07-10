@@ -57,14 +57,25 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 }
             }else if(auto paren = tryConsume(TokenType::openParenth)){
                 auto expr = parseExpr();
-                if(!expr.has_value()){
-                    err("Expected Expression");
+                if(!expr.has_value())err("Expected Expression");
+                if(dynamic_cast<NodeTermId*>(expr.value()) && (m_file->types,dynamic_cast<NodeTermId*>(expr.value())->cont)){
+                    auto cast = new NodeTermCast;
+                    tryConsume(TokenType::closeParenth,"Expected ')'");
+                    cast->target = dynamic_cast<NodeTermId*>(expr.value())->cont;
+                    auto expr = parseExpr();
+                    if(!expr)err("Expected Expression");
+                    cast->expr = expr.value();
+                    term = cast;
+                    /*auto cont = parseContained();
+                    if(!cont.has_value())err("Expected Expression or type name");*/
+
+                }else {
+                    tryConsume(TokenType::closeParenth,"Expected ')'");
+                    auto term_paren = new NodeTermParen;
+                    term_paren->expr = expr.value();
+                    term_paren->_signed = expr.value()->_signed;
+                    term = term_paren;
                 }
-                tryConsume(TokenType::closeParenth,"Expected ')'");
-                auto term_paren = new NodeTermParen;
-                term_paren->expr = expr.value();
-                term_paren->_signed = expr.value()->_signed;
-                term = term_paren;
             }else if(auto _new = tryConsume(TokenType::_new)) {
                 if(peak().has_value() && peak().value().type <= TokenType::_bool) {
                     auto* arr = new NodeTermArrNew;
@@ -79,7 +90,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     arr->contained = nullptr;
                     arr->floating = arr->sid == static_cast<char>(TokenType::_float) || arr->sid == static_cast<char>(TokenType::_double);
                     arr->_signed = arr->sid <= static_cast<char>(TokenType::_long);
-                    return  arr;
+                    term =  arr;
                 }else if(auto typeName = parseContained()){
                     if(peak().has_value() && peak().value().type == TokenType::openBracket) {
                         auto* arr = new NodeTermArrNew;
@@ -95,7 +106,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                         arr->contained = nullptr;
                         arr->floating = arr->sid == static_cast<char>(TokenType::_float) || arr->sid == static_cast<char>(TokenType::_double);
                         arr->_signed = arr->sid <= static_cast<char>(TokenType::_long);
-                        return  arr;
+                        term = arr;
                     }else if(dynamic_cast<Class*>(typeName.value())) {
                         auto _nCz = new NodeTermClassNew;
                         _nCz->typeName = typeName.value();
@@ -111,14 +122,20 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     }
                 }else err("Expected type name");
             } else if(tryConsume(TokenType::null)) {
-                return new NodeTermNull;
+                term = new NodeTermNull;
+            }
+            if(tryConsume(TokenType::instanceOf)) {
+                auto inst = new NodeTermInstanceOf;
+                if(auto cont = parseContained())inst->target = cont.value();
+                else err("Excpected type name after instanceOf");
+                inst->expr = term;
+                term = inst;
             }
             if(tryConsume(TokenType::connector)) {
                 auto termT = new NodeTermAcces;
                 bool length = false;
                 if(auto val = dynamic_cast<NodeTermId*>(term)) {
                     termT->id = val->cont;
-
                 }
                 if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
                 if(dynamic_cast<NodeTermArrayAcces*>(term)) {
@@ -139,31 +156,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     termT->acc = termF.value();
                     term = termT;
                 }
-            }/*else if(tryConsume(TokenType::ptrConnect)) {
-                auto termT = new NodeTermClassAcces;
-                bool length = false;
-                if(auto val = dynamic_cast<NodeTermId*>(term))
-                    termT->id = val->cont;
-                if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) termT->call = val;
-                if(dynamic_cast<NodeTermArrayAcces*>(term)) {
-                    if(peak().has_value() && peak().value().type == TokenType::id && peak().value().value.value() == "length") {
-                        length = true;
-                    }
-                    termT->contained = term;
-                }
-
-                if(length) {
-                    auto len = new NodeTermArrayLength;
-                    len->arr = dynamic_cast<NodeTermArrayAcces*>(term);
-                    term = len;
-                }else {
-                    auto termF = peak();
-                    if(peak(1).has_value() && peak(1).value().type != TokenType::ptrConnect && peak(1).value().type != TokenType::openBracket && peak(1).value().type != TokenType::openParenth)consume();
-                    if(!termF)return term;
-                    termT->acc = termF.value();
-                    term = termT;
-                }
-            }*/
+            }
             if(!term)return {};
             if(auto ro = parseTerm()) {
                 NodeTerm* r = ro.value();
@@ -260,8 +253,14 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
             bool final = tryConsume(TokenType::final).has_value();
             bool _static = tryConsume(TokenType::_static).has_value();
             if(peak().has_value() && peak().value().type <= TokenType::_bool){
-                if(auto var = parsePirim(_static,final))return var.value();
+                auto var = parseLet(_static,final);
+                if(var)return var.value();
                 else err("Expected variable declaration");
+                /*if(tryConsume(TokenType::openBracket)) {
+
+                }
+                if(auto var = parsePirim(_static,final))return var.value();
+                else err("Expected variable declaration");*/
             }else if(auto scope = parseScope()){
                 return scope.value();
             }else if(auto _if = tryConsume(TokenType::_if)){
@@ -373,7 +372,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 else err("Could not parse contained");
                 if(dynamic_cast<IgType*>(cont)) {
                     if(auto let = parseLet(_static,final,cont))return let.value();
-                    err("Expected variable declaration");
+                    else err("Expected variable declaration");
                     return {};
                 }
                 auto id = parseTerm(cont);
@@ -450,23 +449,14 @@ std::optional<NodeStmtLet*> Parser::parseLet(bool _static, bool final, std::opti
         if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,contP);
         return parseNew(_static,final,contP);
     }
-    if(auto _enum = dynamic_cast<Enum*>(contP.value())) {
-        auto newEnum = new NodeStmtEnum;
-        newEnum->typeName = _enum;
-        newEnum->name = tryConsume(TokenType::id,"Expected identifier").value.value();
-        if(tryConsume(TokenType::semi))return newEnum;
-        tryConsume(TokenType::eq,"Expected '='");
-        auto cont = parseContained();
-        if(!cont)err("Expected type");
-        auto id = tryConsume(TokenType::id);
-        newEnum->id = _enum->valueIdMap[cont.value()->name];
-        tryConsume(TokenType::semi);
-        return newEnum;
+    if(peak().value().type <= TokenType::_bool) {
+        if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket)return parseArrNew(_static,final);
+        return parsePirim(_static,final);
     }
-    if(peak().value().type <= TokenType::_bool)return parsePirim(_static,final);
     BeContained* cont;
     if(auto co = parseContained())cont = co.value();
     else return {};
+    if(auto ENUM = parseEnum(_static,final,contP))return ENUM.value();
     if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,cont);
     return parseNew(_static,final,cont);
 }
@@ -525,7 +515,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             varTypes.back()[strNew->name] = Types::VarType::StructVar;
             return strNew;
         }
-    }else if(dynamic_cast<Class*>(cont)) {
+    }else if(dynamic_cast<Class*>(cont) || dynamic_cast<Interface*>(cont)) {
         if(peak().value().type == TokenType::eq) {
             auto strNew = new NodeStmtClassNew;
             strNew->typeName = cont;
@@ -618,6 +608,29 @@ std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::op
         return arr;
     }
     return {};
+}
+
+std::optional<NodeStmtEnum *> Parser::parseEnum(bool _static, bool final, std::optional<BeContained *> contP) {
+    if(!contP) {
+        auto contM = parseContained();
+        if(contM)contP = contM;
+    }
+    if(!contP)return {};
+    if(auto _enum = dynamic_cast<Enum*>(contP.value())) {
+        auto newEnum = new NodeStmtEnum;
+        newEnum->typeName = _enum;
+        newEnum->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+        if(tryConsume(TokenType::semi))return newEnum;
+        tryConsume(TokenType::eq,"Expected '='");
+        auto cont = parseContained();
+        if(!cont)err("Expected type");
+        auto id = tryConsume(TokenType::id);
+        newEnum->id = _enum->valueIdMap[cont.value()->name];
+        tryConsume(TokenType::semi);
+        newEnum->final = final;
+        newEnum->_static = _static;
+        return newEnum;
+    }
 }
 
 NodeStmtFor* Parser::parseFor() {
@@ -817,15 +830,15 @@ std::optional<BeContained*> Parser::parseContained() {
     //if(peak(1).value().type != TokenType::dConnect)return {};
     IgType* cont = nullptr;
     while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {
-        IgType* contN = m_file->nameTypeMap[consume().value.value()];
-        if(cont)contN->contType = cont;
-        cont = contN;
+        auto contN = m_file->findUnmangledContained(consume().value.value());
+        if(cont)contN.value()->contType = cont;
+        cont = contN.value();
         consume();
         //consume();
     }
-    if(m_file->nameTypeMap.contains(peak().value().value.value())) {
-        IgType* contN = m_file->nameTypeMap[consume().value.value()];
-        if(cont)contN->contType = cont;
+    if(m_file->findUnmangledContained(peak().value().value.value())) {
+        auto contN = m_file->findUnmangledContained(consume().value.value());
+        if(cont)contN.value()->contType = cont;
         return contN;
     }
     Name* name = new Name("");
@@ -838,7 +851,7 @@ std::optional<IgType*> Parser::parseType() {
             if(peak(1).value().type != TokenType::id) return  {};
             switch (consume().type) {
                 case TokenType::_struct: {
-                    Struct* str = dynamic_cast<Struct *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    Struct* str = dynamic_cast<Struct *>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     if(!m_super.empty()) {
                         str->contType = m_super.back();
                         m_super.back()->contained.push_back(str);
@@ -870,11 +883,11 @@ std::optional<IgType*> Parser::parseType() {
                 case TokenType::_abstract:{
                     if(peak().value().type != TokenType::_class)break;
                     consume();
-                    Class* clazz = dynamic_cast<Class *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    Class* clazz = dynamic_cast<Class *>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     clazz->abstract = true;
                 }
                 case TokenType::_class: {
-                    Class* clazz = dynamic_cast<Class *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    Class* clazz = dynamic_cast<Class *>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     if(!m_super.empty()) {
                         clazz->contType = m_super.back();
                         m_super.back()->contained.push_back(clazz);
@@ -883,7 +896,7 @@ std::optional<IgType*> Parser::parseType() {
                     clazz->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     if(tryConsume(TokenType::extends)) {
                         if(auto cont = parseContained()) {
-                            if(auto ext = dynamic_cast<Class*>(m_file->nameTypeMap[cont.value()->mangle()])) {
+                            if(auto ext = dynamic_cast<Class*>(cont.value())) {
                                 clazz->extending = ext;
                             }else err("Can only extend classes");
                         }else err("Expected class name after \"extending\"");
@@ -893,7 +906,7 @@ std::optional<IgType*> Parser::parseType() {
                         bool next = true;
                         while (auto cont = parseContained()) {
                             if(!next)err("Expected comma between typenames");
-                            if(auto imp = dynamic_cast<Interface*>(m_file->nameTypeMap[cont.value()->mangle()])){
+                            if(auto imp = dynamic_cast<Interface*>(m_file->unmangledTypeMap[cont.value()->mangle()])){
                                 clazz->implementing.push_back(imp);
                                 next = tryConsume(TokenType::comma).has_value();
                             }else err("Can only implement interfaces");
@@ -924,6 +937,7 @@ std::optional<IgType*> Parser::parseType() {
                                 err("Only Fields/Attributes/Variables are allowed in classes");
                             }
                         }else if(auto type = parseType()) {
+                            m_file->types.push_back(type.value());
                             clazz->contained.push_back(type.value());
                         } else err("Expected Type or Variable or Type");
                     }
@@ -933,7 +947,7 @@ std::optional<IgType*> Parser::parseType() {
                     return clazz;
                 }
                 case TokenType::_namespace: {
-                    NamesSpace* nmspc = dynamic_cast<NamesSpace *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    NamesSpace* nmspc = dynamic_cast<NamesSpace *>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     if(!m_super.empty()) {
                         nmspc->contType = m_super.back();
                         m_super.back()->contained.push_back(nmspc);
@@ -946,6 +960,7 @@ std::optional<IgType*> Parser::parseType() {
                             if(auto func = parseFunc()) {
                                 nmspc->funcs.push_back(func.value());
                             }else if(auto type = parseType()) {
+                                m_file->types.push_back(type.value());
                                 nmspc->contained.push_back(type.value());
                             }else err("Expected type or function in namespace");
                     }
@@ -954,14 +969,14 @@ std::optional<IgType*> Parser::parseType() {
                     return nmspc;
                 }
                 case TokenType::interface: {
-                    Interface* intf = dynamic_cast<Interface *>(m_file->nameTypeMap[peak().value().value.value()]);
+                    Interface* intf = dynamic_cast<Interface *>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     intf->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     m_super.push_back(intf);
                     if(tryConsume(TokenType::extends)) {
                         bool next = true;
                         while (auto cont = parseContained()) {
                             if(!next)err("Expected comma between typenames");
-                            if(auto imp = dynamic_cast<Interface*>(m_file->nameTypeMap[cont.value()->mangle()])){
+                            if(auto imp = dynamic_cast<Interface*>(m_file->unmangledTypeMap[cont.value()->mangle()])){
                                 intf->extending.push_back(imp);
                                 next = tryConsume(TokenType::comma).has_value();
                             }else err("Can only implement interfaces");
@@ -973,6 +988,7 @@ std::optional<IgType*> Parser::parseType() {
                         if(auto func = parseFunc()) {
                             intf->funcs.push_back(func.value());
                         }else if(auto type = parseType()) {
+                            m_file->types.push_back(type.value());
                             intf->contained.push_back(type.value());
                         }else err("Expected type or function in namespace");
                     }
@@ -981,7 +997,7 @@ std::optional<IgType*> Parser::parseType() {
                     return intf;
                 }
                 case TokenType::_enum: {
-                    Enum* _enum = dynamic_cast<Enum*>(m_file->nameTypeMap[peak().value().value.value()]);
+                    Enum* _enum = dynamic_cast<Enum*>(m_file->unmangledTypeMap[peak().value().value.value()]);
                     _enum->name = tryConsume(TokenType::id,"Expected identifier").value.value();
                     tryConsume(TokenType::openCurl,"Expected '{' after enum declaration");
                     int i = 0;

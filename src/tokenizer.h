@@ -119,6 +119,7 @@ enum class TokenType{
     _abstract,
     _override,
     super,
+    instanceOf,
 
     null,
     _static,
@@ -222,6 +223,7 @@ class Tokenizer{
             {"implements",TokenType::implements},
             {"override",TokenType::_override},
             {"super",TokenType::super},
+            {"instanceOf",TokenType::instanceOf},
 
             {"static",TokenType::_static},
             {"final",TokenType::final},

@@ -76,7 +76,14 @@ void PreParser::parseScope(bool contain,bool parenth) {
             m_super.back()->varTypes[name] = Types::VarType::ArrayVar;
         }else if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enum) {
             Token typeT = consume();
-            IgType* type = currentFile->nameTypeMap[tryConsume(TokenType::id,"Expected id").value.value()];
+            std::string name = tryConsume(TokenType::id,"Expected id").value.value();
+            IgType* type = currentFile->nameTypeMap[name];
+            currentFile->unmangledTypeMap[name] = type;
+            if(dynamic_cast<ContainableType*>(type) && !m_super.empty()) {
+                currentFile->nameTypeMap.erase(name);
+                dynamic_cast<ContainableType*>(type)->contType = m_super.back();
+                currentFile->nameTypeMap[type->mangle()] = type;
+            }
             switch (typeT.type) {
                 case TokenType::_struct:
                     m_super.push_back(type);

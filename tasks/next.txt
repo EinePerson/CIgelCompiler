@@ -1,4 +1,4 @@
-type casting;
+add acces to super variables;
 add template classes;
 add partly libraries;
 add debug info;

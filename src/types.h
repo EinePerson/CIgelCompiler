@@ -12,6 +12,7 @@
 #include "exceptionns/Generator.h"
 //#include "langMain/parsing/Parser.h"
 
+struct FuncSig;
 struct Class;
 struct Var;
 struct IgFunction;
@@ -248,7 +249,21 @@ struct NodeTermArrNew final : NodeTerm {
     };
 };
 
+struct NodeTermCast final : NodeTerm {
+    BeContained* target = nullptr;
+    NodeExpr* expr = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+};
+
+struct NodeTermInstanceOf final : NodeTerm {
+    BeContained* target = nullptr;
+    NodeExpr* expr = nullptr;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+
+    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
+};
 
 //BEGIN OF BINARY EXPRESIONS
 
@@ -572,24 +587,43 @@ struct NodeStmtTry final : NodeStmt{
 struct Class;
 
 struct IgFunction final : BeContained{
+    friend Class;
     std::vector<llvm::Type*> paramType;
     std::vector<std::string> paramName;
     std::vector<BeContained*> paramTypeName;
-    std::string retTypeName;
     std::vector<bool> signage;
+
+    std::string retTypeName;
     llvm::Type* _return = nullptr;
-    bool returnSigned;
+    bool returnSigned = false;
     bool _static = false;
     bool final = false;
     bool member = false;
     bool constructor = false;
     NodeStmtScope* scope = nullptr;
-    llvm::Function* llvmFunc = nullptr;
+
     std::optional<Class*> supper {};
     bool abstract = false;
     bool _override = false;
 
+    std::pair<llvm::Function*,FuncSig*> genFuncSig(llvm::IRBuilder<>* builder);
+    void genFunc(llvm::IRBuilder<>* builder);
+
     std::string mangle() override;
+
+    llvm::Function* getLLVMFunc();
+    llvm::FunctionType* getLLVMFuncType();
+
+    void reset();
+
+private:
+    llvm::FunctionType* type = nullptr;
+    llvm::Function* llvmFunc = nullptr;
+
+    bool genSig = false;
+    bool gen = false;
+    //bool initCallee = false;
+    //llvm::FunctionCallee callee;
 };
 
 //BEGIN OF TYPES
@@ -604,6 +638,8 @@ struct IgType : BeContained {
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generatePart(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
+    virtual void unregister() = 0;
+
 };
 
 struct Struct final : IgType {
@@ -626,6 +662,9 @@ struct Struct final : IgType {
     void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
+
+    void unregister() override {}
+
 };
 
 /**
@@ -635,7 +674,22 @@ struct ContainableType : IgType {
     explicit ContainableType() = default;
     std::vector<BeContained*> contained {};
 
+    /**
+     * @param type
+     * @return checks weather type is a super of this
+     */
+    virtual bool isSubTypeOf(IgType* type) = 0;
+
+    /**
+     *\brief returns -1 if not found
+     */
+    virtual uint getSuperOffset(IgType* type) = 0;
+
+    virtual uint getExtendingOffset() = 0;
+
     virtual std::vector<std::vector<IgFunction*>> getFuncsRec() = 0;
+
+    virtual std::vector<llvm::Constant*> getTypeInfoRec(llvm::IRBuilder<> *builder) = 0;
 };
 
 struct NamesSpace final : ContainableType {
@@ -650,13 +704,45 @@ struct NamesSpace final : ContainableType {
 
     void generate(llvm::IRBuilder<>* builder) override;
 
-    std::string mangle() override {
-        throw IllegalGenerationException("Cannot mangle namespace");
-    }
+    std::string mangle() override;
 
     std::vector<std::vector<IgFunction*>> getFuncsRec() override {
         return {funcs};
     }
+
+    std::vector<llvm::Constant *> getTypeInfoRec(llvm::IRBuilder<> *builder) override {
+        return  {};
+    }
+
+    void unregister() override{}
+
+    bool isSubTypeOf(IgType *type) override {
+        return false;
+    }
+
+    uint getSuperOffset(IgType *type) override {
+        return -1;
+    }
+
+    uint getExtendingOffset() override {
+        return 0;
+    }
+};
+
+struct Interface;
+
+struct ClassInfos {
+    friend Class;
+    friend Interface;
+    llvm::GlobalVariable* typeNameVar = nullptr;
+    llvm::GlobalVariable* typeInfo = nullptr;
+    llvm::GlobalVariable* vtable = nullptr;
+
+    llvm::GlobalVariable* typeNamePointVar = nullptr;
+    llvm::GlobalVariable* typeInfoPointVar = nullptr;
+
+private:
+    bool init = false;
 };
 
 struct Interface final : ContainableType {
@@ -664,20 +750,19 @@ struct Interface final : ContainableType {
 
     std::vector<IgFunction*> funcs;
     std::vector<Interface*> extending {};
+    bool gen = false;
 
     std::string mangle() override;
 
-    void generateSig(llvm::IRBuilder<>* builder) override {
-
-    };
+    void generateSig(llvm::IRBuilder<>* builder) override;
 
     void generatePart(llvm::IRBuilder<> *builder) override {
 
     };
 
-    void generate(llvm::IRBuilder<>* builder) override {
+    void generate(llvm::IRBuilder<>* builder) override;
 
-    }
+    ClassInfos getClassInfos(llvm::IRBuilder<> *builder);
 
     std::vector<std::vector<IgFunction*>> getFuncsRec() override {
         std::vector<std::vector<IgFunction*>> funcsRet {};
@@ -689,6 +774,49 @@ struct Interface final : ContainableType {
         }
         return funcsRet;
     }
+
+    std::vector<llvm::Constant *> getTypeInfoRec(llvm::IRBuilder<> *builder) override {
+        std::vector<llvm::Constant*> infoRec {};
+        infoRec.reserve(extending.size());
+        for (auto ext : extending)infoRec.push_back(ext->getClassInfos(builder).typeInfo);
+
+        for(auto& e : extending){
+            auto extFuncs = e->getTypeInfoRec(builder);
+            infoRec.insert(infoRec.end(),extFuncs.begin(),extFuncs.end());
+        }
+        return infoRec;
+    }
+
+    void unregister() override {
+        classInfos.init = false;
+    }
+
+    bool isSubTypeOf(IgType *type) override {
+        if(std::count(extending.begin(),extending.end(),type)) return true;
+        for (auto interface : extending) {
+            if(interface->isSubTypeOf(type))return true;
+        }
+        return false;
+    }
+
+    uint getSuperOffset(IgType *type) override {
+        if(!isSubTypeOf(type))return -1;
+        if(std::count(extending.begin(),extending.end(),type)) return 0;
+        uint offset = 0;
+        for (auto interface : extending) {
+            if(interface == type || interface->isSubTypeOf(type))return offset;
+            offset += interface->getExtendingOffset();
+        }
+        return -1;
+
+    }
+
+    uint getExtendingOffset() override {
+        return 8;
+    }
+
+private:
+    ClassInfos classInfos;
 };
 
 struct Enum final : IgType {
@@ -702,7 +830,12 @@ struct Enum final : IgType {
     void generatePart(llvm::IRBuilder<> *builder) override;
 
     void generate(llvm::IRBuilder<> *builder) override;
+
+    void unregister() override {}
+
 };
+
+
 
 struct Class final : ContainableType {
     Class() : ContainableType(){}
@@ -741,13 +874,6 @@ struct Class final : ContainableType {
     ///\brief generate was called
     bool fullGen = false;
 
-    llvm::GlobalVariable* typeNameVar = nullptr;
-    llvm::GlobalVariable* typeInfo = nullptr;
-    llvm::GlobalVariable* vtable = nullptr;
-
-    llvm::GlobalVariable* typeNamePointVar = nullptr;
-    llvm::GlobalVariable* typeInfoPointVar = nullptr;
-
     void generateSig(llvm::IRBuilder<>* builder) override;
 
     void generatePart(llvm::IRBuilder<> *builder) override;
@@ -755,6 +881,16 @@ struct Class final : ContainableType {
     void generate(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
+
+    ClassInfos getClassInfos(llvm::IRBuilder<> *builder);
+
+    std::pair<Class*,uint> getVarialbe(const std::string &name) {
+        if(varIdMs.contains(name))return {this,varIdMs[name]};
+        else {
+            if(!extending.has_value())return {nullptr,0};
+            return extending.value()->getVarialbe(name);
+        }
+    }
 
     std::vector<std::vector<IgFunction *>> getFuncsRec() override {
         std::vector<std::vector<IgFunction *>> funcsRet {funcs};
@@ -775,6 +911,47 @@ struct Class final : ContainableType {
         }
         return funcsRet;
     }
+
+    std::vector<llvm::Constant*> getTypeInfoRec(llvm::IRBuilder<> *builder) override {
+        std::vector<llvm::Constant*> infoRec {};
+        infoRec.reserve(implementing.size());
+        for (auto imp : implementing)infoRec.push_back(imp->getClassInfos(builder).typeInfo);
+
+        if(extending.has_value()) {
+            infoRec.push_back(extending.value()->getClassInfos(builder).typeInfo);
+            auto extFuncs = extending.value()->getTypeInfoRec(builder);
+            infoRec.insert(infoRec.end(),extFuncs.begin(),extFuncs.end());
+        }
+
+        for(auto& e : implementing){
+            auto extFuncs = e->getTypeInfoRec(builder);
+            infoRec.insert(infoRec.end(),extFuncs.begin(),extFuncs.end());
+        }
+        return infoRec;
+    }
+
+    void unregister() override {
+        classInfos.init = false;
+        for (auto func : funcs) func->reset();
+    }
+
+    bool isSubTypeOf(IgType *type) override {
+        if(type == this)return true;
+        if(std::count(implementing.begin(),implementing.end(),type)) return true;
+        if(extending.has_value() && (extending.value() == type || extending.value()->isSubTypeOf(type)))return true;
+        for (auto interface : implementing) {
+            if(interface->isSubTypeOf(type))return true;
+        }
+        return false;
+    }
+
+    uint getExtendingOffset() override;
+
+    uint getSuperOffset(IgType *type) override;
+
+private:
+
+    ClassInfos classInfos;
 };
 
 namespace Igel {
@@ -813,6 +990,10 @@ namespace Igel {
             default: return nullptr;
         }
     }
+
+    llvm::Value* dyn_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* src,llvm::Value* val);
+
+    llvm::Value* stat_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* src,llvm::Value* val);
 }
 
 #endif //TYPES_H

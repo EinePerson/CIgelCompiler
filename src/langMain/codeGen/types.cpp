@@ -9,6 +9,11 @@
 #include "Generator.h"
 #include "../../util/Mangler.h"
 
+#include <string>
+#include <iostream>
+
+#include "../../exceptionns/GeneratedException.h"
+
 //Name for the specifier of an array length
 #define ARR_LENGTH "length"
 
@@ -105,7 +110,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                val = var->alloc;
                isClz = false;
           }else if(clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()))){
-               Generator::_final = clzVar->clazz->finals[acc.value.value()];
+               Generator::_final = dynamic_cast<Class*>(clzVar->clazz)?dynamic_cast<Class*>(clzVar->clazz)->finals[acc.value.value()]:false;
                val = builder->CreateLoad(clzVar->type,clzVar->alloc);
                isClz = true;
           }else {
@@ -148,24 +153,30 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
           }else Generator::structRet = nullptr;
           return ptr;
      }else {
+
+          if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
+               std::cerr << "Can only access fields of classes" << std::endl;
+               exit(EXIT_FAILURE);
+          }
+          if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
           Value* ptr = nullptr;
-          if(!(clzVar ? clzVar->clazz->varIdMs.contains(acc.value.value()):clz->varIdMs.contains(acc.value.value()))) {
+          auto ret = clz->getVarialbe(acc.value.value());
+          if(!ret.first) {
                std::cerr << "Unkown variable name: " << acc.value.value();
                Igel::errAt(acc);
           }
-          uint fid = clz?clz->varIdMs[acc.value.value()]:clzVar->clazz->varIdMs[acc.value.value()];
+          uint fid = ret.second;
           if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
-          ptr = builder->CreateStructGEP(clzVar?clzVar->strType:clz->strType,val,fid);
-          Generator::typeNameRet = clzVar?clzVar->clazz:clz;
+          ptr = builder->CreateStructGEP(ret.first->strType,val,fid);
+          Generator::typeNameRet = clz;
           if(Generator::contained) {
-               if(const auto strT = Generator::instance->m_file->findClass(clz?clz->vars[fid - clz->vTablePtrs]->typeName->mangle():
-                    clzVar->clazz->vars[fid - clzVar->clazz->vTablePtrs]->typeName->mangle())) {
+               if(const auto strT = Generator::instance->m_file->findClass(ret.first->vars[fid - ret.first->vTablePtrs]->typeName->mangle())) {
                     Generator::classRet = strT.value().second;
                     Generator::structRet = nullptr;
                }
                Generator::contained = false;
           }else {
-               Generator::classRet = clz?clz :clzVar->clazz;
+               Generator::classRet = clz;
                Generator::structRet = nullptr;
           }
           /*if(!(clzVar ? clzVar->vars.contains(acc.value.value()):clz->varIdMs.contains(acc.value.value()))) {
@@ -202,7 +213,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                else Generator::classRet = nullptr;
           }else Generator::classRet = nullptr;*/
           //fid = clz?clz->varIdMs[acc.value.value()]:clzVar->clazz->varIdMs[acc.value.value()];
-          return builder->CreateLoad(clz?clz->types[fid]:clzVar->clazz->types[fid],ptr);
+          return builder->CreateLoad(clz->types[fid],ptr);
      }
 }
 
@@ -259,7 +270,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
                isClz = false;
           }else {
                auto tst = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
-               Generator::_final = tst->clazz->finals[acc.value.value()];
+               Generator::_final = dynamic_cast<Class*>(tst->clazz)?dynamic_cast<Class*>(tst->clazz)->finals[acc.value.value()]:false;
                clzVar = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
                val = builder->CreateLoad(clzVar->type,clzVar->alloc);
                isClz = true;
@@ -291,28 +302,34 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
           }else Generator::structRet = nullptr;
           return ptr;
      }else {
+          if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
+               std::cerr << "Can only access fields of classes" << std::endl;
+               exit(EXIT_FAILURE);
+          }
+          if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
           uint fid;
           Value* ptr = nullptr;
           if(!Generator::stump) {
-               if(!(clzVar ? clzVar->clazz->varIdMs.contains(acc.value.value()):clz->varIdMs.contains(acc.value.value()))) {
-                    std::cerr << "Unkown variable name: " << acc.value.value();
+               auto ret = clz->getVarialbe(acc.value.value());
+               if(!ret.first) {
+                    std::cerr << "No varialbe named: " << acc.value.value() << " in: " << (clz->mangle());
                     Igel::errAt(acc);
                }
-               fid = clz?clz->varIdMs[acc.value.value()]:clzVar->clazz->varIdMs[acc.value.value()];
+               fid = ret.second;
                if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
-               ptr = builder->CreateStructGEP(clzVar?clzVar->strType:clz->strType,val,fid);
+               ptr = builder->CreateStructGEP(ret.first->strType,val,ret.second);
           }
           //fid = clzVar ? clzVar->vars[acc.value.value()]:clz->varIdMs[acc.value.value()];
-          Generator::typeNameRet = clzVar?clzVar->clazz:clz;
+          Generator::typeNameRet = clz;
           if(Generator::contained) {
-               if(const auto strT = Generator::instance->m_file->findClass(clz?clz->vars[fid - clz->vTablePtrs]->typeName->mangle():
-                    clzVar->clazz->vars[fid - clzVar->clazz->vTablePtrs]->typeName->mangle())) {
+               auto ret = clz->getVarialbe(acc.value.value());
+               if(const auto strT = Generator::instance->m_file->findClass(ret.first->vars[ret.second - ret.first->vTablePtrs]->typeName->mangle())) {
                     Generator::classRet = strT.value().second;
                     Generator::structRet = nullptr;
                }
                Generator::contained = false;
           }else {
-               Generator::classRet = clz?clz :clzVar->clazz;
+               Generator::classRet = clz;
                Generator::structRet = nullptr;
           }
           Generator::stump = false;
@@ -570,7 +587,7 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
           Generator::_final = str->finals[acc.value.value()];
      }else {
           var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
-          Generator::_final = var->clazz->finals[acc.value.value()];;
+          Generator::_final = dynamic_cast<Class*>(var->clazz)?dynamic_cast<Class*>(var->clazz)->finals[acc.value.value()]:false;
           val = builder->CreateLoad(var->type,var->alloc);
      }
      if(!str && !var) {
@@ -582,7 +599,7 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
-          Generator::classRet = var->clazz;
+          Generator::classRet = dynamic_cast<Class*>(var->clazz);
           Generator::structRet = nullptr;
           return builder->CreateLoad(var->types[fid],ptr);
      }
@@ -618,7 +635,7 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
           Generator::_final = str->finals[acc.value.value()];
      }else {
           var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
-          Generator::_final = var->clazz->finals[acc.value.value()];;
+          Generator::_final = dynamic_cast<Class*>(var->clazz)?dynamic_cast<Class*>(var->clazz)->finals[acc.value.value()]:false;
           val = builder->CreateLoad(var->type,var->alloc);
      }
 
@@ -632,7 +649,7 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
-          Generator::classRet = var->clazz;
+          Generator::classRet = dynamic_cast<Class*>(var->clazz);
           Generator::structRet = nullptr;
           return ptr;
      }
@@ -682,7 +699,7 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
      Generator::typeNameRet = str?str:var->clazz;
      if(var) {
-          Generator::classRet = var->clazz;
+          Generator::classRet = dynamic_cast<Class*>(var->clazz);
           Generator::structRet = nullptr;
           return val;
      }
@@ -821,10 +838,11 @@ std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>*
 }
 
 std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* builder) {
-     if(auto clazz = Generator::instance->m_file->findClass(typeName->mangle())) {
+     Generator::typeNameRet = nullptr;
+     Value* gen = term->generate(builder);
+     if(auto clazz = Generator::instance->m_file->findClass(Generator::typeNameRet->mangle())) {
           auto type = PointerType::get(builder->getContext(),0);
           AllocaInst* alloc = builder->CreateAlloca(type);
-          Value* gen = term->generate(builder);
           builder->CreateStore(gen,alloc);
 
           auto var = new ClassVar(alloc,final);
@@ -840,9 +858,24 @@ std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* 
                var->vars[str] = i + 1;
           }
           for (uint i = 0; i < clazz.value().second->funcs.size();i++)var->funcs[clazz.value().second->funcs[i]->name] = i;
+          Generator::typeNameRet = nullptr;
+          return {gen,var};
+     }else if(auto intf = Generator::instance->m_file->findInterface(Generator::typeNameRet->mangle())) {
+          auto type = PointerType::get(builder->getContext(),0);
+          AllocaInst* alloc = builder->CreateAlloca(type);
+          builder->CreateStore(gen,alloc);
+
+          auto var = new ClassVar(alloc,final);
+          var->type = builder->getPtrTy();
+          var->strType = nullptr;
+          var->clazz = intf.value();
+          var->types = {builder->getPtrTy()};
+          for (uint i = 0; i < intf.value()->funcs.size();i++)var->funcs[intf.value()->funcs[i]->name] = i;
+          Generator::typeNameRet = nullptr;
           return {gen,var};
      }else {
-          std::cerr << "Undeclarde Type " << typeName->mangle() << std::endl;
+          Generator::typeNameRet = nullptr;
+          std::cerr << "Undeclarde Type: " << typeName->mangle() << std::endl;
           exit(EXIT_FAILURE);
      }
 }
@@ -888,9 +921,12 @@ llvm::Value* NodeStmtScope::generate(llvm::IRBuilder<>* builder) {
 
 llvm::Value* NodeStmtIf::generate(llvm::IRBuilder<>* builder){
      llvm::Value* val = expr[0]->generate(builder);
+     if(val->getType() != builder->getInt1Ty())val = builder->CreateCmp(CmpInst::ICMP_NE,val,ConstantPointerNull::get(builder->getPtrTy()));
      for (size_t i = 1;i < expr.size();i++) {
-          if(exprCond[i - 1] == TokenType::_and)val = builder->CreateLogicalAnd(val,expr[i]->generate(builder));
-          else val = builder->CreateLogicalOr(val,expr[i]->generate(builder));
+          Value * res = expr[i]->generate(builder);
+          if(res->getType() != builder->getInt1Ty())res = builder->CreateCmp(CmpInst::ICMP_EQ,res,ConstantInt::get(res->getType(),0));
+          if(exprCond[i - 1] == TokenType::_and)val = builder->CreateLogicalAnd(val,res);
+          else val = builder->CreateLogicalOr(val,res);
      }
 
      if(!Generator::instance->next.empty()) {
@@ -1094,8 +1130,6 @@ llvm::Value * NodeStmtThrow::generate(llvm::IRBuilder<> *builder) {
      llvm::FunctionCallee cxa_Throw = Generator::instance->m_module->getOrInsertFunction("__cxa_throw",FunctionType::get(builder->getVoidTy(),
           {builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()},false));
      llvm::FunctionCallee cxa_alloc = Generator::instance->m_module->getOrInsertFunction("__cxa_allocate_exception",FunctionType::get(builder->getPtrTy(),builder->getInt64Ty(),false));
-     llvm::FunctionCallee cpy = Generator::instance->m_module->getOrInsertFunction("memcpy",FunctionType::get(builder->getVoidTy(),
-          {builder->getPtrTy(),builder->getPtrTy(),builder->getInt64Ty()},false));
 
      Generator::typeNameRet = nullptr;
      Value* val = expr->generatePointer(builder);
@@ -1111,10 +1145,25 @@ llvm::Value * NodeStmtThrow::generate(llvm::IRBuilder<> *builder) {
      Value* excep = builder->CreateCall(cxa_alloc,builder->getInt64(8));
      builder->CreateStore(val,excep);
      //builder->CreateCall(cpy,{excep,expr->generatePointer(builder),builder->getInt64(Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8)});
+
+     if(auto clazzExc = Generator::instance->m_file->findClass("Exception")) {
+          if(clazz.value().second->isSubTypeOf(clazzExc.value().second)) {
+               Value* loaded = expr->generate(builder);
+               Value* excepCast = Igel::stat_Cast(builder,clazzExc.value().second,clazz.value().second,loaded);
+
+               Value* load = builder->CreateLoad(val->getType(),val);
+               Value* load1 = builder->CreateLoad(val->getType(),load);
+               Value* load2 = builder->CreateLoad(val->getType(),load1);
+               builder->CreateCall(FunctionType::get(builder->getVoidTy(),{builder->getPtrTy()},false),load2,{excepCast});
+          }
+     }
+
+     Generator::typeNameRet = nullptr;
      if(Generator::catches.empty()) {
-          builder->CreateCall(cxa_Throw,{excep,clazz.value().second->typeInfoPointVar,ConstantPointerNull::get(builder->getPtrTy())});
+          builder->CreateCall(cxa_Throw,{excep,clazz.value().second->getClassInfos(builder).typeInfoPointVar,ConstantPointerNull::get(builder->getPtrTy())});
           return  builder->CreateUnreachable();
-     }else return builder->CreateInvoke(cxa_Throw,Generator::instance->unreach,Generator::catches.back(),{excep,clazz.value().second->typeInfoPointVar,ConstantPointerNull::get(builder->getPtrTy())});
+     }else return builder->CreateInvoke(cxa_Throw,Generator::instance->unreach,Generator::catches.back(),{excep,clazz.value().second->getClassInfos(builder).typeInfoPointVar,
+          ConstantPointerNull::get(builder->getPtrTy())});
 }
 
 llvm::Value * NodeStmtCatch::generate(llvm::IRBuilder<> *builder) {
@@ -1197,7 +1246,7 @@ llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
           Generator::instance->m_vars.pop_back();
 
           catchesBB.push_back(BB);
-          land->addClause(clazz->second->typeInfoPointVar);
+          land->addClause(clazz->second->getClassInfos(builder).typeInfoPointVar);
      }
 
      builder->SetInsertPoint(_catch);
@@ -1217,7 +1266,7 @@ llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
                     std::cerr << "Could not find class " << catch_[i]->typeName << std::endl;
                     exit(1);
                }
-               Value* ctId = builder->CreateCall(typeIdC,clazz.value().second->typeInfo);
+               Value* ctId = builder->CreateCall(typeIdC,clazz.value().second->getClassInfos(builder).typeInfo);
                Value* cmp = builder->CreateICmpEQ(ctId,tid);
                builder->CreateCondBr(cmp,catchesBB[i],catchSwitch[i + 1]);
           }
@@ -1234,8 +1283,85 @@ llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
      return cont;
 }
 
+std::pair<llvm::Function*,FuncSig*> IgFunction::genFuncSig(llvm::IRBuilder<>* builder) {
+     //if(genSig)return std::make_pair(llvmFunc,new FuncSig(mangle(),types,_return));
+     std::vector<Type*> types;
+     if(member && !genSig) {
+          paramType.insert(paramType.begin(),builder->getPtrTy());
+          signage.insert(signage.begin(),false);
+          paramName.insert(paramName.begin(),"this");
+          paramTypeName.insert(paramTypeName.begin(),supper.value());
+     }
+     for(uint i = 0;i < paramType.size();i++) {
+          types.push_back(paramType[i]);
+     }
+     const ArrayRef<Type*> ref(types);
+     FunctionType* type = FunctionType::get(_return,ref,false);
+     llvm::Function* llvmFunc = Function::Create(type,Function::ExternalLinkage,mangle(),*Generator::instance->m_module);
+     for(size_t i = 0;i < llvmFunc->arg_size();i++)
+          llvmFunc->getArg(i)->setName(paramName[llvmFunc->getArg(i)->getArgNo()]);
+     genSig = true;
+     return std::make_pair(llvmFunc,new FuncSig(mangle(),types,_return));
+}
+
+void IgFunction::genFunc(llvm::IRBuilder<>* builder) {
+     if(gen)return;
+     gen = true;
+     Generator::lastUnreachable = false;
+     Function* llvmFunc = Generator::instance->m_module->getFunction(mangle());
+     BasicBlock* entry = BasicBlock::Create(*Generator::m_contxt,"entry",llvmFunc);
+     builder->SetInsertPoint(entry);
+
+     Generator::instance->m_vars.emplace_back();
+     if(supper.has_value()) {
+          llvmFunc->getArg(0)->setName("this");
+          Generator::instance->createVar(llvmFunc->getArg(0),false,supper.value()->mangle());
+     }
+     for(size_t i = supper.has_value();i < llvmFunc->arg_size();i++){
+          llvmFunc->getArg(i)->setName(paramName[i]);
+          Generator::instance->createVar(llvmFunc->getArg(i),signage[i],llvmFunc->getArg(i)->getType()->isPointerTy()?(paramTypeName[i]?paramTypeName[i]->mangle():"_Z4this"):"");
+     }
+
+     scope->generate(builder);
+     Generator::instance->m_vars.pop_back();
+     if(_return->isVoidTy())builder->CreateRetVoid();
+
+     if(!Generator::lastUnreachable && !_return->isVoidTy()) {
+          std::cerr << "No return statement in non void function " << mangle() << "\n";
+          exit(EXIT_FAILURE);
+     }
+     if(Generator::instance->unreach) {
+          builder->SetInsertPoint(Generator::instance->unreach);
+          builder->CreateUnreachable();
+          Generator::instance->unreach = nullptr;
+     }
+     if(llvm::verifyFunction(*llvmFunc,&outs())) {
+          llvmFunc->print(outs());
+          exit(EXIT_FAILURE);
+     }
+}
+
 std::string IgFunction::mangle() {
      return Igel::Mangler::mangle(this,paramType,paramTypeName,signage,member,constructor);
+}
+
+llvm::Function* IgFunction::getLLVMFunc() {
+     if(llvmFunc)return llvmFunc;
+     if(!type)getLLVMFuncType();
+     Generator::instance->m_module->getOrInsertFunction(mangle(),type);//Function::Create(type,Function::ExternalLinkage,func->mangle(),m_module.get());
+     llvmFunc = Generator::instance->m_module->getFunction(mangle());
+     return llvmFunc;
+}
+
+llvm::FunctionType* IgFunction::getLLVMFuncType() {
+     if(type)return type;
+     type = FunctionType::get(_return,paramType,false);
+     return type;
+}
+
+void IgFunction::reset() {
+     type = nullptr;
+     llvmFunc = nullptr;
 }
 
 int Types::getSize(TokenType type) {
@@ -1286,21 +1412,76 @@ std::string Struct::mangle() {
 }
 
 void NamesSpace::generateSig(llvm::IRBuilder<>* builder) {
-     for(auto func : funcs)Generator::instance->genFuncSig(func);
+     for(auto func : funcs)func->genFuncSig(builder);
      for(auto cont : contained) {
           if(auto type = dynamic_cast<IgType*>(cont))type->generateSig(builder);
      }
 }
 
 void NamesSpace::generate(llvm::IRBuilder<>* builder) {
-     for(auto func : funcs)Generator::instance->genFunc(func);
+     for(auto func : funcs)func->genFunc(builder);
      for(auto cont : contained) {
           if(auto type = dynamic_cast<IgType*>(cont))type->generate(builder);
      }
 }
 
+std::string NamesSpace::mangle() {
+     return Igel::Mangler::mangleTypeName(this);
+}
+
 std::string Interface::mangle() {
      return Igel::Mangler::mangleTypeName(this);
+}
+
+void Interface::generateSig(llvm::IRBuilder<> *builder) {
+     Generator::instance->m_file->interfaces[mangle()] = this;
+}
+
+void Interface::generate(llvm::IRBuilder<> *builder) {
+     if(gen)return;
+     gen = true;
+     Generator::instance->initInfo();
+     classInfos.typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     /*StructType* tIT = StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});
+     typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
+          {ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy())}),"_ZTI" + Igel::Mangler::mangle(this));*/
+
+     std::vector<Type*> typeInfoTypes {builder->getPtrTy(),builder->getPtrTy()};
+     auto typeInfos = getTypeInfoRec(builder);
+     typeInfoTypes.reserve(typeInfos.size());
+     for (auto typeInfo : typeInfos) {
+          typeInfoTypes.push_back(builder->getPtrTy());
+     }
+     typeInfos.insert(typeInfos.begin(),classInfos.typeNameVar);
+     typeInfos.insert(typeInfos.begin(), (Constant*) (builder->CreateConstGEP1_64(builder->getPtrTy(), /*vtable*/ Generator::instance->cxx_class_type_info, 2)));
+     //typeInfos.insert(typeInfos.begin(),nullptr);
+
+     StructType* tIT = StructType::get(builder->getContext(),typeInfoTypes);  /*extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
+          StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});*/
+     classInfos.typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
+          typeInfos),"_ZTI" + Igel::Mangler::mangle(this));
+     classInfos.init = true;
+}
+
+ClassInfos Interface::getClassInfos(llvm::IRBuilder<> *builder) {
+     if(!gen)generate(builder);
+     if(classInfos.init)return classInfos;
+
+     /*classInfos.vtable = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTV" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+     classInfos.typeInfo = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTI" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);
+     /*classInfos.typeInfoPointVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTIP" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+     /*classInfos.typeNameVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTS" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+     classInfos.typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     /*classInfos.typeNamePointVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTSP" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+     classInfos.typeNamePointVar = builder->CreateGlobalString("P" + Igel::Mangler::mangle(this),"_ZTSP" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+
+     classInfos.init = true;
+     return classInfos;
 }
 
 std::string Enum::mangle() {
@@ -1364,8 +1545,8 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
           }
 
           FunctionType* ty = FunctionType::get(builder->getVoidTy(),{types},false);
-          Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,types,names,sing,true),*Generator::instance->m_module);
-          constructor->llvmFunc = func;
+          Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,types,names,sing,true,true),*Generator::instance->m_module);
+          //constructor->llvmFunc = func;
           constructor->_return = builder->getVoidTy();
           constructor->retTypeName = "";
           func->getArg(0)->setName("this");
@@ -1377,6 +1558,7 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
                     func->getArg(i)->setName(str);
                }
           }
+          constructor->llvmFunc = func;
      }
 
      /*if(!constructor) {
@@ -1397,6 +1579,7 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
 void Class::generatePart(llvm::IRBuilder<> *builder) {
      if(partGen)return;
      partGen = true;
+     if(extending.has_value())extending.value()->generatePart(builder);
 
      auto fullFuncs = getFuncsRec();
      for(int i = 0;i < fullFuncs.size() - 1;i++)types.insert(types.begin(),builder->getPtrTy());
@@ -1431,15 +1614,21 @@ void Class::generate(llvm::IRBuilder<>* builder) {
 
 
      for (int i = 0; i < funcs.size();i++) {
-          funcs[i]->paramName.insert(funcs[i]->paramName.begin(),"");
-          funcs[i]->paramType.insert(funcs[i]->paramType.begin(),builder->getPtrTy());
-          funcs[i]->paramTypeName.insert(funcs[i]->paramTypeName.begin(),nullptr);
-          funcs[i]->signage.insert(funcs[i]->signage.begin(),false);
+          //funcs[i]->paramName.insert(funcs[i]->paramName.begin(),"");
+          //funcs[i]->paramType.insert(funcs[i]->paramType.begin(),builder->getPtrTy());
+          //funcs[i]->paramTypeName.insert(funcs[i]->paramTypeName.begin(),nullptr);
+          //funcs[i]->signage.insert(funcs[i]->signage.begin(),false);
           funcs[i]->member = true;
           funcs[i]->supper = this;
           if(!funcs[i]->abstract) {
-               Generator::instance->genFuncSig(funcs[i]);
-               Generator::instance->genFunc(funcs[i],true);
+               funcs[i]->genFuncSig(builder);
+               funcs[i]->genFunc(builder);
+          }else {
+               std::vector<Type*> types;
+               for(uint j = 0;j < funcs[i]->paramType.size();j++) {
+                    types.push_back(funcs[i]->paramType[j]);
+               }
+               //funcs[i]->type = FunctionType::get(funcs[i]->_return,types,false);
           }
 
           //funcIdMs[funcs[i]->name] = i;
@@ -1448,22 +1637,30 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      //Function* func = Generator::instance->m_module->getFunction(Igel::Mangler::mangle(this,types,names,sing,true));
      Type* ptr = PointerType::get(*Generator::m_contxt,0);
 
-
-
      Generator::instance->initInfo();
 
      //TODO make extending and make throwables extend Exception
-     typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
-     typeNamePointVar = builder->CreateGlobalString("P" + Igel::Mangler::mangle(this),"_ZTSP" + Igel::Mangler::mangle(this),0,Generator::instance->m_module.get());
-     StructType* tIT = extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
-          StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});
-     typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
-          {ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy()),ConstantPointerNull::get(builder->getPtrTy())}),"_ZTI" + Igel::Mangler::mangle(this));
+     classInfos.typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     classInfos.typeNamePointVar = builder->CreateGlobalString("P" + Igel::Mangler::mangle(this),"_ZTSP" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     std::vector<Type*> typeInfoTypes {builder->getPtrTy(),builder->getPtrTy()};
+     auto typeInfos = getTypeInfoRec(builder);
+     typeInfoTypes.reserve(typeInfos.size());
+     for (auto typeInfo : typeInfos) {
+          typeInfoTypes.push_back(builder->getPtrTy());
+     }
+     typeInfos.insert(typeInfos.begin(),classInfos.typeNameVar);
+     typeInfos.insert(typeInfos.begin(), (Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2)));
+     //typeInfos.insert(typeInfos.begin(),nullptr);
+
+     StructType* tIT = StructType::get(builder->getContext(),typeInfoTypes);  /*extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
+          StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});*/
+     classInfos.typeInfo = new GlobalVariable(*Generator::instance->m_module,tIT,true,GlobalValue::ExternalLinkage,ConstantStruct::get(tIT,
+          typeInfos),"_ZTI" + Igel::Mangler::mangle(this));
      StructType* tIPT = StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getInt32Ty(),builder->getPtrTy()});
-     typeInfoPointVar = new GlobalVariable(*Generator::instance->m_module,tIPT,true,GlobalVariable::ExternalLinkage,ConstantStruct::get(tIPT,
-          {(Constant*) builder->CreateConstGEP1_64(ptr,Generator::instance->cxx_pointer_type_info,2),typeNamePointVar,
-               ConstantInt::get(builder->getInt32Ty(),0),typeInfo}),"_ZTIP" + Igel::Mangler::mangle(this));
-     std::vector<Constant*> vtablefuncs {ConstantPointerNull::get(builder->getPtrTy()),typeInfo};
+     classInfos.typeInfoPointVar = new GlobalVariable(*Generator::instance->m_module,tIPT,true,GlobalVariable::ExternalLinkage,ConstantStruct::get(tIPT,
+          {(Constant*) builder->CreateConstGEP1_64(ptr,Generator::instance->cxx_pointer_type_info,2),classInfos.typeNamePointVar,
+               ConstantInt::get(builder->getInt32Ty(),0),classInfos.typeInfo}),"_ZTIP" + Igel::Mangler::mangle(this));
+     std::vector<Constant*> vtablefuncs {ConstantPointerNull::get(builder->getPtrTy()),classInfos.typeInfo};
 
      //TODO insert destructors into vtable
 
@@ -1472,7 +1669,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      std::vector<IgFunction*> overides {};
      /*while (current) {
           for (int i = 0;i < fullFuncs.size();i++){
-               if(current->funcs[i]->_override) {
+               if(current->funcs[i]->_override) {^
                     overides.push_back(current->funcs[i]);
                     current->funcs.erase(std::ranges::remove(current->funcs,current->funcs[i]).begin(),current->funcs.end());
                }
@@ -1501,8 +1698,12 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      std::vector<Constant*> vtables;
      //if(fullFuncs.size() > 1) {
           vtables.reserve(fullFuncs.size());
+          long supperOffset = 0;
+          if(extending.has_value()) {
+               supperOffset = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(extending.value()->strType) / 8 - 8;
+          }
           for (int i = 0;i < fullFuncs.size();i++) {
-               std::vector<Constant*> vtablefuncsimp {(Constant*) builder->CreateIntToPtr(ConstantInt::get(builder->getInt64Ty(),i * -8),builder->getPtrTy()),typeInfo};
+               std::vector<Constant*> vtablefuncsimp {(Constant*) builder->CreateIntToPtr(ConstantInt::get(builder->getInt64Ty(),i * -8 - supperOffset * i > 0),builder->getPtrTy()),classInfos.typeInfo};
                vtablefuncsimp.reserve(fullFuncs[i].size());
                for(int j = 0;j < fullFuncs[i].size();j++) {
                     if(!abstract) {
@@ -1510,11 +1711,11 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                               std::cerr << "Abstract function has either to be declared or the class has to be declared abstract\n     in: " << mangle() << std::endl;
                               exit(EXIT_FAILURE);
                          }
-                         vtablefuncsimp.push_back(fullFuncs[i][j]->llvmFunc);
+                         vtablefuncsimp.push_back(fullFuncs[i][j]->getLLVMFunc());
                     }else {
                          vtablefuncsimp.push_back(Generator::instance->cxx_pure_virtual);
                     }
-                    if(!fullFuncs[i][j]->abstract)funcIdMs[fullFuncs[i][j]->name] = std::make_pair(i,j);
+                    /*if(!fullFuncs[i][j]->abstract)*/funcIdMs[fullFuncs[i][j]->name] = std::make_pair(i,j);
                     funcMap[i][j] = fullFuncs[i][j];
                }
                vtables.push_back(ConstantArray::get(ArrayType::get(ptr,fullFuncs[i].size() + 2 /*nullptr and type info*/ + 0 /*Destructors*/),{vtablefuncsimp}));
@@ -1527,16 +1728,16 @@ void Class::generate(llvm::IRBuilder<>* builder) {
 
      Constant* vtableStr = ConstantStruct::get(StructType::get(builder->getContext(),vtableTypes),vtables);
 
-     vtable = new GlobalVariable(*Generator::instance->m_module,vtableStr->getType()/*vtableInit->getType()*/,true,GlobalValue::ExternalLinkage,vtableStr/*vtableInit*/,
+     classInfos.vtable = new GlobalVariable(*Generator::instance->m_module,vtableStr->getType()/*vtableInit->getType()*/,true,GlobalValue::ExternalLinkage,vtableStr/*vtableInit*/,
           "_ZTV" + Igel::Mangler::mangle(this));
+
      if(extending.has_value()) {
-          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, vtable /*Generator::instance->cxx_class_type_info*/, 2)),(Constant*) typeNameVar,extending.value()->typeInfo};
-          typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
+          typeInfos[0] = (Constant*) (builder->CreateConstGEP1_64(ptr, classInfos.vtable /*Generator::instance->cxx_class_type_info*/, 2));
      }else {
-          ArrayRef<Constant*> cnt = {(Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2)),(Constant*) typeNameVar};
-          typeInfo->setInitializer(ConstantStruct::get(tIT,cnt));
+          typeInfos[0] = (Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2));
      }
 
+     classInfos.typeInfo->setInitializer(ConstantStruct::get(tIT,typeInfos));
 
      //TODO insert destructors into vtable
      /*vtablefuncs.reserve(funcs.size() + 0);
@@ -1548,16 +1749,16 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      vtable->getValueType()->print(outs());*/
 
      for (auto constructor : constructors) {
-          BasicBlock* entry = BasicBlock::Create(*Generator::m_contxt,"entry",constructor->llvmFunc);
+          BasicBlock* entry = BasicBlock::Create(*Generator::m_contxt,"entry",constructor->getLLVMFunc());
           builder->SetInsertPoint(entry);
 
           AllocaInst* alloc = builder->CreateAlloca(ptr);
-          builder->CreateStore(constructor->llvmFunc->getArg(0),alloc);
+          builder->CreateStore(constructor->getLLVMFunc()->getArg(0),alloc);
           LoadInst* load = builder->CreateLoad(alloc->getAllocatedType(),alloc);
 
           Generator::instance->m_vars.emplace_back();
-          constructor->llvmFunc->getArg(0)->setName("this");
-          Generator::instance->createVar(constructor->llvmFunc->getArg(0),false,this->mangle());
+          constructor->getLLVMFunc()->getArg(0)->setName("this");
+          Generator::instance->createVar(constructor->getLLVMFunc()->getArg(0),false,this->mangle());
           bool supConstCall = false;
           if(!constructor->scope->stmts.empty() && dynamic_cast<NodeStmtSuperConstructorCall*>(constructor->scope->stmts[0])) {
                constructor->scope->startIndex = 1;
@@ -1565,26 +1766,28 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                supConstCall = true;
           }
 
-
-          if(extending.has_value() && extending.value()->defaulfConstructor.has_value() && !supConstCall)builder->CreateCall(extending.value()->defaulfConstructor.value()->llvmFunc,constructor->llvmFunc->getArg(0));
+          if(extending.has_value() && extending.value()->defaulfConstructor.has_value() && !supConstCall)builder->CreateCall(extending.value()->defaulfConstructor.value()->getLLVMFunc(),
+               constructor->getLLVMFunc()->getArg(0));
 
 
           //Generator::instance->m_vars.pop_back();
           builder->SetInsertPoint(entry);
 
-          Constant* vtG = ConstantExpr::getGetElementPtr(vtable->getValueType(),vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(0),builder->getInt32(2)},true,1);
+          Constant* vtG = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,
+               (ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(0),builder->getInt32(2)},true,1);
           builder->CreateStore(vtG,load);
           for(int i = 1;i < fullFuncs.size();i++) {
                Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8));
-               Constant* vtGI = ConstantExpr::getGetElementPtr(vtable->getValueType(),vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},true,1);
+               Constant* vtGI = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,
+                    (ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},true,1);
                builder->CreateStore(vtGI,ptr2);
           }
 
           //Generator::instance->m_vars.emplace_back();
 
-          for(size_t i = 1;i < constructor->llvmFunc->arg_size();i++){
-               constructor->llvmFunc->getArg(i)->setName(constructor->paramName[i - 1]);
-               Generator::instance->createVar(constructor->llvmFunc->getArg(i),constructor->signage[i - 1],constructor->llvmFunc->getArg(i)->getType()->isPointerTy()?constructor->paramTypeName[i - 1]->mangle():"");
+          for(size_t i = 1;i < constructor->getLLVMFunc()->arg_size();i++){
+               constructor->getLLVMFunc()->getArg(i)->setName(constructor->paramName[i - 1]);
+               Generator::instance->createVar(constructor->getLLVMFunc()->getArg(i),constructor->signage[i - 1],constructor->getLLVMFunc()->getArg(i)->getType()->isPointerTy()?constructor->paramTypeName[i - 1]->mangle():"");
           }
 
           uint j = 0;
@@ -1605,8 +1808,9 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      }
 
      if(constructors.empty()) {
+          //if(extending.has_value() && extending.value()->defaulfConstructor.has_value())
           FunctionType* ty = FunctionType::get(builder->getVoidTy(),{builder->getPtrTy()},false);
-          Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,{},{},{},true),*Generator::instance->m_module);
+          Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,{},{},{},true,true),*Generator::instance->m_module);
           BasicBlock* entry = BasicBlock::Create(*Generator::m_contxt,"entry",func);
           builder->SetInsertPoint(entry);
 
@@ -1614,26 +1818,83 @@ void Class::generate(llvm::IRBuilder<>* builder) {
           builder->CreateStore(func->getArg(0),alloc);
           LoadInst* load = builder->CreateLoad(alloc->getAllocatedType(),alloc);
 
-          if(extending.has_value() && extending.value()->defaulfConstructor.has_value())builder->CreateCall(extending.value()->defaulfConstructor.value()->llvmFunc,func->getArg(0));
+          if(extending.has_value() && extending.value()->defaulfConstructor.has_value()) {
+               builder->CreateCall(extending.value()->defaulfConstructor.value()->getLLVMFunc(),func->getArg(0));
+          }
           if(extending.has_value() && !extending.value()->defaulfConstructor) {
-               std::cerr << "No default constructor for " << extending.value()->mangle() << "manual call to super() needed in " << mangle() << std::endl;
+               std::cerr << "No default constructor for " << extending.value()->mangle() << " manual call to super() needed in " << mangle() << std::endl;
           }
 
           builder->SetInsertPoint(entry);
 
-          Constant* vtG = ConstantExpr::getGetElementPtr(vtable->getValueType(),vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(0),builder->getInt32(2)},true,1);
+
+          Constant* vtG = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(0),builder->getInt32(2)},
+          true,1);
           builder->CreateStore(vtG,load);
+
           for(int i = 1;i < fullFuncs.size();i++) {
+               if(fullFuncs[i].empty())continue;
                Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8));
-               Constant* vtGI = ConstantExpr::getGetElementPtr(vtable->getValueType(),vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},true,1);
+               Constant* vtGI = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},
+                    true,1);
                builder->CreateStore(vtGI,ptr2);
           }
           builder->CreateRetVoid();
+          auto igFunc = new IgFunction();
+          igFunc->name = mangle(); //Igel::Mangler::mangle(this);
+          igFunc->constructor = true;
+          //igFunc->llvmFunc = func;
+          igFunc->member = true;
+          igFunc->paramName = {"this"};
+          igFunc->paramTypeName = {this};
+          igFunc->paramType = {builder->getPtrTy()};
+          igFunc->signage = {false};
+          igFunc->supper = this;
+          igFunc->_return = builder->getVoidTy();
+          this->defaulfConstructor = igFunc;
      }
+
+     classInfos.init = true;
 }
 
 std::string Class::mangle() {
      return Igel::Mangler::mangleTypeName(this);
+}
+
+ClassInfos Class::getClassInfos(llvm::IRBuilder<> *builder) {
+     if(!fullGen)generate(builder);
+     if(classInfos.init)return classInfos;
+
+     classInfos.vtable = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTV" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);
+     classInfos.typeInfo = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTI" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);
+     classInfos.typeInfoPointVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTIP" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);
+     classInfos.typeNameVar = builder->CreateGlobalString(Igel::Mangler::mangle(this),"_ZTS" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     /*classInfos.typeNameVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTS" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+     classInfos.typeNamePointVar = builder->CreateGlobalString("P" + Igel::Mangler::mangle(this),"_ZTSP" + Igel::Mangler::mangle(this),0,Generator::instance->m_module);
+     /*classInfos.typeNamePointVar = new GlobalVariable(*Generator::instance->m_module,builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTSP" + Igel::Mangler::mangle(this),
+          nullptr,GlobalValue::NotThreadLocal,0,true);*/
+
+     classInfos.init = true;
+     return classInfos;
+}
+
+uint Class::getExtendingOffset() {
+     return Generator::instance->m_module->getDataLayout().getTypeSizeInBits(extending.value()->strType);
+}
+
+uint Class::getSuperOffset(IgType *type) {
+     if(!isSubTypeOf(type))return -1;
+     if(extending.has_value() && extending.value()->isSubTypeOf(type)) return extending.value()->getSuperOffset(type);
+     uint offset = extending.has_value()?Generator::instance->m_module->getDataLayout().getTypeSizeInBits(extending.value()->strType):0;
+     for (auto interface : implementing) {
+          if(interface == type || interface->isSubTypeOf(type))return offset;
+          offset += interface->getExtendingOffset();
+     }
+     return -1;
 }
 
 std::pair<llvm::FunctionCallee,bool> getFunction(std::string name, std::vector<llvm::Type *> types) {
@@ -1725,7 +1986,7 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                     vals.reserve(exprs.size());
                     for (auto expr : exprs) vals.push_back(expr->generate(builder));
                     //clazz->getFuncsRec()[fid.first][fid.second]->llvmFunc->print(outs());
-                    return builder->CreateCall(clazz->funcMap[fid.first][fid.second]->llvmFunc->getFunctionType(),funcPtr,vals);
+                    return builder->CreateCall(clazz->funcMap[fid.first][fid.second]->getLLVMFuncType(),funcPtr,vals);
                     //return builder->CreateCall(clazz->funcs[fid.first,fid.second]->llvmFunc->getFunctionType(),funcPtr,vals);
                }
           }else contained.value()->generate(builder);
@@ -1789,7 +2050,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
           const llvm::FunctionCallee _new = Generator::instance->m_module->getOrInsertFunction("GC_malloc",type);
           Value* ptr = builder->CreateCall(_new,ConstantInt::get(Type::getInt64Ty(builder->getContext()),Generator::instance->m_module->getDataLayout().getTypeSizeInBits(clazz.value().first) / 8));
           ArrayRef<Type*> llvmTypes {types};
-          auto calle = Generator::instance->m_module->getOrInsertFunction(Igel::Mangler::mangle(typeName,types,names,sing,true),builder->getVoidTy(),llvmTypes);
+          auto calle = Generator::instance->m_module->getOrInsertFunction(Igel::Mangler::mangle(typeName,types,names,sing,true,true),builder->getVoidTy(),llvmTypes);
 
           params.insert(params.begin(),ptr);
           //for (auto expr : exprs) params.push_back(expr->generate(builder));
@@ -1797,7 +2058,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
           Generator::typeNameRet = typeName;
           return ptr;
      }
-     std::cerr << "Unknown type " << typeName << std::endl;
+     std::cerr << "Unknown type " << typeName->mangle() << std::endl;
      exit(EXIT_FAILURE);
 }
 
@@ -1833,6 +2094,117 @@ llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
      const llvm::FunctionCallee del = Generator::instance->m_module->getOrInsertFunction("free",builder->getVoidTy(),builder->getPtrTy());
      builder->CreateCall(del,sizes);
      return arr;
+}
+
+llvm::Value * Igel::dyn_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* srcCont,llvm::Value* val) {
+     auto calle = Generator::instance->m_module->getOrInsertFunction("__dynamic_cast",
+          FunctionType::get(builder->getPtrTy(),{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy(),builder->getInt64Ty()},false));
+
+     if(!srcCont) {
+          std::cerr << "Invalid Cast" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     GlobalVariable* src = nullptr;
+     if(auto clazz = dynamic_cast<Class*>(srcCont))src = clazz->getClassInfos(builder).typeInfo;
+     if(auto intf = dynamic_cast<Interface*>(srcCont))src = intf->getClassInfos(builder).typeInfo;
+     if(!src) {
+          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     Generator::typeNameRet = target;
+
+     if(auto clazz = dynamic_cast<Class*>(target))return builder->CreateCall(calle,{val,src,clazz->getClassInfos(builder).typeInfo,ConstantInt::get(builder->getInt64Ty(),0)});
+     if(auto intf = dynamic_cast<Interface*>(target))return builder->CreateCall(calle,{val,src,intf->getClassInfos(builder).typeInfo,ConstantInt::get(builder->getInt64Ty(),0)});
+
+     std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
+     exit(EXIT_FAILURE);
+}
+
+llvm::Value* Igel::stat_Cast(llvm::IRBuilder<> *builder, BeContained *target, BeContained *src, llvm::Value *val) {
+     if(!dynamic_cast<ContainableType*>(src)) {
+          std::cerr << "Can only cast Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     if(!dynamic_cast<ContainableType*>(target)) {
+          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     if(target &&dynamic_cast<ContainableType*>(src)->isSubTypeOf(dynamic_cast<ContainableType*>(target))) {
+          uint offset = dynamic_cast<ContainableType*>(src)->getSuperOffset(dynamic_cast<ContainableType*>(target));
+          if(((int) offset) == -1) {
+               std::cerr << "Internal error, please report" << std::endl;
+               exit(EXIT_FAILURE);
+          }
+          offset /= 8;
+          return builder->CreateGEP(builder->getPtrTy(),val,ConstantInt::get(builder->getInt8Ty(),offset));
+     }
+     return nullptr;
+}
+
+llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {
+     Generator::typeNameRet = nullptr;
+     Value* val = expr->generate(builder);
+     if(!Generator::typeNameRet) {
+          std::cerr << "Invalid expression used for casting" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     auto typeName = Generator::typeNameRet;
+     if(!dynamic_cast<ContainableType*>(typeName)) {
+          std::cerr << "Can only cast Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     if(!dynamic_cast<ContainableType*>(target)) {
+          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+
+     Generator::typeNameRet = target;
+     if(auto cast = Igel::stat_Cast(builder,target,typeName,val))return cast;
+     llvm::Function* parFunc = builder->GetInsertBlock()->getParent();
+     llvm::BasicBlock* err = llvm::BasicBlock::Create(builder->getContext(),"then",parFunc);
+     llvm::BasicBlock* notErr = llvm::BasicBlock::Create(builder->getContext(),"ifcont",parFunc);
+     Value* casted = Igel::dyn_Cast(builder,target,typeName,val);
+     Value* cmp = builder->CreateCmp(CmpInst::ICMP_EQ,casted,ConstantPointerNull::get(builder->getPtrTy()));
+     builder->CreateCondBr(cmp,err,notErr);
+
+     builder->SetInsertPoint(err);
+     Igel::GeneratedException::throwException(builder,"ClassCastException","Cannot cast: " + typeName->mangle() + " to " + target->mangle());
+     builder->CreateUnreachable();
+     notErr->moveAfter(err);
+     builder->SetInsertPoint(notErr);
+     return casted;
+}
+
+llvm::Value * NodeTermCast::generatePointer(llvm::IRBuilder<> *builder) {
+     std::cerr << "Cannot generate Pointer to cast" << std::endl;
+     exit(EXIT_FAILURE);
+}
+
+llvm::Value * NodeTermInstanceOf::generate(llvm::IRBuilder<> *builder) {
+     Generator::typeNameRet = nullptr;
+     Value* val = expr->generate(builder);
+     if(!Generator::typeNameRet) {
+          std::cerr << "Invalid expression used for instanceOf" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     auto typeName = Generator::typeNameRet;
+     if(!dynamic_cast<ContainableType*>(typeName)) {
+          std::cerr << "Can only cast Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     if(!dynamic_cast<ContainableType*>(target)) {
+          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
+          exit(EXIT_FAILURE);
+     }
+     Generator::typeNameRet = target;
+     if(auto cast = Igel::stat_Cast(builder,target,typeName,val)) return ConstantInt::get(builder->getInt1Ty(),1);
+     Value* casted = Igel::dyn_Cast(builder,target,typeName,val);
+     return builder->CreateCmp(CmpInst::ICMP_NE,casted,ConstantPointerNull::get(builder->getPtrTy()));
+}
+
+llvm::Value * NodeTermInstanceOf::generatePointer(llvm::IRBuilder<> *builder) {
+     std::cerr << "Cannot generate Pointer to cast" << std::endl;
+     exit(EXIT_FAILURE);
 }
 
 llvm::Value * NodeTermInlineIf::generate(llvm::IRBuilder<> *builder) {

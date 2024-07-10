@@ -70,6 +70,9 @@ struct Header {
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
     std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
+    std::optional<Interface*> findInterface(std::string name);
+    std::optional<IgType*> findContained(const std::string & name);
+    std::optional<IgType*> findUnmangledContained(const std::string & name);
 };
 
 struct SrcFile{
@@ -87,15 +90,20 @@ struct SrcFile{
     std::vector<IgType*> types;
     std::vector<std::string> typeNames;
     std::unordered_map<std::string,IgType*> nameTypeMap;
+    std::unordered_map<std::string,IgType*> unmangledTypeMap;
     //std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
     std::unordered_map<std::string,IgFunction*> funcs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Class*>> classes;
+    std::unordered_map<std::string,Interface*> interfaces;
 
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type *> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
     std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
     std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
+    std::optional<Interface*> findInterface(std::string name);
+    std::optional<IgType*> findContained(std::string name);
+    std::optional<IgType*> findUnmangledContained(std::string name);
 };
 
 struct Directory{

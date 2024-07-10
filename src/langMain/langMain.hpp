@@ -24,6 +24,9 @@ class LangMain{
                 file->tokens = tokens;
                 m_indexer.index(file);
                 m_preParser.parse(file);
+            }
+
+            for (auto file : m_info->files) {
                 m_parser.parseProg(file);
             }
 
@@ -35,6 +38,11 @@ class LangMain{
             if(m_info->files.empty())return;
             m_gen = new Generator(m_info->files.back(),m_info);
             for(const auto file:m_info->files){
+                m_gen->create(file);
+                m_gen->generateSigs();
+            }
+
+            for(const auto file:m_info->files){
                 m_gen->setup(file);
                 m_gen->generate();
                 m_gen->write();
@@ -43,6 +51,7 @@ class LangMain{
             for (const auto& lib : m_info->libs) outFiles << lib << " ";
             for (const auto& compiler_libs : COMPILER_LIBS) outFiles << compiler_libs << " ";
 
+            outFiles << " -std=c++23 -lstdc++exp -fsized-deallocation ";
             std::string temp = outFiles.str();
             const char* str1 = temp.c_str();
             system(str1);

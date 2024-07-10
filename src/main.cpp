@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <cstring>
 
 #include "langMain/langMain.hpp"
 #include "CompilerInfo/CompilerInfo.hpp"
@@ -24,16 +23,6 @@ std::string read(const std::string& name){
 }
 
 int main(int argc,char* argv[]) {
-    /*if(argc < 2){
-        std::cerr << "Incorrect arguments, type help for more information" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    if(strcmp(argv[1], "help" ) == 0 ){
-        std::cout << "Help:\n   First arg should be igel Compiler file(.igc)\n";
-        return EXIT_SUCCESS;
-    }*/
-
     OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 
@@ -41,6 +30,9 @@ int main(int argc,char* argv[]) {
     if(options->infoFile) {
         CompilerInfo cmpinfo(options->infoFile.value());
         info = cmpinfo.getInfo();
+    }else {
+        std::cerr << "Currently a build file is needed" << std::endl;
+        exit(EXIT_FAILURE);
     }
     optParser.modify(info);
 

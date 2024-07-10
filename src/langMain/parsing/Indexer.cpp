@@ -70,8 +70,8 @@ void Indexer::index(SrcFile* file) {
             }
             consume();
             if(peak().value().type != TokenType::id)err("Expected type name");
-            file->nameTypeMap[peak().value().value.value()] = type;
             type->name = peak().value().value.value();
+            file->nameTypeMap[type->mangle()] = type;
             if(cont)m_super.pop_back();
             file->typeNames.push_back(consume().value.value());
         }else consume();

@@ -201,6 +201,16 @@ std::optional<std::pair<llvm::StructType*, Class*>> Header::findClass(std::strin
         return {};
 }
 
+std::optional<Interface *> Header::findInterface(std::string name) {
+}
+
+std::optional<IgType*> Header::findContained(const std::string &name) {
+        return {};
+}
+
+std::optional<IgType *> Header::findUnmangledContained(const std::string &name) {
+}
+
 
 std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name,std::vector<Type*> types) {
         if(funcs.contains(name)) {
@@ -275,6 +285,59 @@ std::optional<std::pair<llvm::StructType*, Class*>> SrcFile::findClass(std::stri
                 return ret;
             }
         }
+        return {};
+}
+
+std::optional<Interface*> SrcFile::findInterface(std::string name) {
+        if(interfaces.contains(name)) {
+            return interfaces.at(name);
+        }
+        for (const auto &item: includes){
+            if(auto ret = item->findInterface(name)){
+                return ret;
+            }
+        }
+        for (const auto &item: _using){
+            if(auto ret = item->findInterface(name)){
+                return ret;
+            }
+        }
+        return {};
+}
+
+std::optional<IgType *> SrcFile::findContained(std::string name) {
+        if(nameTypeMap.contains(name))return nameTypeMap[name];
+        else {
+            for (const auto &item: includes){
+                if(auto ret = item->findContained(name)){
+                    return ret;
+                }
+            }
+            for (const auto &item: _using){
+                if(auto ret = item->findContained(name)){
+                    return ret;
+                }
+            }
+        }
+
+        return {};
+}
+
+std::optional<IgType *> SrcFile::findUnmangledContained(std::string name) {
+        if(unmangledTypeMap.contains(name))return unmangledTypeMap[name];
+        else {
+            for (const auto &item: includes){
+                if(auto ret = item->findUnmangledContained(name)){
+                    return ret;
+                }
+            }
+            for (const auto &item: _using){
+                if(auto ret = item->findUnmangledContained(name)){
+                    return ret;
+                }
+            }
+        }
+
         return {};
 }
 

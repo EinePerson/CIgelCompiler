@@ -34,6 +34,7 @@ public:
     std::optional<NodeStmtPirimitiv*> parsePirim(bool _static,bool final);
     std::optional<NodeStmtNew*> parseNew(bool _static,bool final,std::optional<BeContained*> contP = {});
     std::optional<NodeStmtArr*> parseArrNew(bool _static,bool final,std::optional<BeContained*> contP = {});
+    std::optional<NodeStmtEnum*> parseEnum(bool _static,bool final,std::optional<BeContained*> contP = {});
 
     std::optional<NodeStmtScope*> parseScope();
     NodeStmtFor* parseFor();
