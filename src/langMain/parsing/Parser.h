@@ -50,7 +50,13 @@ public:
 
     bool isprocedingFund();
 
+    Igel::Access parseAccess();
+
 private:
+    Position currentPosition() {
+        return {peak().value().line,peak().value()._char,peak().value().file,};
+    }
+
     [[nodiscard]] std::optional<Token> peak(const int count = 0) const{
         if(m_I + count >= m_tokens.size())return {};
         return m_tokens.at(m_I + count);
@@ -83,7 +89,7 @@ private:
     SrcFile* m_file = nullptr;
     std::vector<ContainableType*> m_super {};
     IgType* varHolder = nullptr;
-    std::vector<std::unordered_map<std::string,Types::VarType>> varTypes;
+    std::vector<std::unordered_map<std::string,Igel::VarType>> varTypes;
 };
 
 

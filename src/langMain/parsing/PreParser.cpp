@@ -52,17 +52,17 @@ void PreParser::parseScope(bool contain,bool parenth) {
         if(peak(1).has_value() && peak(2).has_value() && (peak().value().type >= TokenType::_byte && peak().value().type <= TokenType::_bool)&& peak(1).value().type == TokenType::id &&
             peak(2).value().type != TokenType::openParenth) {
             consume();
-            m_super.back()->varTypes[tryConsume(TokenType::id,"Expected id").value.value()] = Types::VarType::PirimVar;
+            m_super.back()->varTypes[tryConsume(TokenType::id,"Expected id").value.value()] = Igel::VarType::PirimVar;
             consume();
         }else if(peak(1).has_value() && peak(2).has_value() && peak().value().type == TokenType::id && peak(1).value().type == TokenType::id &&
                 peak(2).value().type != TokenType::openParenth) {
             std::string name = tryConsume(TokenType::id,"Expected id").value.value();
             std::string varName = tryConsume(TokenType::id,"Expected id").value.value();
             if(currentFile->findClass(name)) {
-                m_super.back()->varTypes[varName] = Types::VarType::ClassVar;
+                m_super.back()->varTypes[varName] = Igel::VarType::ClassVar;
                 m_super.back()->varTypeNames[varName] = name;
             }else if(currentFile->findStruct(name)) {
-                m_super.back()->varTypes[varName] = Types::VarType::StructVar;
+                m_super.back()->varTypes[varName] = Igel::VarType::StructVar;
                 m_super.back()->varTypeNames[varName] = name;
             }
         }else if((peak().value().type == TokenType::id  || (peak().value().type >= TokenType::_byte && peak().value().type <= TokenType::_bool)) && peak(1).value().type == TokenType::openBracket) {
@@ -73,7 +73,7 @@ void PreParser::parseScope(bool contain,bool parenth) {
             }
             std::string name = tryConsume(TokenType::id,"Expected id").value.value();
             if(peak().value().type == TokenType::openParenth)continue;
-            m_super.back()->varTypes[name] = Types::VarType::ArrayVar;
+            m_super.back()->varTypes[name] = Igel::VarType::ArrayVar;
         }else if(peak().value().type >= TokenType::_struct && peak().value().type <= TokenType::_enum) {
             Token typeT = consume();
             std::string name = tryConsume(TokenType::id,"Expected id").value.value();

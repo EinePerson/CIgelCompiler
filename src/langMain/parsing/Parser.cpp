@@ -28,6 +28,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 BeContained* cont = contP.has_value()?contP.value():parseContained().value();
                 if(tryConsume(TokenType::openParenth)){
                     auto call = new NodeTermFuncCall;
+                    call->pos = currentPosition();
                     call->name = cont;
                     char i = 0;
                     while(auto expr = parseExpr()){
@@ -39,6 +40,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     term = call;
                 }else if(peak().value().type == TokenType::openBracket){
                     auto arrAcc = new NodeTermArrayAcces;
+                    arrAcc->pos = currentPosition();
                     arrAcc->cont = cont;
                     std::vector<NodeExpr*> ids {};
                     while (tryConsume(TokenType::openBracket)){
@@ -60,6 +62,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 if(!expr.has_value())err("Expected Expression");
                 if(dynamic_cast<NodeTermId*>(expr.value()) && (m_file->types,dynamic_cast<NodeTermId*>(expr.value())->cont)){
                     auto cast = new NodeTermCast;
+                    cast->pos = currentPosition();
                     tryConsume(TokenType::closeParenth,"Expected ')'");
                     cast->target = dynamic_cast<NodeTermId*>(expr.value())->cont;
                     auto expr = parseExpr();
@@ -106,6 +109,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                         term = arr;
                     }else if(dynamic_cast<Class*>(typeName.value())) {
                         auto _nCz = new NodeTermClassNew;
+                        _nCz->pos = currentPosition();
                         _nCz->typeName = typeName.value();
                         tryConsume(TokenType::openParenth,"Expected '(' after new Class");
                         char i = 0;
@@ -123,6 +127,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
             }
             if(tryConsume(TokenType::instanceOf)) {
                 auto inst = new NodeTermInstanceOf;
+                inst->pos = currentPosition();
                 if(auto cont = parseContained())inst->target = cont.value();
                 else err("Excpected type name after instanceOf");
                 inst->expr = term;
@@ -155,6 +160,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 }
             }
             if(!term)return {};
+            if(!m_super.empty())term->superType = m_super.back();
             if(auto ro = parseTerm()) {
                 NodeTerm* r = ro.value();
                 r->contained = term;
@@ -263,6 +269,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 return parseWhile();
             }else if(auto _try = tryConsume(TokenType::_try)) {
                 auto stmtTry = new NodeStmtTry;
+                stmtTry->pos = currentPosition();
                 if(auto scope = parseScope()) {
                     stmtTry->scope = scope.value();
                 }else {
@@ -294,6 +301,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 return stmtTry;
             }else if(tryConsume(TokenType::_throw)) {
                 auto _throw = new NodeStmtThrow;
+                _throw->pos = currentPosition();
                 if(auto expr = parseExpr()) {
                     _throw->expr = expr.value();
                 }else {
@@ -343,11 +351,14 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 consume();
                 tryConsume(TokenType::semi,"Expected ';'");
                 return new NodeStmtContinue;
+            }else if(peak().value().type == TokenType::_public || peak().value().type == TokenType::_private || peak().value().type == TokenType::_protected) {
+                return parseLet(_static,final);
             }else if(peak().has_value() && peak().value().type == TokenType::id) {
                 if(peak().value().value.value() == "super" && peak(1).value().type == TokenType::openParenth) {
                     tryConsume(TokenType::id);
                     tryConsume(TokenType::openParenth);
                     auto* call = new NodeStmtSuperConstructorCall;
+                    call->pos = currentPosition();
                     if(!dynamic_cast<Class*>(m_super.back()))err("Call to super constructor can only be done in a class");
                     call->_this = dynamic_cast<Class*>(m_super.back());
                     bool comma = true;
@@ -406,6 +417,7 @@ std::optional<NodeStmt *> Parser::parseTermToStmt(NodeTerm* term,bool semi) {
         return call;
     }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(term)) {
         auto reassign = new NodeStmtArrReassign;
+        reassign->pos = currentPosition();
         reassign->acces = value;
         if (peak().has_value() && peak().value().type >= TokenType::eq &&peak().value().type <= TokenType::pow_eq) {
             reassign->op = consume().type;
@@ -441,20 +453,31 @@ std::optional<NodeStmt *> Parser::parseTermToStmt(NodeTerm* term,bool semi) {
 }
 
 std::optional<NodeStmtLet*> Parser::parseLet(bool _static, bool final, std::optional<BeContained*> contP) {
+    Igel::Access acc = parseAccess();
     if(contP.has_value() && !dynamic_cast<Enum*>(contP.value())){
         if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,contP);
-        return parseNew(_static,final,contP);
+        auto new_ = parseNew(_static,final,contP);
+        if(new_.has_value())new_.value()->acc = acc;
+        return new_;
     }
     if(peak().value().type <= TokenType::_bool) {
         if(peak(1).has_value() && peak(1).value().type == TokenType::openBracket)return parseArrNew(_static,final);
-        return parsePirim(_static,final);
+        auto pirim = parsePirim(_static,final);
+        if(pirim)pirim.value()->acc = acc;
+        return pirim;
     }
     BeContained* cont;
     if(auto co = parseContained())cont = co.value();
     else return {};
     if(auto ENUM = parseEnum(_static,final,contP))return ENUM.value();
-    if(peak().has_value() && peak().value().type == TokenType::openBracket)return parseArrNew(_static,final,cont);
-    return parseNew(_static,final,cont);
+    if(peak().has_value() && peak().value().type == TokenType::openBracket) {
+        auto arr = parseArrNew(_static,final,cont);
+        if(arr)arr.value()->acc = acc;
+        return arr;
+    }
+    auto _new = parseNew(_static,final,cont);
+    if(_new)_new.value()->acc = acc;
+    return _new;
 }
 
 std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
@@ -485,7 +508,7 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
         pirim->final = final;
         pirim->_static = _static;
         if(varHolder)pirim->contType = varHolder;
-        varTypes.back()[pirim->name] = Types::VarType::PirimVar;
+        varTypes.back()[pirim->name] = Igel::VarType::PirimVar;
         m_sidFlag = -1;
         return pirim;
     }
@@ -500,6 +523,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
     if(dynamic_cast<Struct*>(cont)) {
         if(peak().value().type == TokenType::semi) {
             auto strNew = new NodeStmtStructNew;
+            strNew->pos = currentPosition();
             strNew->type = reinterpret_cast<Type *>(2);
             strNew->typeName = cont;
             if(cont->contType.has_value())strNew->contType = cont->contType.value();
@@ -508,12 +532,13 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
-            varTypes.back()[strNew->name] = Types::VarType::StructVar;
+            varTypes.back()[strNew->name] = Igel::VarType::StructVar;
             return strNew;
         }
     }else if(dynamic_cast<Class*>(cont) || dynamic_cast<Interface*>(cont)) {
         if(peak().value().type == TokenType::eq) {
             auto strNew = new NodeStmtClassNew;
+            strNew->pos = currentPosition();
             strNew->typeName = cont;
             if(cont->contType.has_value())strNew->contType = cont->contType;
             if(cont->contType.has_value())strNew->contType = cont->contType.value();
@@ -526,11 +551,12 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
-            varTypes.back()[strNew->name] = Types::VarType::ClassVar;
+            varTypes.back()[strNew->name] = Igel::VarType::ClassVar;
             return strNew;
         }
         if(peak().value().type == TokenType::semi) {
             auto strNew = new NodeStmtClassNew;
+            strNew->pos = currentPosition();
             strNew->type = reinterpret_cast<Type *>(2);
             strNew->typeName = cont;
             if(cont->contType.has_value())strNew->contType = cont->contType.value();
@@ -540,7 +566,7 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
             strNew->final = final;
             strNew->_static = _static;
             if(varHolder)strNew->contType = varHolder;
-            varTypes.back()[strNew->name] = Types::VarType::ClassVar;
+            varTypes.back()[strNew->name] = Igel::VarType::ClassVar;
             return strNew;
         }
     }
@@ -569,7 +595,7 @@ std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::op
         arr->final = final;
         arr->_static = _static;
         if(varHolder)arr->contType = varHolder;
-        varTypes.back()[arr->name] = Types::VarType::ArrayVar;
+        varTypes.back()[arr->name] = Igel::VarType::ArrayVar;
         return arr;
     }
     IgType* cont;
@@ -600,7 +626,7 @@ std::optional<NodeStmtArr*> Parser::parseArrNew(bool _static, bool final,std::op
         arr->final = final;
         arr->_static = _static;
         if(varHolder)arr->contType = varHolder;
-        varTypes.back()[arr->name] = Types::VarType::ArrayVar;
+        varTypes.back()[arr->name] = Igel::VarType::ArrayVar;
         return arr;
     }
     return {};
@@ -736,6 +762,7 @@ NodeStmtFor* Parser::parseFor() {
 
         std::optional<IgFunction*> Parser::parseFunc(bool constructor){
             auto func = new IgFunction;
+            func->acc = parseAccess();
             if(!constructor) {
                 func->final = tryConsume(TokenType::final).has_value();
                 func->_static = tryConsume(TokenType::_static).has_value();
@@ -1030,6 +1057,7 @@ std::optional<IgType*> Parser::parseType() {
 bool Parser::isprocedingFund() {
     if(!peak(2).has_value())return false;
     int i = 0;
+    i += peak(i).value().type == TokenType::_public || peak(i).value().type == TokenType::_protected || peak(i).value().type == TokenType::_private;
     i += peak(i).value().type == TokenType::final;
     i += peak(i).value().type == TokenType::_static;
     i += peak(i).value().type == TokenType::_abstract;
@@ -1046,4 +1074,12 @@ bool Parser::isprocedingFund() {
         return false;
     }
     return true;
+}
+
+Igel::Access Parser::parseAccess() {
+    Igel::Access acc;
+    if(tryConsume(TokenType::_public))acc.setPublic();
+    else if(tryConsume(TokenType::_protected))acc.setProtected();
+    else if(tryConsume(TokenType::_private))acc.setPrivate();
+    return acc;
 }

@@ -134,10 +134,23 @@ enum class TokenType{
 
 std::optional<int> prec(TokenType type);
 
-struct Token{
-    Token():type(TokenType::uninit),line(-1),_char(-1) {}
-    Token(const TokenType type, const uint line,const uint _char,std::string file,std::string value = ""): type(type), value(std::move(value)),line(line), _char(_char),file(std::move(file)) {}
-    Token(const Token& other) {
+struct Position {
+    uint line;
+    uint _char;
+    std::string file;
+};
+
+struct Token : Position{
+    Token():type(TokenType::uninit){
+        line = -1;
+        _char = -1;
+    }
+    Token(const TokenType type, const uint line,const uint _char,std::string file,std::string value = ""): type(type), value(std::move(value)) {
+        this->line = line;
+        this->_char = _char;
+        this->file = std::move(file);
+    }
+    Token(const Token& other)  : Position(other) {
         type = other.type;
         value = other.value;
         line = other.line;
@@ -147,9 +160,6 @@ struct Token{
 
     TokenType type;
     std::optional<std::string> value;
-    uint line;
-    uint _char;
-    std::string file;
 
     Token& operator=(Token other){
         if (this == &other)return *this;

@@ -10,18 +10,17 @@
 
 #include "tokenizer.h"
 #include "exceptionns/Generator.h"
-//#include "langMain/parsing/Parser.h"
 
+struct IgType;
 struct FuncSig;
 struct Class;
 struct Var;
 struct IgFunction;
-
-//#include "langMain/codeGen/Generator.h"
+struct ContainableType;
 
 struct SrcFile;
 
-namespace Types {
+namespace Igel {
     int getSize(TokenType type);
 
     enum class VarType {
@@ -29,6 +28,52 @@ namespace Types {
         ArrayVar,
         StructVar,
         ClassVar,
+    };
+
+    struct Access {
+#define PUBLIC_MASK 0b00000100
+#define PROTECTED_MASK 0b00000010
+#define PRIVATE_MASK 0b00000001
+    private:
+        char access = PUBLIC_MASK;
+    public:
+        [[nodiscard]] bool isPrivate() const {
+            return access == PRIVATE_MASK;
+        }
+
+        [[nodiscard]] bool isProtected() const {
+            return access == PROTECTED_MASK;
+        }
+
+        [[nodiscard]] bool isPublic() const {
+            return access == PUBLIC_MASK;
+        }
+
+        void setPrivate() {
+            access = PRIVATE_MASK;
+        }
+
+        void setProtected() {
+            access = PROTECTED_MASK;
+        }
+
+        void setPublic() {
+            access = PUBLIC_MASK;
+        }
+    };
+
+    class SecurityManager {
+    public:
+        static bool canAccess(ContainableType* type,IgFunction* func);
+
+        /**
+         * \brief checks weather accessed can be accessed from accessor, access describes the governing access modifier
+         * @param accesed the source object
+         * @param accessor the object accessing
+         * @param access the acces modifier used by the source object
+         * @return wether this is possible
+         */
+        static bool canAccess(ContainableType* accesed,ContainableType* accessor,Access access);
     };
 }
 
@@ -108,6 +153,7 @@ struct NodeTermFuncCall;
 
 struct NodeTerm : NodeExpr{
     std::optional<NodeTerm*> contained;
+    ContainableType* superType = nullptr;
 };
 
 struct NodeTermIntLit final : NodeTerm{
@@ -183,6 +229,7 @@ struct NodeTermAcces : NodeTerm {
 struct NodeTermArrayAcces final : NodeTerm{
     BeContained* cont = nullptr;
     std::vector<NodeExpr*> exprs;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
@@ -210,6 +257,7 @@ struct NodeTermFuncCall final : NodeTerm{
     std::vector<llvm::Type*> params;
     std::vector<bool> signage;
     std::vector<BeContained*> typeNames;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -223,6 +271,7 @@ struct NodeTermClassNew final : NodeTerm {
     std::vector<bool> signage {};
     std::vector<llvm::Type*> paramType {};
     std::vector<BeContained*> paramTypeName {};
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -245,6 +294,7 @@ struct NodeTermArrNew final : NodeTerm {
 struct NodeTermCast final : NodeTerm {
     BeContained* target = nullptr;
     NodeExpr* expr = nullptr;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
@@ -253,6 +303,7 @@ struct NodeTermCast final : NodeTerm {
 struct NodeTermInstanceOf final : NodeTerm {
     BeContained* target = nullptr;
     NodeExpr* expr = nullptr;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
@@ -411,6 +462,7 @@ struct NodeStmtFuncCall final : NodeStmt{
 };
 
 struct NodeStmtSuperConstructorCall final : NodeStmt {
+    Position pos;
     std::vector<NodeExpr*> exprs {};
     Class* _this = nullptr;
 
@@ -423,6 +475,8 @@ struct NodeStmtLet : NodeStmt,BeContained{
     bool final = false;
     bool _static = false;
 
+    Igel::Access acc;
+    Position pos;
     std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder) = 0;;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
@@ -534,6 +588,7 @@ struct NodeStmtArrReassign final : NodeStmt{
     std::optional<NodeExpr*> expr;
     TokenType op = TokenType::uninit;
     NodeTermArrayAcces* acces = nullptr;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -552,6 +607,7 @@ struct NodeStmtContinue final : NodeStmt {
 
 struct NodeStmtThrow final : NodeStmt{
     NodeExpr* expr = nullptr;
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -568,6 +624,7 @@ struct NodeStmtTry final : NodeStmt{
     static FunctionCallee* call;
     NodeStmtScope* scope {};
     std::vector<NodeStmtCatch*> catch_ {};
+    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -593,6 +650,8 @@ struct IgFunction final : BeContained{
     bool abstract = false;
     bool _override = false;
 
+    Igel::Access acc;
+
     std::pair<llvm::Function*,FuncSig*> genFuncSig(llvm::IRBuilder<>* builder);
     void genFunc(llvm::IRBuilder<>* builder);
 
@@ -616,7 +675,7 @@ private:
 struct IgType : BeContained {
     explicit IgType() = default;
 
-    std::unordered_map<std::string,Types::VarType> varTypes = {};
+    std::unordered_map<std::string,Igel::VarType> varTypes = {};
     std::unordered_map<std::string,std::string> varTypeNames = {};
 
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
@@ -825,6 +884,7 @@ struct Class final : ContainableType {
     Class() : ContainableType(){}
     std::vector<NodeStmtLet*> vars;
     std::unordered_map<std::string,uint> varIdMs;
+    std::unordered_map<std::string,Igel::Access> varAccesses;
     std::unordered_map<std::string,bool> finals;
 
     std::vector<NodeStmtLet*> staticVars;
@@ -946,9 +1006,25 @@ private:
 };
 
 namespace Igel {
-    inline void errAt(const Token &t) {
+    inline void errAt(const Position &t) {
         std::cerr << "\n at: " << t.file << ":" << t.line << ":" << t._char << std::endl;
         exit(EXIT_FAILURE);
+    }
+
+    inline void err(const std::string &msg,const Position &t) {
+        std::cerr << msg << std::endl;
+        errAt(t);
+    }
+
+    inline void internalErr(const std::string &msg) {
+        std::cerr << "Internal error: " << msg << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    inline void generalErr(const std::string &msg) {
+        std::cerr << msg << std::endl;
+        exit(EXIT_FAILURE);
+
     }
 
     ///\brief Returns the next size possible to store int bits

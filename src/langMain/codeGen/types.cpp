@@ -71,6 +71,11 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                if(acc.value.value() == ARR_LENGTH && Generator::arrRet) {
                     return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,0);
                }
+               if(clz) {
+                    if(!Igel::SecurityManager::canAccess(clz.value().second,superType,clz.value().second->varAccesses[acc.value.value()])) {
+                         Igel::err("Cannot access: " + acc.value.value(),acc);
+                    }
+               }
                uint fid = clz.value().second?clz->second->varIdMs[acc.value.value()]:str->second->varIdMs[acc.value.value()];
                Generator::_final = clz.value().second?clz->second->finals[acc.value.value()]:str->second->finals[acc.value.value()];
                return  builder->CreateLoad(clz.has_value()?clz.value().second->types[fid]:str.value().second->types[fid],this->generatePointer(builder));
@@ -115,8 +120,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
           }else {
                auto arrVar = dynamic_cast<ArrayVar*>(Generator::instance->getVar(id->mangle()));
                if(!arrVar || acc.value.value() != ARR_LENGTH) {
-                    std::cerr << "Expected array length" << std::endl;
-                    exit(EXIT_FAILURE);
+                    Igel::err("Expected array length",acc);
                }
 
                val = arrVar->alloc;
@@ -128,8 +132,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
      }
 
      if(!(str || var || clz || clzVar)) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      if(!isClz) {
@@ -154,18 +157,21 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
      }else {
 
           if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
-               std::cerr << "Can only access fields of classes" << std::endl;
-               exit(EXIT_FAILURE);
+               Igel::err("Can only access fields of classes",acc);
           }
           if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
           Value* ptr = nullptr;
           auto ret = clz->getVarialbe(acc.value.value());
           if(!ret.first) {
-               std::cerr << "Unkown variable name: " << acc.value.value();
-               Igel::errAt(acc);
+               Igel::err("Unkown variable name: " + acc.value.value(),acc);
           }
           uint fid = ret.second;
           if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
+
+          if(!Igel::SecurityManager::canAccess(ret.first,superType,ret.first->varAccesses[acc.value.value()])) {
+               Igel::err("Cannot access: " + acc.value.value(),acc);
+          }
+
           ptr = builder->CreateStructGEP(ret.first->strType,val,fid);
           Generator::typeNameRet = clz;
           if(Generator::contained) {
@@ -196,6 +202,12 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
 
                if(acc.value.value() == ARR_LENGTH && Generator::arrRet) {
                     return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,0);
+               }
+
+               if(clz) {
+                    if(!Igel::SecurityManager::canAccess(clz.value().second,superType,clz.value().second->varAccesses[acc.value.value()])) {
+                         Igel::err("Cannot access: " + acc.value.value(),acc);
+                    }
                }
                uint fid = clz.value().second?clz->second->varIdMs[acc.value.value()]:str->second->varIdMs[acc.value.value()];
                return  builder->CreateStructGEP(clz.has_value()?clz.value().first:str.value().first,val,fid);
@@ -243,8 +255,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
      }
 
      if(!(str || var || clz || clzVar)) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      if(!isClz) {
@@ -268,19 +279,21 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
           return ptr;
      }else {
           if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
-               std::cerr << "Can only access fields of classes" << std::endl;
-               exit(EXIT_FAILURE);
+               Igel::err("Can only access fields of classes",acc);
           }
           if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
+
           uint fid;
           Value* ptr = nullptr;
           if(!Generator::stump) {
                auto ret = clz->getVarialbe(acc.value.value());
                if(!ret.first) {
-                    std::cerr << "No varialbe named: " << acc.value.value() << " in: " << (clz->mangle());
-                    Igel::errAt(acc);
+                    Igel::err("No varialbe named: " + acc.value.value() + " in: " + clz->mangle(),acc);
                }
                fid = ret.second;
+               if(!Igel::SecurityManager::canAccess(ret.first,superType,ret.first->varAccesses[acc.value.value()])) {
+                    Igel::err("Cannot access: " + acc.value.value(),acc);
+               }
                if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
                ptr = builder->CreateStructGEP(ret.first->strType,val,ret.second);
           }
@@ -342,8 +355,7 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
           }
      }
      if(!ptr && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",pos);
      }
      uint i = 0;
 
@@ -408,8 +420,7 @@ llvm::Value* NodeTermStructAcces::generate(llvm::IRBuilder<>* builder) {
           val = var->alloc;//builder->CreateLoad(var->type,var->alloc);
      }
      if(!str && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
@@ -460,8 +471,7 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      }
 
      if(!str && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      //TODO add error when variable name is not contained in the struct
@@ -509,8 +519,7 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
           val = builder->CreateLoad(var->type,var->alloc);
      }
      if(!str && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
@@ -558,8 +567,7 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
      }
 
      if(!str && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      //TODO add error when variable name is not contained in the struct
@@ -609,8 +617,7 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
      }
 
      if(!str && !var) {
-          std::cerr << "Neither contained value nor variable" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Neither contained value nor variable",acc);
      }
 
      //TODO add error when variable name is not contained in the struct
@@ -634,8 +641,7 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
 
 llvm::Value * NodeStmtSuperConstructorCall::generate(llvm::IRBuilder<> *builder) {
      if(!_this->extending.has_value()) {
-          std::cerr << "Call to super constructor can only be done in class with super at " << _this->mangle() << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Call to super constructor can only be done in class with super at: " + _this->mangle(),pos);
      }
      std::vector<Type*> types {builder->getPtrTy()};
      std::vector<BeContained*> names {new Name("")};
@@ -750,8 +756,7 @@ std::pair<llvm::Value*, Var*> NodeStmtStructNew::generateImpl(llvm::IRBuilder<>*
           if(!structT.value().second->strType)structT.value().second->strType = structT.value().first;
           return {alloc,var};
      }else {
-          std::cerr << "Undeclarde Type " << typeName->mangle() << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Undeclarde Type " + typeName->mangle(),pos);
      }
 }
 
@@ -793,8 +798,7 @@ std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* 
           return {gen,var};
      }else {
           Generator::typeNameRet = nullptr;
-          std::cerr << "Undeclarde Type: " << typeName->mangle() << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Undeclarde Type: " + typeName->mangle(),pos);
      }
 }
 
@@ -987,9 +991,7 @@ llvm::Value* NodeStmtReassign::generate(llvm::IRBuilder<>* builder) {
      Generator::_final = false;
      Value* val = id->generatePointer(builder);
      if(Generator::_final) {
-          std::cerr << "Cannot modify final variable " << std::endl;
-          if(auto val = dynamic_cast<NodeTermAcces*>(id))Igel::errAt(val->acc);
-          exit(EXIT_FAILURE);
+          Igel::err("Cannot modify final variable: " + dynamic_cast<NodeTermAcces*>(id)->acc.value.value(),dynamic_cast<NodeTermAcces*>(id)->acc);
      }
      if(op == TokenType::eq) {
           return builder->CreateStore(expr->generate(builder),val);
@@ -1007,8 +1009,7 @@ llvm::Value* NodeStmtArrReassign::generate(llvm::IRBuilder<>* builder) {
      Generator::_final = false;
      Value* ep = acces->generatePointer(builder);
      if(Generator::_final) {
-          std::cerr << "Cannot modify final variable " << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Cannot modify final variable ",pos);
      }
      if(op == TokenType::eq) {
           Value* gen = expr.value()->generate(builder);
@@ -1052,8 +1053,7 @@ llvm::Value * NodeStmtThrow::generate(llvm::IRBuilder<> *builder) {
      Value* val = expr->generatePointer(builder);
      std::optional<std::pair<StructType*,Class*>> clazz = Generator::instance->m_file->findClass(Generator::typeNameRet->mangle());
      if(!clazz.has_value()) {
-          std::cerr << "Could not find class " << Generator::typeNameRet << std::endl;
-          exit(1);
+          Igel::err("Could not find class: " + Generator::typeNameRet->mangle(),pos);
      }
      if(!Generator::instance->unreach) {
           Generator::instance->unreach = BasicBlock::Create(builder->getContext(),"unreachable",builder->GetInsertBlock()->getParent());
@@ -1084,8 +1084,7 @@ llvm::Value * NodeStmtThrow::generate(llvm::IRBuilder<> *builder) {
 }
 
 llvm::Value * NodeStmtCatch::generate(llvm::IRBuilder<> *builder) {
-     std::cerr << "Cannot generate a Catch directly use NodeStmtTry" << std::endl;
-     exit(EXIT_FAILURE);
+     Igel::internalErr("Cannot generate a Catch directly use NodeStmtTry");
 }
 
 llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
@@ -1180,8 +1179,7 @@ llvm::Value * NodeStmtTry::generate(llvm::IRBuilder<> *builder) {
 
                std::optional<std::pair<StructType*,Class*>> clazz = Generator::instance->m_file->findClass(catch_[i]->typeName->mangle());
                if(!clazz.has_value()) {
-                    std::cerr << "Could not find class " << catch_[i]->typeName << std::endl;
-                    exit(1);
+                    Igel::err("Could not find class " + catch_[i]->typeName->mangle(),pos);
                }
                Value* ctId = builder->CreateCall(typeIdC,clazz.value().second->getClassInfos(builder).typeInfo);
                Value* cmp = builder->CreateICmpEQ(ctId,tid);
@@ -1248,8 +1246,7 @@ void IgFunction::genFunc(llvm::IRBuilder<>* builder) {
      if(_return->isVoidTy())builder->CreateRetVoid();
 
      if(!Generator::lastUnreachable && !_return->isVoidTy()) {
-          std::cerr << "No return statement in non void function " << mangle() << "\n";
-          exit(EXIT_FAILURE);
+          Igel::generalErr("No return statement in non void function " + mangle());
      }
      if(Generator::instance->unreach) {
           builder->SetInsertPoint(Generator::instance->unreach);
@@ -1285,7 +1282,7 @@ void IgFunction::reset() {
      llvmFunc = nullptr;
 }
 
-int Types::getSize(TokenType type) {
+int Igel::getSize(TokenType type) {
      if(type > TokenType::_ulong)return -1;
      const int i = static_cast<int>(type) % 4;
      return  (i + 1) * 8 + 8 * std::max(i - 1,0) + 16 * std::max(i - 2,0);
@@ -1294,7 +1291,7 @@ int Types::getSize(TokenType type) {
 void Struct::generateSig(llvm::IRBuilder<>* builder) {
      for(uint i = 0; i < this->types.size();i++) {
           if(types[i] == nullptr) {
-               std::cerr << "Type is not set in " << mangle() << std::endl;
+               Igel::internalErr("Type is not set in " + mangle());
           }
           auto tIL = (ulong) types[i];
           switch (const ulong tI = tIL) {
@@ -1305,8 +1302,7 @@ void Struct::generateSig(llvm::IRBuilder<>* builder) {
                default:
                     break;
                case 0:
-                    std::cerr << "Unkown type id: " << tI << std::endl;
-                    exit(EXIT_FAILURE);
+                    Igel::internalErr("Unknown type id: " + tI);
           }
      }
      Generator::instance->m_file->structs[mangle()] = std::make_pair(StructType::create(builder->getContext(),mangle()),this);
@@ -1401,7 +1397,7 @@ std::string Enum::mangle() {
 
 void Enum::generateSig(llvm::IRBuilder<> *builder) {
      if(values.size() > std::pow(2,32)) {
-          std::cerr << "Enum can not hava more then " << std::pow(2,32) << "Entries \n    int " << mangle() << std::endl;
+          Igel::generalErr("Enum can not hava more then " + std::to_string(std::pow(2,32)) + "Entries \n    in: " + mangle());
      }
 }
 
@@ -1417,7 +1413,7 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
      if(extending.has_value())extending.value()->generateSig(builder);
      for(uint i = 0; i < this->types.size();i++) {
           if(types[i] == nullptr) {
-               std::cerr << "Type is not set in " << mangle() << std::endl;
+               Igel::generalErr("Type is not set in " + mangle());
           }
           auto tIL = (ulong) types[i];
           switch (const ulong tI = tIL) {
@@ -1429,8 +1425,8 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
                default:
                     break;
                case 0:
-                    std::cerr << "Unkown type id: " << tI << std::endl;
-               exit(EXIT_FAILURE);
+                    Igel::generalErr("Unkown type id: " + tI);
+
           }
      }
 
@@ -1450,8 +1446,7 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
           for (auto ig_function : constructors) {
                if(constructor == ig_function)continue;
                if(constructor->mangle() == ig_function->mangle()) {
-                    std::cerr << "Same constructor definition: " << constructor->mangle() << std::endl;
-                    exit(EXIT_FAILURE);
+                    Igel::generalErr("Same constructor definition: " + constructor->mangle());
                }
           }
 
@@ -1493,6 +1488,7 @@ void Class::generatePart(llvm::IRBuilder<> *builder) {
           if(!vars[i]->_static) {
                std::string str = vars[i]->name;
                varIdMs[str] = j + fullFuncs.size();
+               varAccesses[str] = vars[i]->acc;
                finals[str] = vars[i]->final;
                j++;
           }
@@ -1506,8 +1502,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      if(extending.has_value())extending.value()->generate(builder);
 
      if(extending.has_value() && extending.value()->final) {
-          std::cerr << "Cannot extend final class:\n" << mangle() << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::generalErr("Cannot extend final class\n in: " + mangle());
      }
 
      auto fullFuncs = getFuncsRec();
@@ -1585,8 +1580,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                for(int j = 0;j < fullFuncs[i].size();j++) {
                     if(!abstract) {
                          if(fullFuncs[i][j]->abstract) {
-                              std::cerr << "Abstract function has either to be declared or the class has to be declared abstract\n     in: " << mangle() << std::endl;
-                              exit(EXIT_FAILURE);
+                              Igel::generalErr("Abstract function has either to be declared or the class has to be declared abstract\n     in: " + mangle());
                          }
                          vtablefuncsimp.push_back(fullFuncs[i][j]->getLLVMFunc());
                     }else {
@@ -1692,7 +1686,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                builder->CreateCall(extending.value()->defaulfConstructor.value()->getLLVMFunc(),func->getArg(0));
           }
           if(extending.has_value() && !extending.value()->defaulfConstructor) {
-               std::cerr << "No default constructor for " << extending.value()->mangle() << " manual call to super() needed in " << mangle() << std::endl;
+               Igel::generalErr("No default constructor for " + extending.value()->mangle() + " manual call to super() needed in " + mangle());
           }
 
           builder->SetInsertPoint(entry);
@@ -1760,6 +1754,22 @@ uint Class::getSuperOffset(IgType *type) {
           offset += interface->getExtendingOffset();
      }
      return -1;
+}
+
+bool Igel::SecurityManager::canAccess(ContainableType *type, IgFunction *func) {
+     if(func->acc.isPublic())return true;
+     if(!func->supper || !type)return false;
+     if(func->acc.isPrivate())return func->supper.value() == type;
+     if(func->acc.isProtected())return type->isSubTypeOf(func->supper.value());
+     return false;
+}
+
+bool Igel::SecurityManager::canAccess(ContainableType* accesed, ContainableType *accessor, Access access) {
+     if(access.isPublic())return true;
+     if(!accesed || ! accessor)return false;
+     if(access.isPrivate())return accesed == accessor;
+     if(access.isProtected())return accessor->isSubTypeOf(accesed);
+     return false;
 }
 
 std::pair<llvm::FunctionCallee,bool> getFunction(std::string name, std::vector<llvm::Type *> types) {
@@ -1837,6 +1847,13 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                     if(auto id = dynamic_cast<NodeTermAcces*>(contained.value())) {
                          if(id->id->name == "super") {
                               auto func = clazz->getFunction(name->name);
+                              if(!func) {
+                                   Igel::err("Unknown function: " + name->mangle(),pos);
+                              }
+
+                              if(!Igel::SecurityManager::canAccess(superType,func.value())) {
+                                   Igel::err("Cannot access function: " + name->mangle(),pos);
+                              }
                               auto ptr = clz->generateClassPointer(builder);
                               std::vector<Value*> vals {ptr};
                               vals.reserve(exprs.size());
@@ -1845,21 +1862,23 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                          }
                     }
                     if(!clazz->funcIdMs.contains(name->name)) {
-                         std::cerr << "Unkown function " << name->name;
-                         exit(EXIT_FAILURE);
+                         Igel::err("Unknown function: " + name->mangle(),pos);
                     }
                     std::pair<uint,uint> fid = clazz->funcIdMs[name->name];
                     auto ptr = clz->generateClassPointer(builder);
                     auto ptrP = builder->CreateInBoundsGEP(builder->getPtrTy(),ptr,builder->getInt64(fid.first));
                     auto vtable = builder->CreateLoad(ptr->getType(),ptrP);
 
-
+                    auto func = clazz->funcMap[fid.first][fid.second];
+                    if(!Igel::SecurityManager::canAccess(superType,func)) {
+                         Igel::err("Cannot access function: " + name->mangle(),pos);
+                    }
                     auto funcPtrGEP = builder->CreateInBoundsGEP(vtable->getType(),vtable,builder->getInt64(fid.second));
                     auto funcPtr = builder->CreateLoad(builder->getPtrTy(),funcPtrGEP);
                     std::vector<Value*> vals{ptr};
                     vals.reserve(exprs.size());
                     for (auto expr : exprs) vals.push_back(expr->generate(builder));
-                    return builder->CreateCall(clazz->funcMap[fid.first][fid.second]->getLLVMFuncType(),funcPtr,vals);
+                    return builder->CreateCall(func->getLLVMFuncType(),funcPtr,vals);
                }
           }else contained.value()->generate(builder);
      }
@@ -1925,8 +1944,7 @@ llvm::Value* NodeTermClassNew::generate(llvm::IRBuilder<>* builder) {
           Generator::typeNameRet = typeName;
           return ptr;
      }
-     std::cerr << "Unknown type " << typeName->mangle() << std::endl;
-     exit(EXIT_FAILURE);
+     Igel::err("Unknown type " + typeName->mangle(),pos);
 }
 
 llvm::Value* NodeTermArrNew::generate(llvm::IRBuilder<>* builder) {
@@ -2012,17 +2030,14 @@ llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {
      Generator::typeNameRet = nullptr;
      Value* val = expr->generate(builder);
      if(!Generator::typeNameRet) {
-          std::cerr << "Invalid expression used for casting" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Invalid expression used for casting",pos);
      }
      auto typeName = Generator::typeNameRet;
      if(!dynamic_cast<ContainableType*>(typeName)) {
-          std::cerr << "Can only cast Interfaces and Classes" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Can only cast Interfaces and Classes",pos);
      }
      if(!dynamic_cast<ContainableType*>(target)) {
-          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Can only cast to Interfaces and Classes",pos);
      }
 
      Generator::typeNameRet = target;
@@ -2043,25 +2058,22 @@ llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {
 }
 
 llvm::Value * NodeTermCast::generatePointer(llvm::IRBuilder<> *builder) {
-     std::cerr << "Cannot generate Pointer to cast" << std::endl;
-     exit(EXIT_FAILURE);
+     Igel::internalErr("Cannot generate Pointer to cast");
+     return nullptr;
 }
 
 llvm::Value * NodeTermInstanceOf::generate(llvm::IRBuilder<> *builder) {
      Generator::typeNameRet = nullptr;
      Value* val = expr->generate(builder);
      if(!Generator::typeNameRet) {
-          std::cerr << "Invalid expression used for instanceOf" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Invalid expression used for instanceOf",pos);
      }
      auto typeName = Generator::typeNameRet;
      if(!dynamic_cast<ContainableType*>(typeName)) {
-          std::cerr << "Can only cast Interfaces and Classes" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Can only cast Interfaces and Classes",pos);
      }
      if(!dynamic_cast<ContainableType*>(target)) {
-          std::cerr << "Can only cast to Interfaces and Classes" << std::endl;
-          exit(EXIT_FAILURE);
+          Igel::err("Can only cast to Interfaces and Classes",pos);
      }
      Generator::typeNameRet = target;
      if(auto cast = Igel::stat_Cast(builder,target,typeName,val)) return ConstantInt::get(builder->getInt1Ty(),1);
@@ -2070,8 +2082,7 @@ llvm::Value * NodeTermInstanceOf::generate(llvm::IRBuilder<> *builder) {
 }
 
 llvm::Value * NodeTermInstanceOf::generatePointer(llvm::IRBuilder<> *builder) {
-     std::cerr << "Cannot generate Pointer to cast" << std::endl;
-     exit(EXIT_FAILURE);
+     Igel::internalErr("Cannot generate Pointer to cast");
 }
 
 llvm::Value * NodeTermInlineIf::generate(llvm::IRBuilder<> *builder) {
