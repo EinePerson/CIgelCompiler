@@ -7,12 +7,6 @@
 #include <string>
 #include <utility>
 
-/*std::string IgCmp::mangle(BeContained* cont) {
-    std::string str = "_Z";
-    str += mangleImpl(cont);
-    return str;
-}*/
-
 std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
     std::string str;
     std::vector<BeContained*> conts;

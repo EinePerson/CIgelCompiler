@@ -66,9 +66,6 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     if(!expr)err("Expected Expression");
                     cast->expr = expr.value();
                     term = cast;
-                    /*auto cont = parseContained();
-                    if(!cont.has_value())err("Expected Expression or type name");*/
-
                 }else {
                     tryConsume(TokenType::closeParenth,"Expected ')'");
                     auto term_paren = new NodeTermParen;
@@ -256,11 +253,6 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 auto var = parseLet(_static,final);
                 if(var)return var.value();
                 else err("Expected variable declaration");
-                /*if(tryConsume(TokenType::openBracket)) {
-
-                }
-                if(auto var = parsePirim(_static,final))return var.value();
-                else err("Expected variable declaration");*/
             }else if(auto scope = parseScope()){
                 return scope.value();
             }else if(auto _if = tryConsume(TokenType::_if)){
@@ -351,16 +343,7 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 consume();
                 tryConsume(TokenType::semi,"Expected ';'");
                 return new NodeStmtContinue;
-            }else /*if(peak().has_value() && peak().value().type == TokenType::super) {
-
-                if(peak(1).has_value() && peak(1).value().type == TokenType::openParenth) {
-
-                }
-                if(auto term = parseTerm()) {
-                    return parseTermToStmt(term.value(),true);
-                }
-
-            }else*/ if(peak().has_value() && peak().value().type == TokenType::id) {
+            }else if(peak().has_value() && peak().value().type == TokenType::id) {
                 if(peak().value().value.value() == "super" && peak(1).value().type == TokenType::openParenth) {
                     tryConsume(TokenType::id);
                     tryConsume(TokenType::openParenth);
@@ -440,7 +423,7 @@ std::optional<NodeStmt *> Parser::parseTermToStmt(NodeTerm* term,bool semi) {
         return reassign;
     }else {
         auto reassign = new NodeStmtReassign;
-        reassign->id = term;//dynamic_cast<Name*>(cont)->getId();
+        reassign->id = term;
         if (peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq) {
             reassign->op = consume().type;
 
@@ -847,7 +830,6 @@ std::optional<BeContained*> Parser::parseContained() {
         if(cont)contN.value()->contType = cont;
         cont = contN.value();
         consume();
-        //consume();
     }
     if(m_file->findUnmangledContained(peak().value().value.value())) {
         auto contN = m_file->findUnmangledContained(consume().value.value());
@@ -878,7 +860,6 @@ std::optional<IgType*> Parser::parseType() {
                         if(auto val = dynamic_cast<NodeStmtLet *>(stmt)) {
                             if(val->_static) {
                                 if(auto type = dynamic_cast<NodeStmtStructNew*>(stmt))str->staticTypeName[type->mangle()] = type;
-                                //else str->typeName nullptr;
                                 str->staticVars.push_back(val);
                                 str->staticTypes.push_back(val->type);
                             }else {
@@ -1018,9 +999,6 @@ std::optional<IgType*> Parser::parseType() {
                     while (peak().has_value() && peak().value().type != TokenType::closeCurl) {
                         if(comma)err("Expected ','");
                         auto id = tryConsume(TokenType::id,"Expected id");
-                        /*_enum->values.push_back(id.value.value());
-                        _enum->valueIdMap[id.value.value()] = i;
-                        i++;*/
                         comma = !tryConsume(TokenType::comma).has_value();
                     }
                     tryConsume(TokenType::comma);

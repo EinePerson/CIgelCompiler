@@ -30,7 +30,6 @@
                 for(auto file:it.files){
                     file->isMain = file->fullName == info->m_main;
                     info->m_info->file_table[file->fullName] = file;
-                    //info->m_info->files.push_back(file);
                 }
             }},
             {"IncludeDirectiry",[](InfoParser* info,std::vector<std::string> args) -> void{
@@ -51,7 +50,6 @@
                     std::cerr << "Could not find setting" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                //std::ranges::transform(args[1],args[1].begin(), ::toupper);
                 if(args[1] == "1") {
                     info->m_info->flags |= FLAGS.at(args[0]);
                 }

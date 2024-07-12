@@ -195,20 +195,13 @@ struct NodeTermArrayLength final :NodeTerm {
 };
 
 struct NodeTermStructAcces final : NodeTermAcces {
-    /*NodeTermFuncCall* call = nullptr;
-    BeContained* id = nullptr;
-    Token acc;*/
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeTermClassAcces final : NodeTermAcces {
-    /*NodeTermFuncCall* call = nullptr;
-    BeContained* id = nullptr;
-    Token acc;*/
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
-    //llvm::Value* generateClassPointer(llvm::IRBuilder<>* builder);
 };
 
 struct NodeTermFuncCall final : NodeTerm{
@@ -465,7 +458,6 @@ struct NodeStmtArr final : NodeStmtLet{
     bool _signed = false;
     bool fixed = false;;
     uint size = 0;
-    //std::optional<std::string> typeName;
     std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
 
     std::string mangle() override;
@@ -489,12 +481,7 @@ struct NodeStmtExit final : NodeStmt{
 struct  NodeStmtScope final : NodeStmt{
     std::vector<NodeStmt*> stmts;
     int startIndex = 0;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override /*{
-        llvm::Value* val = nullptr;
-        for (const auto stmt : stmts)
-            val = stmt->generate(builder);
-        return val;
-    }*/;
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
 struct NodeStmtIf final : NodeStmt{
@@ -622,15 +609,12 @@ private:
 
     bool genSig = false;
     bool gen = false;
-    //bool initCallee = false;
-    //llvm::FunctionCallee callee;
 };
 
 //BEGIN OF TYPES
 
 struct IgType : BeContained {
     explicit IgType() = default;
-    //virtual ~IgType() = default;
 
     std::unordered_map<std::string,Types::VarType> varTypes = {};
     std::unordered_map<std::string,std::string> varTypeNames = {};
@@ -840,7 +824,6 @@ struct Enum final : IgType {
 struct Class final : ContainableType {
     Class() : ContainableType(){}
     std::vector<NodeStmtLet*> vars;
-    //std::vector<std::string> varIds;
     std::unordered_map<std::string,uint> varIdMs;
     std::unordered_map<std::string,bool> finals;
 
@@ -907,7 +890,6 @@ struct Class final : ContainableType {
             auto extFuncs = extending.value()->getFuncsRec();
             funcsRet[0].insert(funcsRet[0].begin(),extFuncs[0].begin(),extFuncs[0].end());
             extFuncs.erase(extFuncs.begin());
-            //auto extFuncRet = extending.value()->getFuncsRec();
             funcsRet.insert(funcsRet.end(),extFuncs.begin(),extFuncs.end());
         }
 

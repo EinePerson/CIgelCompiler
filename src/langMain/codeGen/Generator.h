@@ -80,10 +80,6 @@ public:
 
     [[nodiscard]] static Type* getType(TokenType type);
 
-    //std::pair<Function*,FuncSig*> genFuncSig(IgFunction* func);
-
-    //void genFunc(IgFunction* func,bool member = false);
-
     void reset(SrcFile* file);
 
     void write();

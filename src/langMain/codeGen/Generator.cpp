@@ -138,61 +138,8 @@ Type* Generator::getType(TokenType type) {
     return nullptr;
 }
 
-
-
-/*std::pair<Function*,FuncSig*> Generator::genFuncSig(IgFunction* func) {
-    std::vector<Type*> types;
-    for(uint i = 0;i < func->paramType.size();i++) {
-        types.push_back(func->paramType[i]);
-    }
-    const ArrayRef<Type*> ref(types);
-    FunctionType* type = FunctionType::get(func->_return,ref,false);
-    func->type = type;
-    llvm::Function* llvmFunc = Function::Create(type,Function::ExternalLinkage,func->mangle(),m_module.get());
-    for(size_t i = 0;i < llvmFunc->arg_size();i++)
-        llvmFunc->getArg(i)->setName(func->paramName[llvmFunc->getArg(i)->getArgNo()]);
-    return std::make_pair(llvmFunc,new FuncSig(func->mangle(),types,func->_return));
-}*/
-
-/*void Generator::genFunc(IgFunction* func,bool member) {
-    lastUnreachable = false;
-    Function* llvmFunc = m_module->getFunction(func->mangle());
-    BasicBlock* entry = BasicBlock::Create(*m_contxt,"entry",llvmFunc);
-    m_builder->SetInsertPoint(entry);
-
-    m_vars.emplace_back();
-    if(func->supper.has_value()) {
-        llvmFunc->getArg(0)->setName("this");
-        createVar(llvmFunc->getArg(0),false,func->supper.value()->mangle());
-    }
-    for(size_t i = func->supper.has_value();i < llvmFunc->arg_size();i++){
-        llvmFunc->getArg(i)->setName(func->paramName[i]);
-        createVar(llvmFunc->getArg(i),func->signage[i],llvmFunc->getArg(i)->getType()->isPointerTy()?(func->paramTypeName[i]?func->paramTypeName[i]->mangle():"_Z4this"):"");
-    }
-
-    func->scope->generate(m_builder.get());
-    m_vars.pop_back();
-    if(func->_return == Type::getVoidTy(*m_contxt))m_builder->CreateRetVoid();
-
-    if(!lastUnreachable) {
-        std::cerr << "No return statement in non void function " << func->mangle() << "\n";
-        exit(EXIT_FAILURE);
-    }
-    if(unreach) {
-        m_builder->SetInsertPoint(unreach);
-        m_builder->CreateUnreachable();
-        unreach = nullptr;
-    }
-    if(llvm::verifyFunction(*llvmFunc,&outs())) {
-        llvmFunc->print(outs());
-        exit(EXIT_FAILURE);
-    }
-    func->llvmFunc = llvmFunc;
-}*/
-
 void Generator::reset(SrcFile* file) {
     m_builder.release();
-    //m_contxt.release();
     m_vars.clear();
 
 
@@ -206,8 +153,6 @@ void Generator::write() {
         m_builder->SetInsertPoint(staticInit);
         m_builder->CreateRetVoid();
 
-        /*FunctionType* type = FunctionType::get(m_builder->getVoidTy(),{},false);
-        FunctionCallee callee = m_module->getOrInsertFunction("_GLOBAL__sub_I_example.cpp",type);*/
     }
     InitializeAllTargetInfos();
     InitializeAllTargets();
@@ -369,7 +314,6 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
         if(auto structT = Generator::instance->m_file->findStruct(typeName)){
             auto var = new StructVar(alloc,false);
             var->str = structT.value().second;
-            //var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
             var->strType = structT.value().first;
             var->types = structT.value().second->types;
             for(size_t i = 0;i < structT.value().second->vars.size();i++) {

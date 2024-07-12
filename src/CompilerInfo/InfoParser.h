@@ -91,7 +91,6 @@ struct SrcFile{
     std::vector<std::string> typeNames;
     std::unordered_map<std::string,IgType*> nameTypeMap;
     std::unordered_map<std::string,IgType*> unmangledTypeMap;
-    //std::unordered_map<FuncSig,IgFunction*,FuncSigHash> funcs;
     std::unordered_map<std::string,IgFunction*> funcs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Struct*>> structs;
     std::unordered_map<std::string,std::pair<llvm::StructType*,Class*>> classes;

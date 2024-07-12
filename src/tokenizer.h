@@ -118,7 +118,6 @@ enum class TokenType{
     implements,
     _abstract,
     _override,
-    //super,
     instanceOf,
 
     null,
