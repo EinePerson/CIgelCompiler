@@ -1,4 +1,3 @@
-add acces modifieres;
 add template classes;
 add partly libraries;
 add debug info;
