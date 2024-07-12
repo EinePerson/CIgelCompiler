@@ -2,33 +2,36 @@ using "tstsrc/exception.ig";
 using "tstsrc/string.ig";
 
 int main(){
-    Test t = new SUS();
-    printf("Test\n");
-    if(t instanceOf SUS)printf("SUS");
-    SUS g = (SUS) t;
+    SUS s = new SUS();
+    s.a = 69;
+    s.b = 420;
+    s.c = 283;
+    printf("%d\n",s.c);
+    printf("%d\n",s.a);
+    printf("%d\n",s.b);
+    s.test();
+    printf("%d\n",s.a);
     return 0;
 }
 
-class Test{
+class Gaming{
+    int a;
+    int b;
 
-}
-
-class SUS extends Test{
-
-}
-
-class Gaming extends Test{
-
-}
-
-/*class Exception {
-    int i = 0;
-    int j = 0;
-    void print(){
-
+    void amogus(){
+        this.a = 151;
     }
-}*/
 
-/*interface Test{
+}
 
-}*/
+class SUS extends Gaming{
+    int c;
+
+    void test(){
+        this.amogus();
+    }
+
+    override void amogus(){
+        this.a = 125;
+    }
+}

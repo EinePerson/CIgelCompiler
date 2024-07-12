@@ -5,6 +5,7 @@
 #include "String.h"
 #include <cstring>
 #include "Exception.h"
+#include "../bdwgc/include/gc/gc.h"
 
 String::String(const char *str) {
     size = strlen(str);
@@ -16,7 +17,7 @@ String::String(const std::string &str) {
 
     const char *cStr = str.c_str();
     size = strlen(cStr);
-    data = (char*) malloc(size);
+    data = (char*) GC_MALLOC(size);
 
     strcpy(data,cStr);
 }

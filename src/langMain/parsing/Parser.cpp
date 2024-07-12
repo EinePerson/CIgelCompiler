@@ -351,22 +351,32 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                 consume();
                 tryConsume(TokenType::semi,"Expected ';'");
                 return new NodeStmtContinue;
-            }else if(peak().has_value() && peak().value().type == TokenType::super) {
-                tryConsume(TokenType::super);
-                tryConsume(TokenType::openParenth,"Expected '('");
-                auto* call = new NodeStmtSuperConstructorCall;
-                if(!dynamic_cast<Class*>(m_super.back()))err("Call to super constructor can only be done in a class");
-                call->_this = dynamic_cast<Class*>(m_super.back());
-                bool comma = true;
-                while (auto expr = parseExpr()) {
-                    if(!comma)err("Expected ','");
-                    call->exprs.push_back(expr.value());
-                    comma = tryConsume(TokenType::comma).has_value();
+            }else /*if(peak().has_value() && peak().value().type == TokenType::super) {
+
+                if(peak(1).has_value() && peak(1).value().type == TokenType::openParenth) {
+
                 }
-                tryConsume(TokenType::closeParenth,"Expected ')'");
-                if(semi)tryConsume(TokenType::semi,"Expected ';'");
-                return call;
-            }else if(peak().has_value() && peak().value().type == TokenType::id) {
+                if(auto term = parseTerm()) {
+                    return parseTermToStmt(term.value(),true);
+                }
+
+            }else*/ if(peak().has_value() && peak().value().type == TokenType::id) {
+                if(peak().value().value.value() == "super" && peak(1).value().type == TokenType::openParenth) {
+                    tryConsume(TokenType::id);
+                    tryConsume(TokenType::openParenth);
+                    auto* call = new NodeStmtSuperConstructorCall;
+                    if(!dynamic_cast<Class*>(m_super.back()))err("Call to super constructor can only be done in a class");
+                    call->_this = dynamic_cast<Class*>(m_super.back());
+                    bool comma = true;
+                    while (auto expr = parseExpr()) {
+                        if(!comma)err("Expected ','");
+                        call->exprs.push_back(expr.value());
+                        comma = tryConsume(TokenType::comma).has_value();
+                    }
+                    tryConsume(TokenType::closeParenth,"Expected ')'");
+                    if(semi)tryConsume(TokenType::semi,"Expected ';'");
+                    return call;
+                }
                 BeContained* cont;
                 if(auto co = parseContained())cont = co.value();
                 else err("Could not parse contained");
@@ -376,47 +386,8 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     return {};
                 }
                 auto id = parseTerm(cont);
-                if(id.has_value()){
-                    if(auto val = dynamic_cast<NodeTermFuncCall*>(id.value())) {
-                        auto* call = new NodeStmtFuncCall;
-                        call->call = val;
-                        tryConsume(TokenType::semi, "Expected ';'");
-                        return call;
-                    }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(id.value())) {
-                        auto reassign = new NodeStmtArrReassign;
-                        reassign->acces = value;
-                        if (peak().has_value() && peak().value().type >= TokenType::eq &&
-                                peak().value().type <= TokenType::pow_eq) {
-                            reassign->op = consume().type;
-
-                            if (auto expr = parseExpr())reassign->expr = expr.value();
-                            else {
-                                err("Unexpected expression2");
-                            }
-                                } else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
-                                    reassign->op = consume().type;
-                                } else {
-                                    err("Expected Assignment Operator1");
-                                }
-                        tryConsume(TokenType::semi, "Expected ';'");
-                        return reassign;
-                    }else {
-                        auto reassign = new NodeStmtReassign;
-                        reassign->id = id.value();//dynamic_cast<Name*>(cont)->getId();
-                        if (peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq) {
-                            reassign->op = consume().type;
-
-                            if (auto expr = parseExpr())reassign->expr = expr.value();
-                            else err("Unexpected expression2");
-                        }else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
-                            reassign->op = consume().type;
-                        } else {
-                            err("Expected Assignment Operator2");
-                        }
-                        if(semi)tryConsume(TokenType::semi, "Expected ';'");
-                        return reassign;
-                    }
-                    return {};
+                if(id.has_value()) {
+                    return parseTermToStmt(id.value(),semi);
                 }else if(peak().has_value() && (peak().value().type == TokenType::inc || peak().value().type == TokenType::dec)){
                     auto reassign = new NodeStmtReassign;
                     reassign->op = consume().type;
@@ -443,6 +414,48 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
             }
             return {};
         }
+
+std::optional<NodeStmt *> Parser::parseTermToStmt(NodeTerm* term,bool semi) {
+    if(auto val = dynamic_cast<NodeTermFuncCall*>(term)) {
+        auto* call = new NodeStmtFuncCall;
+        call->call = val;
+        tryConsume(TokenType::semi, "Expected ';'");
+        return call;
+    }else if(auto value = dynamic_cast<NodeTermArrayAcces *>(term)) {
+        auto reassign = new NodeStmtArrReassign;
+        reassign->acces = value;
+        if (peak().has_value() && peak().value().type >= TokenType::eq &&peak().value().type <= TokenType::pow_eq) {
+            reassign->op = consume().type;
+
+            if (auto expr = parseExpr())reassign->expr = expr.value();
+            else {
+                err("Unexpected expression2");
+            }
+        } else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
+            reassign->op = consume().type;
+        } else {
+            err("Expected Assignment Operator1");
+        }
+        tryConsume(TokenType::semi, "Expected ';'");
+        return reassign;
+    }else {
+        auto reassign = new NodeStmtReassign;
+        reassign->id = term;//dynamic_cast<Name*>(cont)->getId();
+        if (peak().has_value() && peak().value().type >= TokenType::eq && peak().value().type <= TokenType::pow_eq) {
+            reassign->op = consume().type;
+
+            if (auto expr = parseExpr())reassign->expr = expr.value();
+            else err("Unexpected expression2");
+        }else if (peak().has_value() && peak().value().type == TokenType::inc ||peak().value().type == TokenType::dec) {
+            reassign->op = consume().type;
+        } else {
+            err("Expected Assignment Operator2");
+        }
+        if(semi)tryConsume(TokenType::semi, "Expected ';'");
+        return reassign;
+    }
+    return {};
+}
 
 std::optional<NodeStmtLet*> Parser::parseLet(bool _static, bool final, std::optional<BeContained*> contP) {
     if(contP.has_value() && !dynamic_cast<Enum*>(contP.value())){

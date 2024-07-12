@@ -179,41 +179,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                Generator::classRet = clz;
                Generator::structRet = nullptr;
           }
-          /*if(!(clzVar ? clzVar->vars.contains(acc.value.value()):clz->varIdMs.contains(acc.value.value()))) {
-               std::cerr << "Unkown variable name: " << acc.value.value();
-               Igel::errAt(acc);
-          }
-          uint fid = clzVar ? clzVar->vars[acc.value.value()]:clz->varIdMs[acc.value.value()];
-          if(acc.value.value() == ARR_LENGTH && Generator::arrRet)fid = 0;
-          Generator::arrRet = false;
-          Value* ptr = builder->CreateStructGEP(clzVar?clzVar->strType:clz->strType,val,fid);
-          Generator::typeNameRet = clz?clz:clzVar->clazz;
-          if(Generator::contained) {
-               if(const auto strT = Generator::instance->m_file->findClass(clz?clz->vars[fid - 1]->typeName->mangle():clzVar->clazz->vars[fid - 1]->typeName->mangle())) {
-                    Generator::classRet = strT.value().second;
-                    Generator::structRet = nullptr;
-               }
-               Generator::contained = false;
-          }else {
-               Generator::classRet = clz?clz :clzVar->clazz;
-               Generator::structRet = nullptr;
-          }*/
-          /*return ptr;
-          if(clzVar) {
-               Generator::classRet = clzVar->clazz;
-               Generator::structRet = nullptr;
-               return builder->CreateLoad(clzVar->types[fid],ptr);
-          }
-
-          if(clz->typeName[fid - 1] != nullptr) {
-               if(const auto strT = Generator::instance->m_file->findClass(clz->typeName[fid - 1]->mangle())) {
-                    Generator::classRet = strT.value().second;
-                    Generator::structRet = nullptr;
-               }
-               else Generator::classRet = nullptr;
-          }else Generator::classRet = nullptr;*/
-          //fid = clz?clz->varIdMs[acc.value.value()]:clzVar->clazz->varIdMs[acc.value.value()];
-          return builder->CreateLoad(clz->types[fid],ptr);
+          return builder->CreateLoad(ret.first->types[fid],ptr);
      }
 }
 
@@ -1314,6 +1280,10 @@ void IgFunction::genFunc(llvm::IRBuilder<>* builder) {
 
      Generator::instance->m_vars.emplace_back();
      if(supper.has_value()) {
+          if(supper.value()->extending.has_value()) {
+               llvmFunc->getArg(0)->setName("super");
+               Generator::instance->createVar(llvmFunc->getArg(0),false,supper.value()->extending.value()->mangle());
+          }
           llvmFunc->getArg(0)->setName("this");
           Generator::instance->createVar(llvmFunc->getArg(0),false,supper.value()->mangle());
      }
@@ -1546,7 +1516,6 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
 
           FunctionType* ty = FunctionType::get(builder->getVoidTy(),{types},false);
           Function* func = Function::Create(ty,GlobalValue::ExternalLinkage,Igel::Mangler::mangle(this,types,names,sing,true,true),*Generator::instance->m_module);
-          //constructor->llvmFunc = func;
           constructor->_return = builder->getVoidTy();
           constructor->retTypeName = "";
           func->getArg(0)->setName("this");
@@ -1560,16 +1529,6 @@ void Class::generateSig(llvm::IRBuilder<>* builder) {
           }
           constructor->llvmFunc = func;
      }
-
-     /*if(!constructor) {
-          constructor = new IgFunction;
-          constructor->paramTypeName = names;
-          constructor->paramType = types;
-          constructor->signage = sing;
-          constructor->constructor = true;
-     }*/
-
-
 
      strType = StructType::create(builder->getContext(),mangle());
 
@@ -1612,29 +1571,20 @@ void Class::generate(llvm::IRBuilder<>* builder) {
 
      auto fullFuncs = getFuncsRec();
 
-
      for (int i = 0; i < funcs.size();i++) {
-          //funcs[i]->paramName.insert(funcs[i]->paramName.begin(),"");
-          //funcs[i]->paramType.insert(funcs[i]->paramType.begin(),builder->getPtrTy());
-          //funcs[i]->paramTypeName.insert(funcs[i]->paramTypeName.begin(),nullptr);
-          //funcs[i]->signage.insert(funcs[i]->signage.begin(),false);
           funcs[i]->member = true;
           funcs[i]->supper = this;
+
           if(!funcs[i]->abstract) {
                funcs[i]->genFuncSig(builder);
-               funcs[i]->genFunc(builder);
           }else {
                std::vector<Type*> types;
                for(uint j = 0;j < funcs[i]->paramType.size();j++) {
                     types.push_back(funcs[i]->paramType[j]);
                }
-               //funcs[i]->type = FunctionType::get(funcs[i]->_return,types,false);
           }
-
-          //funcIdMs[funcs[i]->name] = i;
      }
 
-     //Function* func = Generator::instance->m_module->getFunction(Igel::Mangler::mangle(this,types,names,sing,true));
      Type* ptr = PointerType::get(*Generator::m_contxt,0);
 
      Generator::instance->initInfo();
@@ -1650,7 +1600,6 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      }
      typeInfos.insert(typeInfos.begin(),classInfos.typeNameVar);
      typeInfos.insert(typeInfos.begin(), (Constant*) (builder->CreateConstGEP1_64(ptr, /*vtable*/ Generator::instance->cxx_class_type_info, 2)));
-     //typeInfos.insert(typeInfos.begin(),nullptr);
 
      StructType* tIT = StructType::get(builder->getContext(),typeInfoTypes);  /*extending.has_value()?StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy(),builder->getPtrTy()}):
           StructType::get(*Generator::m_contxt,{builder->getPtrTy(),builder->getPtrTy()});*/
@@ -1687,7 +1636,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
      for (auto & fullFunc : fullFuncs) {
           for (auto & j : fullFunc) {
                IgFunction* func = j;
-               if(!func->abstract)continue;
+               //if(!func->abstract)continue;
                for (auto overide : overides) {
                     if(func->name != overide->name)continue;
                     j = overide;
@@ -1703,7 +1652,8 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                supperOffset = Generator::instance->m_module->getDataLayout().getTypeSizeInBits(extending.value()->strType) / 8 - 8;
           }
           for (int i = 0;i < fullFuncs.size();i++) {
-               std::vector<Constant*> vtablefuncsimp {(Constant*) builder->CreateIntToPtr(ConstantInt::get(builder->getInt64Ty(),i * -8 - supperOffset * i > 0),builder->getPtrTy()),classInfos.typeInfo};
+               std::vector<Constant*> vtablefuncsimp {(Constant*) builder->CreateIntToPtr(ConstantInt::get(builder->getInt64Ty(),i * -8 - supperOffset * (i > 0)),builder->getPtrTy()),
+                    classInfos.typeInfo};
                vtablefuncsimp.reserve(fullFuncs[i].size());
                for(int j = 0;j < fullFuncs[i].size();j++) {
                     if(!abstract) {
@@ -1715,12 +1665,18 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                     }else {
                          vtablefuncsimp.push_back(Generator::instance->cxx_pure_virtual);
                     }
-                    /*if(!fullFuncs[i][j]->abstract)*/funcIdMs[fullFuncs[i][j]->name] = std::make_pair(i,j);
-                    funcMap[i][j] = fullFuncs[i][j];
+                    funcIdMs[fullFuncs[i][j]->name] = std::make_pair(i + supperOffset / 8 * (i > 0),j);
+                    funcMap[i + supperOffset / 8 * (i > 0)][j] = fullFuncs[i][j];
                }
                vtables.push_back(ConstantArray::get(ArrayType::get(ptr,fullFuncs[i].size() + 2 /*nullptr and type info*/ + 0 /*Destructors*/),{vtablefuncsimp}));
           }
      //}
+
+     for (int i = 0; i < funcs.size();i++) {
+          if(!funcs[i]->abstract) {
+               funcs[i]->genFunc(builder);
+          }
+     }
 
      std::vector<Type*> vtableTypes {};
      vtableTypes.reserve(vtables.size());
@@ -1777,7 +1733,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
                (ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(0),builder->getInt32(2)},true,1);
           builder->CreateStore(vtG,load);
           for(int i = 1;i < fullFuncs.size();i++) {
-               Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8));
+               Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8 + supperOffset));
                Constant* vtGI = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,
                     (ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},true,1);
                builder->CreateStore(vtGI,ptr2);
@@ -1834,7 +1790,7 @@ void Class::generate(llvm::IRBuilder<>* builder) {
 
           for(int i = 1;i < fullFuncs.size();i++) {
                if(fullFuncs[i].empty())continue;
-               Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8));
+               Value* ptr2 = builder->CreateInBoundsGEP(builder->getInt8Ty(),load,ConstantInt::get(builder->getInt64Ty(), i * 8 + supperOffset));
                Constant* vtGI = ConstantExpr::getGetElementPtr(classInfos.vtable->getValueType(),classInfos.vtable,(ArrayRef<Constant*>) {builder->getInt32(0),builder->getInt32(i),builder->getInt32(2)},
                     true,1);
                builder->CreateStore(vtGI,ptr2);
@@ -1969,6 +1925,16 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
           if(Generator::classRet) {
                if(auto clz = dynamic_cast<NodeTermAcces*>(contained.value())) {
                     Class* clazz = Generator::classRet;
+                    if(auto id = dynamic_cast<NodeTermAcces*>(contained.value())) {
+                         if(id->id->name == "super") {
+                              auto func = clazz->getFunction(name->name);
+                              auto ptr = clz->generateClassPointer(builder);
+                              std::vector<Value*> vals {ptr};
+                              vals.reserve(exprs.size());
+                              for (auto expr : exprs) vals.push_back(expr->generate(builder));
+                              return builder->CreateCall(func.value()->getLLVMFunc(),vals);
+                         }
+                    }
                     if(!clazz->funcIdMs.contains(name->name)) {
                          std::cerr << "Unkown function " << name->name;
                          exit(EXIT_FAILURE);

@@ -29,6 +29,7 @@ public:
     std::optional<NodeTerm*> parseTerm(std::optional<BeContained*> cont = {},NodeTerm* term = nullptr);
     std::optional<NodeExpr*> parseExpr(int minPrec = 0);
     std::optional<NodeStmt*> parseStmt(bool semi = true);
+    std::optional<NodeStmt*> parseTermToStmt(NodeTerm* term,bool semi = true);
 
     std::optional<NodeStmtLet*> parseLet(bool _static,bool final,std::optional<BeContained*> contP = {});
     std::optional<NodeStmtPirimitiv*> parsePirim(bool _static,bool final);

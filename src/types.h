@@ -892,14 +892,23 @@ struct Class final : ContainableType {
         }
     }
 
+    std::optional<IgFunction*> getFunction(const std::string &name) {
+        if(funcIdMs.contains(name))return funcMap[funcIdMs[name].first][funcIdMs[name].second];
+        else {
+            if(!extending.has_value())return {};
+            return extending.value()->getFunction(name);
+        }
+
+    }
+
     std::vector<std::vector<IgFunction *>> getFuncsRec() override {
         std::vector<std::vector<IgFunction *>> funcsRet {funcs};
         if(extending.has_value()) {
             auto extFuncs = extending.value()->getFuncsRec();
             funcsRet[0].insert(funcsRet[0].begin(),extFuncs[0].begin(),extFuncs[0].end());
             extFuncs.erase(extFuncs.begin());
-            auto extFuncRet = extending.value()->getFuncsRec();
-            funcsRet.insert(funcsRet.end(),extFuncRet.begin(),extFuncRet.end());
+            //auto extFuncRet = extending.value()->getFuncsRec();
+            funcsRet.insert(funcsRet.end(),extFuncs.begin(),extFuncs.end());
         }
 
         for(const auto& e : implementing){
