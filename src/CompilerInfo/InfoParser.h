@@ -29,10 +29,13 @@ enum class FunctionState{
     _inside,
 };
 
+#define DEBUG_FLAG 0b1
+#define OPTIMIZE_FLAG 0b10
+
 //Compiler Info FLAGS
 const std::map<std::string,uint> FLAGS = {
-    {"Debug",0b1},
-    {"Optimize",0b10},
+    {"Debug",DEBUG_FLAG},
+    {"Optimize",OPTIMIZE_FLAG},
 };
 //#define IS_DEBUG 0b1
 
@@ -80,6 +83,7 @@ struct SrcFile{
     bool isGen = false;
     std::vector<Header*> includes;
     std::vector<SrcFile*> _using;
+    std::string dir;
     std::string name;
     //This is with the path
     std::string fullName;

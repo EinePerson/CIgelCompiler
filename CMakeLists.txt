@@ -28,6 +28,7 @@ add_executable(igel
         src/langMain/parsing/PreParser.h
         src/exceptionns/GeneratedException.cpp
         src/exceptionns/GeneratedException.h
+        src/SelfInfo.h
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 

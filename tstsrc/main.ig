@@ -1,38 +1,36 @@
-using "tstsrc/exception.ig";
-using "tstsrc/string.ig";
-
 int main(){
-    SUS s = new SUS();
-    //s.a = 69;
-    s.b = 420;
-    //s.c = 283;
-    printf("%d\n",s.c);
-    //printf("%d\n",s.a);
-    printf("%d\n",s.b);
-    s.test();
-    //printf("%d\n",s.a);
+    SUS s;
+    s.a = 50;
+    s.b = 69;
+    s.c = 420;
+    Gaming t = new Gaming();
+    t.j = 69;
+    printf("%d\n",t.i);
+    Test g = null;
+    //SIGSEGV to check if debug info works
+    g.i = 69;
     return 0;
 }
 
-class Gaming{
-    protected int a;
+struct SUS{
+    int a;
     int b;
-
-    void amogus(){
-        this.a = 151;
-    }
-
+    int c;
 }
 
-class SUS extends Gaming{
-    int c;
+class Test{
+    int i;
 
-    public void test(){
-        int test = 0;
-        this.amogus();
+    void tst(){
+
     }
 
-    override void amogus(){
-        this.a = 125;
+    Test(){
+        this.i = 27;
     }
+}
+
+class Gaming extends Test{
+    int j;
+    int k;
 }

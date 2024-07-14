@@ -134,6 +134,7 @@ llvm::Value* generateReassing(llvm::Value* load,llvm::Value* _new,TokenType op,l
 struct Node {
     virtual ~Node() = default;
 
+    Position pos;
     virtual llvm::Value* generate(llvm::IRBuilder<>* builder) = 0;
 
     virtual llvm::Value* generatePointer(llvm::IRBuilder<>* builder) = 0;
@@ -168,9 +169,7 @@ struct NodeTermIntLit final : NodeTerm{
 
 struct NodeTermStringLit final : NodeTerm {
     Token str;
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override {
-        return  builder->CreateGlobalStringPtr(str.value.value());
-    }
+    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
         throw IllegalGenerationException("Cannot generate pointer to string literal");
     };
@@ -193,11 +192,13 @@ struct NodeTermId final : NodeTerm{
 };
 
 struct Name final : BeContained {
+    Position pos;
     explicit Name(std::string name) {
         this->name = name;
     }
     NodeTermId* getId() {
         auto id = new NodeTermId;
+        id->pos = pos;
         id->cont = this;
         return id;
     }
@@ -229,7 +230,6 @@ struct NodeTermAcces : NodeTerm {
 struct NodeTermArrayAcces final : NodeTerm{
     BeContained* cont = nullptr;
     std::vector<NodeExpr*> exprs;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
@@ -257,7 +257,6 @@ struct NodeTermFuncCall final : NodeTerm{
     std::vector<llvm::Type*> params;
     std::vector<bool> signage;
     std::vector<BeContained*> typeNames;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -271,7 +270,6 @@ struct NodeTermClassNew final : NodeTerm {
     std::vector<bool> signage {};
     std::vector<llvm::Type*> paramType {};
     std::vector<BeContained*> paramTypeName {};
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -294,7 +292,6 @@ struct NodeTermArrNew final : NodeTerm {
 struct NodeTermCast final : NodeTerm {
     BeContained* target = nullptr;
     NodeExpr* expr = nullptr;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
@@ -303,7 +300,6 @@ struct NodeTermCast final : NodeTerm {
 struct NodeTermInstanceOf final : NodeTerm {
     BeContained* target = nullptr;
     NodeExpr* expr = nullptr;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
@@ -462,7 +458,6 @@ struct NodeStmtFuncCall final : NodeStmt{
 };
 
 struct NodeStmtSuperConstructorCall final : NodeStmt {
-    Position pos;
     std::vector<NodeExpr*> exprs {};
     Class* _this = nullptr;
 
@@ -476,9 +471,9 @@ struct NodeStmtLet : NodeStmt,BeContained{
     bool _static = false;
 
     Igel::Access acc;
-    Position pos;
-    std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder) = 0;;
+    std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder,bool full) = 0;;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
+    llvm::Value* generatePointer(llvm::IRBuilder<> *builder) override;
 };
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
@@ -486,7 +481,7 @@ struct NodeStmtPirimitiv final : NodeStmtLet {
     bool _signed = true;
     std::optional<NodeExpr*> expr = {};
 
-    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 
     std::string mangle() override;
 };
@@ -497,13 +492,13 @@ struct NodeStmtNew : NodeStmtLet{
 };
 
 struct NodeStmtStructNew final : NodeStmtNew{
-    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 };
 
 struct NodeStmtClassNew final : NodeStmtNew {
     NodeTerm* term = nullptr;
 
-    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 };
 
 struct NodeStmtArr final : NodeStmtLet{
@@ -512,7 +507,7 @@ struct NodeStmtArr final : NodeStmtLet{
     bool _signed = false;
     bool fixed = false;;
     uint size = 0;
-    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder) override;
+    std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 
     std::string mangle() override;
 };
@@ -522,7 +517,7 @@ struct NodeStmtEnum final : NodeStmtLet {
 
     std::string mangle() override;
 
-    std::pair<llvm::Value *, Var *> generateImpl(llvm::IRBuilder<> *builder) override;
+    std::pair<llvm::Value *, Var *> generateImpl(llvm::IRBuilder<> *builder,bool full) override;
 
 
 };
@@ -588,7 +583,6 @@ struct NodeStmtArrReassign final : NodeStmt{
     std::optional<NodeExpr*> expr;
     TokenType op = TokenType::uninit;
     NodeTermArrayAcces* acces = nullptr;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -607,7 +601,6 @@ struct NodeStmtContinue final : NodeStmt {
 
 struct NodeStmtThrow final : NodeStmt{
     NodeExpr* expr = nullptr;
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -624,7 +617,6 @@ struct NodeStmtTry final : NodeStmt{
     static FunctionCallee* call;
     NodeStmtScope* scope {};
     std::vector<NodeStmtCatch*> catch_ {};
-    Position pos;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 };
 
@@ -651,7 +643,7 @@ struct IgFunction final : BeContained{
     bool _override = false;
 
     Igel::Access acc;
-
+    Position pos;
     std::pair<llvm::Function*,FuncSig*> genFuncSig(llvm::IRBuilder<>* builder);
     void genFunc(llvm::IRBuilder<>* builder);
 
@@ -678,6 +670,9 @@ struct IgType : BeContained {
     std::unordered_map<std::string,Igel::VarType> varTypes = {};
     std::unordered_map<std::string,std::string> varTypeNames = {};
 
+    llvm::DICompositeType* dbgType = nullptr;
+    llvm::DIDerivedType* dbgpointerType = nullptr;
+
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generatePart(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
@@ -696,7 +691,10 @@ struct Struct final : IgType {
     std::unordered_map<std::string,BeContained*> staticTypeName;
     std::unordered_map<std::string,uint> varIdMs;
     std::unordered_map<std::string,bool> finals;
+    std::vector<bool> signage;
     llvm::StructType* strType = nullptr;
+
+    Position pos;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
 
@@ -721,12 +719,12 @@ struct ContainableType : IgType {
      * @param type
      * @return checks weather type is a super of this
      */
-    virtual bool isSubTypeOf(IgType* type) = 0;
+    virtual bool isSubTypeOf(ContainableType* type) = 0;
 
     /**
      *\brief returns -1 if not found
      */
-    virtual uint getSuperOffset(IgType* type) = 0;
+    virtual uint getSuperOffset(ContainableType* type) = 0;
 
     virtual uint getExtendingOffset() = 0;
 
@@ -759,11 +757,11 @@ struct NamesSpace final : ContainableType {
 
     void unregister() override{}
 
-    bool isSubTypeOf(IgType *type) override {
+    bool isSubTypeOf(ContainableType* type) override {
         return false;
     }
 
-    uint getSuperOffset(IgType *type) override {
+    uint getSuperOffset(ContainableType *type) override {
         return -1;
     }
 
@@ -834,7 +832,7 @@ struct Interface final : ContainableType {
         classInfos.init = false;
     }
 
-    bool isSubTypeOf(IgType *type) override {
+    bool isSubTypeOf(ContainableType *type) override {
         if(std::count(extending.begin(),extending.end(),type)) return true;
         for (auto interface : extending) {
             if(interface->isSubTypeOf(type))return true;
@@ -842,7 +840,7 @@ struct Interface final : ContainableType {
         return false;
     }
 
-    uint getSuperOffset(IgType *type) override {
+    uint getSuperOffset(ContainableType *type) override {
         if(!isSubTypeOf(type))return -1;
         if(std::count(extending.begin(),extending.end(),type)) return 0;
         uint offset = 0;
@@ -883,6 +881,7 @@ struct Enum final : IgType {
 struct Class final : ContainableType {
     Class() : ContainableType(){}
     std::vector<NodeStmtLet*> vars;
+    std::vector<std::string> varNames;
     std::unordered_map<std::string,uint> varIdMs;
     std::unordered_map<std::string,Igel::Access> varAccesses;
     std::unordered_map<std::string,bool> finals;
@@ -907,6 +906,9 @@ struct Class final : ContainableType {
 
     std::vector<IgFunction*> constructors {};
     std::optional<IgFunction*> defaulfConstructor = {};
+
+    Position pos;
+
 
     bool abstract = false;
 
@@ -986,7 +988,7 @@ struct Class final : ContainableType {
         for (auto func : funcs) func->reset();
     }
 
-    bool isSubTypeOf(IgType *type) override {
+    bool isSubTypeOf(ContainableType *type) override {
         if(type == this)return true;
         if(std::count(implementing.begin(),implementing.end(),type)) return true;
         if(extending.has_value() && (extending.value() == type || extending.value()->isSubTypeOf(type)))return true;
@@ -998,7 +1000,7 @@ struct Class final : ContainableType {
 
     uint getExtendingOffset() override;
 
-    uint getSuperOffset(IgType *type) override;
+    uint getSuperOffset(ContainableType *type) override;
 
 private:
 
@@ -1061,6 +1063,8 @@ namespace Igel {
     llvm::Value* dyn_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* src,llvm::Value* val);
 
     llvm::Value* stat_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* src,llvm::Value* val);
+
+    llvm::Instruction* setDbg(llvm::IRBuilder<> *builder,llvm::Instruction* inst,Position pos);
 }
 
 #endif //TYPES_H

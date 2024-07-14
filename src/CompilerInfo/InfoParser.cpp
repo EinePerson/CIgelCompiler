@@ -50,7 +50,7 @@
                     std::cerr << "Could not find setting" << std::endl;
                     exit(EXIT_FAILURE);
                 }
-                if(args[1] == "1") {
+                if(args[1] == "1Z") {
                     info->m_info->flags |= FLAGS.at(args[0]);
                 }
             }},
@@ -152,9 +152,10 @@
                 if (f->d_type == DT_REG){
                     auto file = new SrcFile();
                     file->tokenPtr = 0;
-                    file->name += removeExtension(f->d_name);
+                    file->name += f->d_name;
                     file->fullName = path;
                     file->fullName += f->d_name;
+                    file->dir = path;
                     file->fullNameOExt = path;
                     file->fullNameOExt += removeExtension(f->d_name);
                     direct->files.push_back(file);

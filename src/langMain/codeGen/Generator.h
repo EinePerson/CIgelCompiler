@@ -5,6 +5,7 @@
 #ifndef IGEL_COMPILER_MAINGEN_H
 #define IGEL_COMPILER_MAINGEN_H
 
+#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -65,6 +66,12 @@ struct ClassVar final : Var {
     ContainableType* clazz = nullptr;
 };
 
+struct Debug {
+    DIBuilder* builder;
+    DICompileUnit* unit;
+    DIFile* file;
+};
+
 class Generator {
 
 public:
@@ -94,13 +101,20 @@ public:
 
     void createVar(const std::string&name,Type* type,Value* val,bool _signed,bool _final);
     void createVar(std::string name,Var* var);
-    void createVar(Argument* arg,bool _signed, const std::string&typeName);
+    void createVar(Argument* arg,bool _signed, const std::string&typeName,bool createDbg = true);
 
     void createStaticVar(std::string name,Value* val,Var* var);
 
     void initInfo();
 
     void reset();
+
+    Debug getDebug();
+    DIScope* getScope() const {
+        return dbgScopes.empty()?dbg.file:dbgScopes.back();
+    }
+
+    static unsigned getEncodingOfType(Type* type);
 private:
     BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
@@ -111,13 +125,17 @@ private:
     uint m_currentVar = 0;
     std::vector<uint> m_sVarId;
     std::unordered_map<SrcFile*,Module*> modules;
+    std::unordered_map<SrcFile*,std::pair<DICompileUnit*,DIFile*>> dbgModules;
+    Debug dbg;
 public:
+    const bool debug;
     SrcFile* m_file;
     Module* m_module;
     std::vector<std::map<std::string, Var*>> m_vars;
     std::vector<BasicBlock*> after;
     std::vector<BasicBlock*> next;
     std::vector<SwitchInst*> _switch;
+    std::vector<DIScope*> dbgScopes;
     Info* m_info;
     BasicBlock* unreach = nullptr;
     GlobalVariable* cxx_pointer_type_info = nullptr;

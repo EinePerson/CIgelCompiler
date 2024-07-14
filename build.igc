@@ -2,5 +2,6 @@
 
 SourceDirectory("tstsrc");
 setMain("tstsrc/main.ig");
-SetBool("Optimize",true);
+SetBool("Optimize",false);
+SetBool("Debug",true);
 setOutName("out");

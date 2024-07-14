@@ -135,8 +135,8 @@ enum class TokenType{
 std::optional<int> prec(TokenType type);
 
 struct Position {
-    uint line;
-    uint _char;
+    uint line = -1;
+    uint _char = -1;
     std::string file;
 };
 

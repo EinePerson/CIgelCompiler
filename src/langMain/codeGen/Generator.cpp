@@ -36,6 +36,7 @@
 #include <llvm/Passes/PassBuilder.h>
 
 #include "../langMain.hpp"
+#include "../../SelfInfo.h"
 #include "../../util/Mangler.h"
 
 
@@ -53,14 +54,14 @@ bool Generator::contained = false;
 bool Generator::stump = false;
 bool Generator::_final = false;
 
-Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info) {
+Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0) {
     m_module = new Module(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
 }
 
-Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(nullptr) {
+Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(nullptr),debug(false) {
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
 }
 
@@ -69,6 +70,11 @@ void Generator::setup(SrcFile* file) {
     if(!m_module) {
         create(file);
         return;
+    }
+    if(debug) {
+        dbg.unit = dbgModules[file].first;
+        dbg.file = dbgModules[file].second;
+        dbg.builder = new DIBuilder(*m_module,true,dbg.unit);
     }
     m_file = file;
     setupFlag = true;
@@ -80,6 +86,15 @@ void Generator::create(SrcFile *file) {
     m_module = new Module(file->fullName, *m_contxt);
     modules[file] = m_module;
     m_file = file;
+    if(debug) {
+        dbg.builder = new DIBuilder(*m_module);
+        dbg.unit = dbg.builder->createCompileUnit(dwarf::DW_LANG_C,dbg.builder->createFile(m_file->name,m_file->dir),
+            ((std::string) "Igel Compiler: v") + COMPILER_VERSION,m_info->hasFlag("Optimize"),"",0);
+        dbg.file = dbg.builder->createFile(dbg.unit->getFilename(),dbg.unit->getDirectory());
+        m_module->addModuleFlag(Module::Warning, "Debug Info Version",
+                           DEBUG_METADATA_VERSION);
+        dbgModules[file] = std::make_pair(dbg.unit,dbg.file);
+    }
     setupFlag = true;
     instance = this;
     m_vars.push_back({});
@@ -141,9 +156,10 @@ Type* Generator::getType(TokenType type) {
 void Generator::reset(SrcFile* file) {
     m_builder.release();
     m_vars.clear();
+    if(debug) {
+        delete dbg.builder;
+    }
 
-
-    m_module = new Module(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
 }
 
@@ -154,6 +170,7 @@ void Generator::write() {
         m_builder->CreateRetVoid();
 
     }
+    if(debug)dbg.builder->finalize();
     InitializeAllTargetInfos();
     InitializeAllTargets();
     InitializeAllTargetMCs();
@@ -307,9 +324,22 @@ void Generator::createVar(std::string name, Var* var) {
     m_vars.back()[name] = var;
 }
 
-void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName) {
+void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName,bool createDbg) {
     AllocaInst* alloc = m_builder->CreateAlloca(arg->getType()->isIntegerTy(0)?PointerType::get(*m_contxt,0):arg->getType());
     m_builder->CreateStore(arg,alloc);
+    if(debug && createDbg) {
+        DIType* type;
+        if(auto val = m_file->findContained(typeName)) {
+            if(val.has_value() && val.value()->dbgType) {
+                if(val.value()->dbgpointerType)type = val.value()->dbgpointerType;
+                else type = val.value()->dbgType;
+            }else type = dbg.builder->createBasicType(arg->getName(),instance->m_module->getDataLayout().getTypeSizeInBits(arg->getType()),getEncodingOfType(arg->getType()));
+        }else type = dbg.builder->createBasicType(arg->getName(),instance->m_module->getDataLayout().getTypeSizeInBits(arg->getType()),getEncodingOfType(arg->getType()));
+        DIScope* scope = dbgScopes.empty()?dbg.file:dbgScopes.back();
+        DILocalVariable* var = dbg.builder->createParameterVariable(scope,arg->getName(),arg->getArgNo(),dbg.file,0,//TODO add proper type encoding
+            type);
+        dbg.builder->insertDeclare(alloc,var,dbg.builder->createExpression(),DILocation::get(*m_contxt,0,0,scope),m_builder->GetInsertBlock());
+    }
     if(arg->getType()->isPointerTy()) {
         if(auto structT = Generator::instance->m_file->findStruct(typeName)){
             auto var = new StructVar(alloc,false);
@@ -377,11 +407,13 @@ void Generator::createStaticVar(std::string name, Value* val,Var* var) {
 
 void Generator::initInfo() {
     if(!cxx_pointer_type_info) {
-        cxx_pointer_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv119__pointer_type_infoE",
+        cxx_pointer_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,
+            nullptr,"_ZTVN10__cxxabiv119__pointer_type_infoE",
           nullptr,GlobalValue::NotThreadLocal,0,true);
     }
     if(!cxx_class_type_info) {
-        cxx_class_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,nullptr,"_ZTVN10__cxxabiv117__class_type_infoE",
+        cxx_class_type_info = new GlobalVariable(*Generator::instance->m_module,m_builder->getPtrTy(),false,GlobalValue::ExternalLinkage,
+            nullptr,"_ZTVN10__cxxabiv117__class_type_infoE",
           nullptr,GlobalValue::NotThreadLocal,0,true);
     }
     if(!cxx_pure_virtual) {
@@ -395,4 +427,20 @@ void Generator::reset() {
     cxx_pointer_type_info = nullptr;
     cxx_class_type_info = nullptr;
     cxx_pure_virtual = nullptr;
+}
+
+Debug Generator::getDebug() {
+    if(!debug)Igel::internalErr("Cannot get debug info while not in debug mode");
+    return std::move(dbg);
+}
+
+int unsigned Generator::getEncodingOfType(Type *type) {
+    if(type->isPointerTy()) {
+        return dwarf::DW_ATE_address;
+    }else if(type->isIntegerTy()) {
+        return dwarf::DW_ATE_unsigned;
+    }else if(type->isFloatTy() || type->isDoubleTy()) {
+        return dwarf::DW_ATE_float;
+    }
+    return -1;
 }
