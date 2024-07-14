@@ -1,6 +1,5 @@
 add template classes;
 add partly libraries;
-add debug info;
 add header parsing for include and usage of c(++) files;
 add package manager;
 
