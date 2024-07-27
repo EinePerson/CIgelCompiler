@@ -67,12 +67,18 @@ struct FuncSigHash {
 
 struct Header {
     std::string fullName;
-    std::vector<FuncSig*> funcs;
-    std::unordered_map<std::string,llvm::StructType*> structs;
+
+    std::unordered_map<std::string,IgFunction*> funcs;
+
+    std::unordered_map<std::string,IgType*> nameTypeMap;
+    std::unordered_map<std::string,Struct*> structs;
+    std::unordered_map<std::string,Class*> classes;
+    std::unordered_map<std::string,Interface*> interfaces;
+
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name,std::vector<llvm::Type*> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
-    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
-    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
+    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name,llvm::IRBuilder<>* builder);
+    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name,llvm::IRBuilder<>* builder);
     std::optional<Interface*> findInterface(std::string name);
     std::optional<IgType*> findContained(const std::string & name);
     std::optional<IgType*> findUnmangledContained(const std::string & name);
@@ -102,8 +108,8 @@ struct SrcFile{
 
     std::optional<std::pair<llvm::FunctionCallee,bool>> findFunc(std::string name, std::vector<llvm::Type *> types);
     std::optional<IgFunction*> findIgFunc(std::string name, std::vector<llvm::Type*> types);
-    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name);
-    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name);
+    std::optional<std::pair<llvm::StructType*,Struct*>> findStruct(std::string name,llvm::IRBuilder<>* builder);
+    std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name,llvm::IRBuilder<>* builder);
     std::optional<Interface*> findInterface(std::string name);
     std::optional<IgType*> findContained(std::string name);
     std::optional<IgType*> findUnmangledContained(std::string name);
@@ -131,6 +137,8 @@ struct Info{
     std::unordered_map<std::string,SrcFile*> file_table;
     std::unordered_map<std::string,Header*> header_table;
     uint flags;
+
+    std::string execDir;
 
     bool hasFlag(const std::string&flag) const;
 };

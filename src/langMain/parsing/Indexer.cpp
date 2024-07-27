@@ -84,11 +84,17 @@ SrcFile* Indexer::getFile(std::string name) {
     return nullptr;
 }
 
+Header * Indexer::getHeader(std::string header) {
+    if(m_info->header_table.contains(header))return m_info->header_table[header];
+    err("Unknown file " + header);
+    return nullptr;
+}
+
 bool Indexer::tryParseInclude(){
-    //TODO ADD HEADER INCLUDING
     if(peak().has_value() && peak().value().type == TokenType::include){
         consume();
-        auto id = tryConsume(TokenType::str,"Expected identifier").value;
+        auto id = tryConsume(TokenType::str,"Expected identifier").value.value();
+        currentFile->includes.push_back(getHeader(id));
         tryConsume(TokenType::semi,"Expected ';'");
         currentFile->tokenPtr += 3;
         return true;

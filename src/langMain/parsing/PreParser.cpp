@@ -58,10 +58,10 @@ void PreParser::parseScope(bool contain,bool parenth) {
                 peak(2).value().type != TokenType::openParenth) {
             std::string name = tryConsume(TokenType::id,"Expected id").value.value();
             std::string varName = tryConsume(TokenType::id,"Expected id").value.value();
-            if(currentFile->findClass(name)) {
+            if(currentFile->findClass(name,nullptr)) {
                 m_super.back()->varTypes[varName] = Igel::VarType::ClassVar;
                 m_super.back()->varTypeNames[varName] = name;
-            }else if(currentFile->findStruct(name)) {
+            }else if(currentFile->findStruct(name,nullptr)) {
                 m_super.back()->varTypes[varName] = Igel::VarType::StructVar;
                 m_super.back()->varTypeNames[varName] = name;
             }
@@ -95,7 +95,7 @@ void PreParser::parseScope(bool contain,bool parenth) {
                     consume();
                 case TokenType::_class:
                     if(tryConsume(TokenType::extends)) {
-                        tryConsume(TokenType::id,"Expected type name");
+                        if(parseContained())err("Expected type name");
                     }
                     if(tryConsume(TokenType::implements)) {
                         bool b = false;
@@ -184,5 +184,5 @@ bool PreParser::parseContained() {
         tryConsume(TokenType::id);
         tryConsume(TokenType::dConnect);
     }
-    return peak().value().type == TokenType::dConnect;
+    return !tryConsume(TokenType::id).has_value();
 }

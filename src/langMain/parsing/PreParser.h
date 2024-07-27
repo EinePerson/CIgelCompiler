@@ -28,6 +28,7 @@ public:
 
     void err(const std::string&err) const;
 
+    ///\brief checks weather the value is a type <br> returns true for no type
     bool parseContained();
 
 private:

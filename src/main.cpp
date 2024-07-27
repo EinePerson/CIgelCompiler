@@ -5,6 +5,7 @@
 #include "langMain/langMain.hpp"
 #include "CompilerInfo/CompilerInfo.hpp"
 #include "CompilerInfo/OptionsParser.h"
+#include "cxx_extension/CXX_Parser.h"
 
 typedef unsigned int uint;
 
@@ -35,6 +36,12 @@ int main(int argc,char* argv[]) {
         exit(EXIT_FAILURE);
     }
     optParser.modify(info);
+    if(options->infoFile) {
+        std::string name = options->infoFile.value();
+        auto pos = name.find_last_of('/');
+        if(pos != std::string::npos)name.erase(pos);
+        info->execDir = name;
+    }
 
     LangMain main(info,options);
     main.compile();

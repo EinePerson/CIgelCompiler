@@ -1,36 +1,31 @@
+include "includeTest/test.h";
+
 int main(){
-    SUS s;
-    s.a = 50;
-    s.b = 69;
-    s.c = 420;
-    Gaming t = new Gaming();
-    t.j = 69;
-    printf("%d\n",t.i);
-    Test g = null;
-    //SIGSEGV to check if debug info works
-    g.i = 69;
+    SUS::Gaming g = new SUS::Gaming();
+    g.k = 69;
+    g.test();
+    printf("DEF\n");
+    g.k = 580;
+    test(g);
+    Test t = new Test();
+    t.sus();
+    t.k = 18;
+    t.i = 50;
+    t.j = 420;
+    printf("%d\n",t.k);
+    printf("ABC");
     return 0;
 }
 
-struct SUS{
-    int a;
-    int b;
-    int c;
-}
-
-class Test{
+class Test extends SUS::Gaming implements Amogus{
     int i;
-
-    void tst(){
-
-    }
-
-    Test(){
-        this.i = 27;
-    }
-}
-
-class Gaming extends Test{
     int j;
-    int k;
-}
+
+    override void test() {
+    	printf("%dABC\n",this.k);
+    }
+
+    override void sus()  {
+        	printf("Gaming\n");
+    }
+};

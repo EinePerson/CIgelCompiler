@@ -18,6 +18,8 @@ public:
 
     SrcFile* getFile(std::string name);
 
+    Header* getHeader(std::string header);
+
     bool tryParseInclude();
 
     bool parseUsing();

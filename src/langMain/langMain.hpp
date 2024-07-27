@@ -7,9 +7,10 @@
 #include "codeGen/Generator.h"
 #include "parsing/Indexer.h"
 #include "parsing/PreParser.h"
+#include "../cxx_extension/CXX_Parser.h"
 
 //TODO Update Dependencies
-const static std::vector<std::string> COMPILER_LIBS {"./libs/libigc.a","./libs/libgc.a","./libs/libgccpp.a"};
+const static std::vector<std::string> COMPILER_LIBS {"./libs/libigc.a","./libs/libgc.a","./libs/libgccpp.a"/*, "-Wl,--whole-archive ./build/cmp/includes.o"*/};
 
 
 class LangMain{
@@ -18,6 +19,18 @@ class LangMain{
         }
 
         void compile(){
+            std::stringstream includeContents;
+            for (auto header : m_info->headers) {
+                CXX_Parser(header).parseHeader();
+                //includeContents << "#include \"" << m_info->execDir << "/" << header->fullName << "\"\n";
+            }
+            /*std::ofstream outFile;
+            outFile.open("./build/cmp/includes.cpp");
+            outFile << includeContents.str();
+            outFile.close();
+            const char* cmpCXXI = "clang++ -c -o ./build/cmp/includes.o ./build/cmp/includes.cpp";
+            system(cmpCXXI);*/
+
             for(const auto file : m_info->files){
                 if(!file->tokens.empty())continue;
                 const auto tokens = m_tokenizer.tokenize(file->fullName);
@@ -33,6 +46,7 @@ class LangMain{
             genDir("./build");
             genDir("./build/cmp");
             for (const auto src : m_info->src)genDir("./build/cmp/",src);
+            for (const auto src : m_info->include)genDir("./build/cmp/",src);
 
             outFiles << "clang++ -o " << m_info->m_name << " ";
             if(m_info->files.empty())return;
@@ -48,13 +62,22 @@ class LangMain{
                 m_gen->write();
                 outFiles << "./build/cmp/" << file->fullName << ".bc ";
             }
+
+            for (auto header : m_info->headers) {
+                outFiles << "./build/cmp/" << header->fullName << ".pch ";
+                std::string cmdStr = "clang++ -g -o ./build/cmp/";
+                cmdStr += header->fullName + ".pch ";
+                cmdStr += header->fullName;
+                const char* cmd = cmdStr.c_str();
+                if(system(cmd))err();
+            }
             for (const auto& lib : m_info->libs) outFiles << lib << " ";
             for (const auto& compiler_libs : COMPILER_LIBS) outFiles << compiler_libs << " ";
 
             outFiles << " -std=c++23 -lstdc++exp -fsized-deallocation ";
             std::string temp = outFiles.str();
             const char* str1 = temp.c_str();
-            system(str1);
+            if(system(str1))err();
         }
 
     ~LangMain() = default;
@@ -82,6 +105,10 @@ private:
                 exit(EXIT_FAILURE);
             }
         }
+    }
+
+    void err() {
+        exit(EXIT_FAILURE);
     }
 
     std::stringstream outFiles;

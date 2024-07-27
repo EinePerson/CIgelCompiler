@@ -868,22 +868,29 @@ NodeStmtFor* Parser::parseFor() {
 std::optional<BeContained*> Parser::parseContained() {
     if (peak().value().type != TokenType::id) return {};
     //if(peak(1).value().type != TokenType::dConnect)return {};
+    std::string typeName;
     IgType* cont = nullptr;
     while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {
-        auto contN = m_file->findUnmangledContained(consume().value.value());
-        if(cont)contN.value()->contType = cont;
-        cont = contN.value();
+        typeName += consume().value.value();
+        auto contN = m_file->findContained(typeName);
+        if(!contN) {
+            err("Unknown Type: " + typeName);
+            return {};
+        }
         consume();
+        typeName += "::";
+        cont = contN.value();
     }
-    if(m_file->findUnmangledContained(peak().value().value.value())) {
-        auto contN = m_file->findUnmangledContained(consume().value.value());
-        if(cont)contN.value()->contType = cont;
+    if(peak().value().type != TokenType::id)return {};
+    std::string last = consume().value.value();
+    typeName += last;
+    if(auto contN = m_file->findContained(typeName)) {
         return contN;
     }
     Name* name = new Name("");
     name->pos = currentPosition();
-    name->contType = cont;
-    name->name = tryConsume(TokenType::id,"Expected identifier").value.value();
+    if(cont)name->contType = cont;
+    name->name = last;
     return name;
 }
 
@@ -947,7 +954,7 @@ std::optional<IgType*> Parser::parseType() {
                         bool next = true;
                         while (auto cont = parseContained()) {
                             if(!next)err("Expected comma between typenames");
-                            if(auto imp = dynamic_cast<Interface*>(m_file->unmangledTypeMap[cont.value()->mangle()])){
+                            if(auto imp = dynamic_cast<Interface*>(cont.value())){
                                 clazz->implementing.push_back(imp);
                                 next = tryConsume(TokenType::comma).has_value();
                             }else err("Can only implement interfaces");
@@ -1062,7 +1069,8 @@ std::optional<IgType*> Parser::parseType() {
             m_I = file->tokenPtr;
             m_file = file;
             while (peak().has_value()){
-                if(auto func = parseFunc()) {
+                if(tryConsume(TokenType::semi))/*No scope*/;
+                else if(auto func = parseFunc()) {
                     file->funcs.insert(std::pair(func.value()->mangle(),func.value()));
                 }else if(auto type = parseType()){
                     file->types.push_back(type.value());

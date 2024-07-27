@@ -11,6 +11,7 @@
 #include "tokenizer.h"
 #include "exceptionns/Generator.h"
 
+class CXX_Parser;
 struct IgType;
 struct FuncSig;
 struct Class;
@@ -635,6 +636,7 @@ struct IgFunction final : BeContained{
     bool _static = false;
     bool final = false;
     bool member = false;
+    bool destructor = false;
     bool constructor = false;
     NodeStmtScope* scope = nullptr;
 
@@ -642,6 +644,7 @@ struct IgFunction final : BeContained{
     bool abstract = false;
     bool _override = false;
 
+    bool externC = false;
     Igel::Access acc;
     Position pos;
     std::pair<llvm::Function*,FuncSig*> genFuncSig(llvm::IRBuilder<>* builder);
@@ -673,6 +676,8 @@ struct IgType : BeContained {
     llvm::DICompositeType* dbgType = nullptr;
     llvm::DIDerivedType* dbgpointerType = nullptr;
 
+    bool _extern = false;
+
     virtual void generateSig(llvm::IRBuilder<>* builder) = 0;
     virtual void generatePart(llvm::IRBuilder<>* builder) = 0;
     virtual void generate(llvm::IRBuilder<>* builder) = 0;
@@ -692,7 +697,7 @@ struct Struct final : IgType {
     std::unordered_map<std::string,uint> varIdMs;
     std::unordered_map<std::string,bool> finals;
     std::vector<bool> signage;
-    llvm::StructType* strType = nullptr;
+
 
     Position pos;
 
@@ -704,7 +709,14 @@ struct Struct final : IgType {
 
     std::string mangle() override;
 
-    void unregister() override {}
+    void unregister() override {
+        strType = nullptr;
+    }
+
+    llvm::StructType* getStrType(llvm::IRBuilder<> *builder);
+
+private:
+    llvm::StructType* strType = nullptr;
 
 };
 
@@ -906,6 +918,7 @@ struct Class final : ContainableType {
 
     std::vector<IgFunction*> constructors {};
     std::optional<IgFunction*> defaulfConstructor = {};
+    bool hasConstructor = false;
 
     Position pos;
 

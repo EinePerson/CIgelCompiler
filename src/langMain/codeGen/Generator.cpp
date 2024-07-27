@@ -53,6 +53,7 @@ std::vector<BasicBlock*> Generator::catchCont {};
 bool Generator::contained = false;
 bool Generator::stump = false;
 bool Generator::_final = false;
+DataLayout Generator::dataLayout = (new Module("",*m_contxt))->getDataLayout();
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0) {
     m_module = new Module(file->fullName, *m_contxt);
@@ -238,7 +239,7 @@ void Generator::write() {
 }
 
 llvm::Value* Generator::genStructVar(std::string typeName) {
-    if(const auto structT = Generator::instance->m_file->findStruct(std::move(typeName))) {
+    if(const auto structT = Generator::instance->m_file->findStruct(std::move(typeName),m_builder.get())) {
         m_currentVar++;
         m_sVarId.push_back(0);
         m_vars.emplace_back();
@@ -258,7 +259,6 @@ llvm::Value* Generator::genStructVar(std::string typeName) {
         m_sVarId.pop_back();
         m_vars.pop_back();
         if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = vars;
-        if(!structT.value().second->strType)structT.value().second->strType = structT.value().first;
         return var;
     }
     std::cerr << "Unknown type " << typeName << std::endl;
@@ -333,6 +333,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             if(val.has_value() && val.value()->dbgType) {
                 if(val.value()->dbgpointerType)type = val.value()->dbgpointerType;
                 else type = val.value()->dbgType;
+
             }else type = dbg.builder->createBasicType(arg->getName(),instance->m_module->getDataLayout().getTypeSizeInBits(arg->getType()),getEncodingOfType(arg->getType()));
         }else type = dbg.builder->createBasicType(arg->getName(),instance->m_module->getDataLayout().getTypeSizeInBits(arg->getType()),getEncodingOfType(arg->getType()));
         DIScope* scope = dbgScopes.empty()?dbg.file:dbgScopes.back();
@@ -341,7 +342,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
         dbg.builder->insertDeclare(alloc,var,dbg.builder->createExpression(),DILocation::get(*m_contxt,0,0,scope),m_builder->GetInsertBlock());
     }
     if(arg->getType()->isPointerTy()) {
-        if(auto structT = Generator::instance->m_file->findStruct(typeName)){
+        if(auto structT = Generator::instance->m_file->findStruct(typeName,m_builder.get())){
             auto var = new StructVar(alloc,false);
             var->str = structT.value().second;
             var->strType = structT.value().first;
@@ -356,10 +357,9 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
 
 
             if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
-            if(!structT.value().second->strType)structT.value().second->strType = var->strType;
             createVar(Igel::Mangler::mangle(arg->getName().str()),var);
             return;
-        }else if(auto clazzT = Generator::instance->m_file->findClass(typeName)){
+        }else if(auto clazzT = Generator::instance->m_file->findClass(typeName,m_builder.get())){
             auto var = new ClassVar(alloc,false);
             var->clazz = clazzT.value().second;
             var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);

@@ -242,6 +242,30 @@ src/CompilerInfo/OptionsParser.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/CompilerInfo/OptionsParser.cpp.s
 .PHONY : src/CompilerInfo/OptionsParser.cpp.s
 
+src/cxx_extension/CXX_Parser.o: src/cxx_extension/CXX_Parser.cpp.o
+.PHONY : src/cxx_extension/CXX_Parser.o
+
+# target to build an object file
+src/cxx_extension/CXX_Parser.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/cxx_extension/CXX_Parser.cpp.o
+.PHONY : src/cxx_extension/CXX_Parser.cpp.o
+
+src/cxx_extension/CXX_Parser.i: src/cxx_extension/CXX_Parser.cpp.i
+.PHONY : src/cxx_extension/CXX_Parser.i
+
+# target to preprocess a source file
+src/cxx_extension/CXX_Parser.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/cxx_extension/CXX_Parser.cpp.i
+.PHONY : src/cxx_extension/CXX_Parser.cpp.i
+
+src/cxx_extension/CXX_Parser.s: src/cxx_extension/CXX_Parser.cpp.s
+.PHONY : src/cxx_extension/CXX_Parser.s
+
+# target to generate assembly for a file
+src/cxx_extension/CXX_Parser.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/cxx_extension/CXX_Parser.cpp.s
+.PHONY : src/cxx_extension/CXX_Parser.cpp.s
+
 src/exceptionns/GeneratedException.o: src/exceptionns/GeneratedException.cpp.o
 .PHONY : src/exceptionns/GeneratedException.o
 
@@ -458,6 +482,30 @@ src/util/Mangler.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Mangler.cpp.s
 .PHONY : src/util/Mangler.cpp.s
 
+src/util/Process.o: src/util/Process.cpp.o
+.PHONY : src/util/Process.o
+
+# target to build an object file
+src/util/Process.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Process.cpp.o
+.PHONY : src/util/Process.cpp.o
+
+src/util/Process.i: src/util/Process.cpp.i
+.PHONY : src/util/Process.i
+
+# target to preprocess a source file
+src/util/Process.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Process.cpp.i
+.PHONY : src/util/Process.cpp.i
+
+src/util/Process.s: src/util/Process.cpp.s
+.PHONY : src/util/Process.s
+
+# target to generate assembly for a file
+src/util/Process.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/igel.dir/build.make CMakeFiles/igel.dir/src/util/Process.cpp.s
+.PHONY : src/util/Process.cpp.s
+
 srcLib/Array.o: srcLib/Array.cpp.o
 .PHONY : srcLib/Array.o
 
@@ -550,6 +598,9 @@ help:
 	@echo "... src/CompilerInfo/OptionsParser.o"
 	@echo "... src/CompilerInfo/OptionsParser.i"
 	@echo "... src/CompilerInfo/OptionsParser.s"
+	@echo "... src/cxx_extension/CXX_Parser.o"
+	@echo "... src/cxx_extension/CXX_Parser.i"
+	@echo "... src/cxx_extension/CXX_Parser.s"
 	@echo "... src/exceptionns/GeneratedException.o"
 	@echo "... src/exceptionns/GeneratedException.i"
 	@echo "... src/exceptionns/GeneratedException.s"
@@ -577,6 +628,9 @@ help:
 	@echo "... src/util/Mangler.o"
 	@echo "... src/util/Mangler.i"
 	@echo "... src/util/Mangler.s"
+	@echo "... src/util/Process.o"
+	@echo "... src/util/Process.i"
+	@echo "... src/util/Process.s"
 	@echo "... srcLib/Array.o"
 	@echo "... srcLib/Array.i"
 	@echo "... srcLib/Array.s"

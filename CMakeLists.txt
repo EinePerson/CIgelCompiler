@@ -29,6 +29,10 @@ add_executable(igel
         src/exceptionns/GeneratedException.cpp
         src/exceptionns/GeneratedException.h
         src/SelfInfo.h
+        src/cxx_extension/CXX_Parser.cpp
+        src/cxx_extension/CXX_Parser.h
+        src/util/Process.h
+        src/util/Process.cpp
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 
@@ -60,7 +64,9 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 #target_link_libraries(igel ${llvm_libs})
 
 #target_link_libraries(igel /usr/lib/libstdc++exp.a)
-target_link_libraries(igel /usr/lib/libLLVM-17.so)
+target_link_libraries(igel /usr/lib/libLLVM.so)
+target_link_libraries(igel /usr/lib/libclang-cpp.so)
+target_link_libraries(igel /usr/lib/libclang.so)
 
 SET(libSrcPr
         srcLib/Array.cpp

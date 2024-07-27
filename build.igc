@@ -1,6 +1,7 @@
 #info
 
 SourceDirectory("tstsrc");
+IncludeDirectory("includeTest");
 setMain("tstsrc/main.ig");
 SetBool("Optimize",false);
 SetBool("Debug",true);
