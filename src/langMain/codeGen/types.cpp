@@ -2091,6 +2091,13 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
 
                     }
                     if(!found) {
+                         auto funcName = Igel::Mangler::mangle(name,types,typeNames,signage,true,false);
+                         if(clazz->directFuncs.contains(funcName)) {
+                              auto func = clazz->directFuncs[funcName];
+                              return Igel::setDbg(builder,builder->CreateCall(func->getLLVMFunc(),vals),pos);
+                         }
+                    }
+                    if(!found) {
                          Igel::err("Unknown function: " + name->mangle(),pos);
                     }
 

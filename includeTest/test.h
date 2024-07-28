@@ -7,53 +7,16 @@
 
 #include <stdio.h>
 
-namespace SUS{
-    struct Gaming{
-      public:
-        Gaming() {
-
-        }
-
-        virtual ~Gaming() = default;
-
-        int k = 0;
-        virtual void test() {
-			printf("%d\n",k);
-        }
-    };
-}
-
-class Amogus {
-  	Amogus() __attribute__((used)){
-    }
-	virtual void sus() = 0;
+struct Amogus{
+	int i;
+    int j;
 };
 
-/*class Test : public SUS::Gaming,public Amogus{
+class Test {
 public:
-  	Test(){
+  void amogus() __attribute__((used)) {
+  }
 
-    }
-
-    int i;
-    int j;
-
-    void test() override {
-    	printf("%dABC\n",k);
-    }
-
-    void sus() override {
-    	printf("Gaming\n");
-    }
-};*/
-
-SUS::Gaming* test(SUS::Gaming* g){
-  	delete new SUS::Gaming();
-    //new Test();
-    printf("%d\n",g->k);
-    //g->k = 420;
-    g->test();
-    return g;
-}
+};
 
 #endif //TEST_H

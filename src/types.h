@@ -915,6 +915,8 @@ struct Class final : ContainableType {
     std::vector<IgFunction*> funcs;
     std::unordered_map<uint,std::unordered_map<uint,IgFunction*>> funcMap;
     std::unordered_map<std::string,std::pair<uint,uint>> funcIdMs;
+    ///\brief c++ non-virtual functions
+    std::unordered_map<std::string,IgFunction*> directFuncs;
 
     std::vector<IgFunction*> constructors {};
     std::optional<IgFunction*> defaulfConstructor = {};

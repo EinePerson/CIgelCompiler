@@ -316,8 +316,7 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
             }
             virt = true;
         }else {
-            //TODO add calling for non-virtual functions (maybe next update)
-
+            clz->directFuncs[func->mangle()] = func;
         }
 
         if(func && func->constructor) {
