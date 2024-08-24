@@ -5,20 +5,16 @@
 #ifndef IGEL_COMPILER_PREPARSER_H
 #define IGEL_COMPILER_PREPARSER_H
 #include "../../CompilerInfo/InfoParser.h"
-
+#include "../../types.h"
 
 class PreParser {
 
 public:
-    explicit PreParser(Info* info);
-
-    void parse();
-
     void parse(SrcFile* file);
 
     void parseScope(bool contain,bool parenth = true);
 
-    std::optional<Token> peak(int count = 0) const;
+    [[nodiscard]] std::optional<Token> peak(int count = 0) const;
 
     Token consume();
 
@@ -32,7 +28,6 @@ public:
     bool parseContained();
 
 private:
-    Info* m_info;
     SrcFile* currentFile = nullptr;
     std::vector<Token> m_tokens;
     size_t m_I = 0;

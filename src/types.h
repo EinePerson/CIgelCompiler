@@ -4,9 +4,9 @@
 
 #ifndef TYPES_H
 #define TYPES_H
-#include <llvm/IR/IRBuilder.h>
 #include <variant>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/IR/IRBuilder.h>
 
 #include "tokenizer.h"
 #include "exceptionns/Generator.h"
@@ -91,6 +91,8 @@ struct IgType;
 struct BeContained {
     std::optional<BeContained*> contType = {};
     std::string name;
+
+    bool mangleThis = true;
 
     BeContained() = default;
     virtual ~BeContained() = default;

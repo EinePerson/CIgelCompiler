@@ -825,7 +825,7 @@ NodeStmtFor* Parser::parseFor() {
             }else {
                 func->retTypeName = "";
                 func->returnSigned = false;
-                func->_return = Type::getVoidTy(*Generator::m_contxt);
+                func->_return = Type::getVoidTy(*Generator::instance->m_contxt);
             }
 
             auto hname = tryConsume(TokenType::id,"Expected identifier").value;
@@ -840,7 +840,7 @@ NodeStmtFor* Parser::parseFor() {
                 if(peak().has_value() && peak().value().type != TokenType::id)param = consume();
                 else cont = parseContained().value();
                 if(cont) {
-                    func->paramType.push_back(PointerType::get(*Generator::m_contxt,0));
+                    func->paramType.push_back(PointerType::get(*Generator::instance->m_contxt,0));
                     func->paramTypeName.push_back(cont);
                 }else {
                     func->paramType.push_back(getType(param.type));
@@ -1070,8 +1070,9 @@ std::optional<IgType*> Parser::parseType() {
             m_file = file;
             while (peak().has_value()){
                 if(tryConsume(TokenType::semi))/*No scope*/;
+                else if(tryConsume(TokenType::info))/*Info does not currently have any properties within the context of this parser unit*/;
                 else if(auto func = parseFunc()) {
-                    file->funcs.insert(std::pair(func.value()->mangle(),func.value()));
+                    file->funcs[func.value()->mangle()] = func.value();
                 }else if(auto type = parseType()){
                     file->types.push_back(type.value());
                 }else {
@@ -1079,6 +1080,7 @@ std::optional<IgType*> Parser::parseType() {
                 }
             }
             file->tokenPtr = m_I;
+            if(file->isMain && !file->funcs.contains("main"))err("No main function in main file: " + file->fullName);
             return file;
         }
 

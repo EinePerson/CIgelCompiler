@@ -53,12 +53,12 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
         std::string buf;
 
         char comment = 0;
-        uint lineCount = 1;
+        lineCount = 1;
         charCount = 0;
         while (peak().has_value())
         {
             if(peak().value() == '\n') {
-                lineCount++;
+                //lineCount++;
                 charCount = 0;
             }
             if(comment){

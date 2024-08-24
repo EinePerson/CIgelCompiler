@@ -4,16 +4,8 @@
 
 #include "Indexer.h"
 
-Indexer::Indexer(Info* info):m_info(info) {
-}
-
-void Indexer::index() {
-    for (auto file : m_info->file_table) {
-        index(file.second);
-    }
-}
-
 void Indexer::index(SrcFile* file) {
+    checkInit();
     currentFile = file;
 
     m_tokens = file->tokens;
@@ -22,6 +14,7 @@ void Indexer::index(SrcFile* file) {
         char b = 0;
         b = tryParseInclude();
         b += parseUsing();
+        b += tryConsume(TokenType::info).has_value();
         if(!b)break;
     }
     while (peak().has_value()) {
@@ -79,13 +72,16 @@ void Indexer::index(SrcFile* file) {
 }
 
 SrcFile* Indexer::getFile(std::string name) {
-    if(m_info->file_table.contains(name))return m_info->file_table[name];
+    if(file_table.contains(name)) {
+        if(!currentFile->isLive && file_table[name]->isLive)err("Non-Live file cannot use live files");
+        return file_table[name];
+    }
     err("Unknown file " + name);
     return nullptr;
 }
 
 Header * Indexer::getHeader(std::string header) {
-    if(m_info->header_table.contains(header))return m_info->header_table[header];
+    if(header_table.contains(header))return header_table[header];
     err("Unknown file " + header);
     return nullptr;
 }

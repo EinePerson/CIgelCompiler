@@ -4,15 +4,25 @@
 
 #ifndef IGEL_COMPILER_INDEXER_H
 #define IGEL_COMPILER_INDEXER_H
-#include "../../CompilerInfo/InfoParser.h"
+#include <utility>
 
+#include "../../CompilerInfo/InfoParser.h"
+#include "../../types.h"
 
 class Indexer {
 
 public:
-    explicit Indexer(Info* info);
+    Indexer(std::unordered_map<std::string,SrcFile*> file_table, std::unordered_map<std::string,Header*> header_table) : file_table(std::move(file_table)),header_table(std::move(header_table)) {
+        init = true;
+    }
 
-    void index();
+    Indexer() = default;
+
+    void setup(std::unordered_map<std::string,SrcFile*> file_table, std::unordered_map<std::string,Header*> header_table) {
+        this->file_table = std::move(file_table);
+        this->header_table = std::move(header_table);
+        this->init = true;
+    }
 
     void index(SrcFile* file);
 
@@ -35,12 +45,21 @@ public:
     void err(const std::string&err) const;
 
 private:
-    Info* m_info;
+    std::unordered_map<std::string,SrcFile*> file_table;
+    std::unordered_map<std::string,Header*> header_table;
     SrcFile* currentFile = nullptr;
 
     std::vector<Token> m_tokens;
     size_t m_I = 0;
     std::vector<BeContained*> m_super;
+
+    bool init = false;
+
+    void checkInit() {
+        if(!init) {
+            err("File has to be initalized before usage");
+        }
+    }
 };
 
 

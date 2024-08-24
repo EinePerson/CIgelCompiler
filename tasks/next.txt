@@ -2,7 +2,10 @@ add variable access to local variables without usage of this
 add template classes;
 add partly libraries;
 add package manager;
-add c(++) header emmission for usage in c(++) files
+add c(++) header emission for usage in c(++) files
+loop labels
+add modulus(%) operator
+add real string as type
 
 add throwables common super class; //Not needed but nice
 add class enums;

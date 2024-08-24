@@ -299,6 +299,7 @@ private:
 
         char consume(){
             charCount++;
+            if(m_src[m_I] == '\n')lineCount++;
             return m_src.at(m_I++);
         }
 
@@ -329,4 +330,5 @@ private:
         std::set<std::string> m_extended_funcs;
         std::vector<Token> m_tokens {};
         uint charCount = 0;
+        uint lineCount = 1;
 };

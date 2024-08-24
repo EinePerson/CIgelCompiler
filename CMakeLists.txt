@@ -33,6 +33,8 @@ add_executable(igel
         src/cxx_extension/CXX_Parser.h
         src/util/Process.h
         src/util/Process.cpp
+        src/langMain/fileCompiler.hpp
+        src/Info.h
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 

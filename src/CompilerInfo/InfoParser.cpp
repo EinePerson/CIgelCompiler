@@ -11,22 +11,27 @@
 
 #include "../cxx_extension/CXX_Parser.h"
 #include "../langMain/codeGen/Generator.h"
+#include "../types.h"
 
-    InfoParser::InfoParser(std::vector<Token> tokens) : m_tokens(std::move(tokens)),m_info(nullptr) {
+    /*InfoParser::InfoParser(std::vector<Token> tokens) : m_tokens(std::move(tokens)),m_info(nullptr) {
     }
 
     std::map<std::string,std::function<void(InfoParser*,std::vector<std::string>)>> InfoParser::funcs {
             {"setMain",[](InfoParser* info,std::vector<std::string> args) -> void{
-                if(info->m_main.length()){
+                if(!info->m_main.empty()){
                     std::cerr << "Main file already set to:" << info->m_main << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 info->m_main = args.at(0);
+                info->m_info->main = info->m_info->file_table.at(info->m_main);
                 info->m_info->file_table.at(info->m_main)->isMain = true;
             }},
             {"SourceDirectory",[](InfoParser* info,std::vector<std::string> args) -> void{
                 FileItterator it = info->listFiles("",args[0] + "/");
-                info->m_info->files.insert(info->m_info->files.cend(),it.files.cbegin(),it.files.cend());
+                for (auto src_file : it.files) {
+                    if(src_file->isLive)info->m_info->liveFiles.push_back(src_file);
+                    else info->m_info->files.push_back(src_file);
+                }
                 info->m_info->src.push_back(it.dir);
                 info->m_info->file_table.reserve(it.files.size());
                 for(auto file:it.files){
@@ -63,8 +68,8 @@
             }},
     };
 
-    Info* InfoParser::parse(){
-        m_info = new Info;
+    CmpInfo* InfoParser::parse(){
+        m_info = new CmpInfo;
         std::string main = "";
         FileItterator it;
         while (peak().has_value()){
@@ -160,8 +165,7 @@
                     file->fullName = path;
                     file->fullName += f->d_name;
                     file->dir = path;
-                    file->fullNameOExt = path;
-                    file->fullNameOExt += removeExtension(f->d_name);
+                    file->isLive = getExtension(file->name).back() == 'l';
                     direct->files.push_back(file);
                     files.push_back(file);
                 }
@@ -175,7 +179,7 @@
         it.files = files;
         it.dir = direct;
         return it;
-    }
+    }*/
 
     std::optional<std::pair<llvm::FunctionCallee,bool>> Header::findFunc(std::string name,std::vector<llvm::Type*> types) {
         if(funcs.contains(name)) {
@@ -351,9 +355,9 @@ void Directory::genFile(std::string path) {
         }
     }
 
-bool Info::hasFlag(const std::string&flag) const {
+/*bool CmpInfo::hasFlag(const std::string&flag) const {
         return (flags & FLAGS.at(flag)) == FLAGS.at(flag);
-}
+}*/
 
 std::string removeExtension(const std::string &filename) {
     size_t lastdot = filename.find_last_of('.');

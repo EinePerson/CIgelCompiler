@@ -25,6 +25,8 @@
 
 #include "../langMain/codeGen/Generator.h"
 
+std::vector<std::string> CXX_Parser::includes;
+
 using namespace clang;
 using namespace clang::tooling;
 
@@ -39,7 +41,14 @@ bool ASTVisitor::VisitFunctionDecl(clang::FunctionDecl *function_decl) {
     if(par) {
         if(auto nmsp = dynamic_cast<NamesSpace*>(par.value())) {
             nmsp->funcs.push_back(val);
+            val->contType = nmsp;
             parser->m_header->funcs[val->mangle()] = val;
+            //val->member = true;
+        }else if(auto nmsp = dynamic_cast<Class*>(par.value())) {
+            nmsp->funcs.push_back(val);
+            val->contType = nmsp;
+            val->supper = nmsp;
+            //parser->m_header->funcs[val->mangle()] = val;
             val->member = true;
         }
     }
@@ -48,32 +57,17 @@ bool ASTVisitor::VisitFunctionDecl(clang::FunctionDecl *function_decl) {
 }
 
 bool ASTVisitor::VisitNamespaceDecl(clang::NamespaceDecl *namespace_decl) {
-    auto nmsp = new NamesSpace;
-    nmsp->_extern = true;
-    nmsp->name = namespace_decl->getName();
-    nmsp->contType = getTypeFromDecl(namespace_decl->getParent());
-    parser->m_header->nameTypeMap[nmsp->mangle()] = nmsp;
     return true;
 }
 
 bool ASTVisitor::VisitEnumDecl(clang::EnumDecl* enum_decl) {
-    auto _enum = new Enum;
-    _enum->_extern = true;
-    _enum->name = enum_decl->getName();
-    uint i = 0;
-    for(auto it = enum_decl->enumerator_begin();it != enum_decl->enumerator_end();++it) {
-        _enum->values.push_back(it->getName().str());
-        _enum->valueIdMap[it->getName().str()] = i;
-        i++;
-    }
-    parser->m_header->nameTypeMap[_enum->mangle()] = _enum;
     return true;
 }
 
 bool ASTVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *record_decl) {
     IgType* igType = nullptr;
     uint type = 0;
-    type += record_decl->methods().empty();
+    type += !record_decl->fields().empty();
     bool intfQual = true;
     for (auto method : record_decl->methods()) {
         if(!method->isPureVirtual() && !method->getNameAsString().contains("operator") && !method->getNameAsString().contains(record_decl->getNameAsString())) {
@@ -81,8 +75,8 @@ bool ASTVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *record_decl) {
             break;
         }
     }
-    type += (record_decl->fields().empty() * intfQual) * 2;
-    if(type == 1 && record_decl->isStruct()) {
+    type += (!record_decl->methods().empty() * intfQual) * 2;
+    if((type == 1 || type == 0) && record_decl->isStruct()) {
         auto str = parseStruct(record_decl);
         if(!str) {
             CXX_Ext::err("Expected struct");
@@ -105,8 +99,6 @@ bool ASTVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *record_decl) {
         if(!clz) {
             CXX_Ext::err("Expected class");
         }
-        parser->m_header->nameTypeMap[clz.value()->mangle()] = clz.value();
-        parser->m_header->classes[clz.value()->mangle()] = clz.value();
         igType = clz.value();
     }
 
@@ -136,34 +128,34 @@ Igel::Access ASTVisitor::convert(clang::AccessSpecifier acc) {
 llvm::Type * ASTVisitor::convert(const clang::Type *type) {
     if(!type->getAs<BuiltinType>()) {
         //TODO return correct type
-        if(type->isClassType())return llvm::PointerType::get(*Generator::m_contxt,0);
+        if(type->isClassType())return llvm::PointerType::get(*Generator::instance->m_contxt,0);
         else if(type->isStructureType()) {
             //type->getAsStructureType().
         }
-        return llvm::PointerType::get(*Generator::m_contxt,0);
+        return llvm::PointerType::get(*Generator::instance->m_contxt,0);
     }
     switch (type->getAs<BuiltinType>()->getKind()) {
         case BuiltinType::Bool:
-            return llvm::Type::getInt1Ty(*Generator::m_contxt);
+            return llvm::Type::getInt1Ty(*Generator::instance->m_contxt);
         case BuiltinType::Char8:
-            return llvm::Type::getInt8Ty(*Generator::m_contxt);
+            return llvm::Type::getInt8Ty(*Generator::instance->m_contxt);
         case BuiltinType::Short:
-            return llvm::Type::getInt16Ty(*Generator::m_contxt);
+            return llvm::Type::getInt16Ty(*Generator::instance->m_contxt);
         case BuiltinType::Int:
-            return llvm::Type::getInt32Ty(*Generator::m_contxt);
+            return llvm::Type::getInt32Ty(*Generator::instance->m_contxt);
         case BuiltinType::Long:
-            return llvm::Type::getInt64Ty(*Generator::m_contxt);
+            return llvm::Type::getInt64Ty(*Generator::instance->m_contxt);
 
         case BuiltinType::Half:
-            return llvm::Type::getHalfTy(*Generator::m_contxt);
+            return llvm::Type::getHalfTy(*Generator::instance->m_contxt);
         case BuiltinType::Float:
-            return llvm::Type::getFloatTy(*Generator::m_contxt);
+            return llvm::Type::getFloatTy(*Generator::instance->m_contxt);
         case BuiltinType::Double:
-            return llvm::Type::getDoubleTy(*Generator::m_contxt);
+            return llvm::Type::getDoubleTy(*Generator::instance->m_contxt);
         case BuiltinType::Void:
-            return llvm::Type::getVoidTy(*Generator::m_contxt);
+            return llvm::Type::getVoidTy(*Generator::instance->m_contxt);
         default:
-            return llvm::PointerType::get(*Generator::m_contxt,0);
+            return llvm::PointerType::get(*Generator::instance->m_contxt,0);
     }
 }
 
@@ -184,7 +176,7 @@ IgFunction * ASTVisitor::parseFunc(clang::FunctionDecl* method_decl) {
             if(rec->getNameAsString() == method_decl->getNameInfo().getAsString())func->constructor = true;
 
             func->member = true;
-            func->paramType.push_back(llvm::PointerType::get(*Generator::m_contxt,0));
+            func->paramType.push_back(llvm::PointerType::get(*Generator::instance->m_contxt,0));
             func->signage.push_back(false);
             func->paramName.emplace_back("this");
             func->paramTypeName.push_back(parser->m_header->findContained(method_decl->getNameInfo().getAsString()).value_or(nullptr));
@@ -195,8 +187,13 @@ IgFunction * ASTVisitor::parseFunc(clang::FunctionDecl* method_decl) {
     for (uint i = 0;i < method_decl->parameters().size();i++) {
         func->paramType.push_back(convert(method_decl->parameters()[i]->getType().getTypePtr()));
         func->signage.push_back(method_decl->parameters()[i]->getType()->isSignedIntegerOrEnumerationType());
+        auto tst = method_decl->parameters()[i]->getType()->isPointerType();
+        if(method_decl->parameters()[i]->getType()->isPointerType() && method_decl->parameters()[i]->getType().getTypePtr()->getPointeeType()->isAnyCharacterType()) {
+            auto name = new Name("c");
+            name->mangleThis = false;
+            func->paramTypeName.push_back(name);
+        }else func->paramTypeName.push_back(parser->m_header->findContained(method_decl->parameters()[i]->getType()->getPointeeType().getAsString()).value_or(nullptr));
         func->paramName.push_back(method_decl->parameters()[i]->getName().str());
-        func->paramTypeName.push_back(parser->m_header->findContained(method_decl->parameters()[i]->getType()->getPointeeType().getAsString()).value_or(nullptr));
     }
     func->returnSigned = method_decl->getReturnType()->isSignedIntegerType();
     func->_return = convert(method_decl->getReturnType().getTypePtr());
@@ -257,23 +254,26 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
     auto clz = new Class;
     clz->_extern = true;
     clz->name = decl->getName();
+    auto tst = decl->getName();
     clz->contType = getTypeFromDecl(decl->getParent());
     if(decl->hasDefinition()) {
         for (auto base : decl->bases()) {
             auto tst = base.getType().getAsString();
             auto ext = parser->m_header->findContained(base.getType().getAsString());
-            if(!ext) {
-                CXX_Ext::err("Unknown Type: " + base.getType().getAsString());
-            }
-            if(auto intf = dynamic_cast<Interface*>(ext.value())) {
-                clz->implementing.push_back(intf);
-            }else if(auto clzE = dynamic_cast<Class*>(ext.value())) {
-                if(!clz->extending)clz->extending = clzE;
-                else {
-                    CXX_Ext::err("Cannot extend more then one clazz in: " + clz->mangle());
+            if(ext) {
+                //TODO else err
+                //CXX_Ext::err("Unknown Type: " + base.getType().getAsString());
+
+                if(auto intf = dynamic_cast<Interface*>(ext.value())) {
+                    clz->implementing.push_back(intf);
+                }else if(auto clzE = dynamic_cast<Class*>(ext.value())) {
+                    if(!clz->extending)clz->extending = clzE;
+                    else {
+                        CXX_Ext::err("Cannot extend more then one clazz in: " + clz->mangle());
+                    }
+                }else {
+                    CXX_Ext::err("Invalid type: " + base.getType().getAsString());
                 }
-            }else {
-                CXX_Ext::err("Invalid type: " + base.getType().getAsString());
             }
         }
 
@@ -283,9 +283,13 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
     //uint funcCount = origFuncCount;
     //uint superCount = 0;
     bool virt = false;
-    uint offset = clz->extending?std::ceil(Generator::dataLayout.getTypeSizeInBits(clz->extending.value()->strType) / 64.0f):0;
+    uint offset = clz->extending?std::ceil(Generator::instance->dataLayout.getTypeSizeInBits(clz->extending.value()->strType) / 64.0f):0;
     std::unordered_map<clang::CXXRecordDecl*, uint> funcIDs;
     std::unordered_map<clang::CXXRecordDecl*, uint> superIDs;
+
+    parser->m_header->nameTypeMap[clz->mangle()] = clz;
+    parser->m_header->classes[clz->mangle()] = clz;
+
     for (auto method : decl->methods()) {
         auto par = method->getThisType().getAsString();
         IgFunction* func = parseFunc(method);
@@ -301,7 +305,7 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
                     uint max = std::max_element(superIDs.begin(),superIDs.end(),[](const pair_type p1,const pair_type p2) {
                         return p1<p2;
                     })->second;
-                    if(!(getTypeFromDecl(clazzDecl) && dynamic_cast<ContainableType*>(getTypeFromDecl(clazzDecl).value())))CXX_Ext::err("Unknown type: " + clazzDecl->getNameAsString());;
+                    //if(!(getTypeFromDecl(clazzDecl) && dynamic_cast<ContainableType*>(getTypeFromDecl(clazzDecl).value())))CXX_Ext::err("Unknown type: " + clazzDecl->getNameAsString());
                     superIDs[clazzDecl] = max + offset;
                     funcIDs[clazzDecl] = clazzDecl->hasDefinition()?(clazzDecl->hasUserDeclaredDestructor() * 2):0;
                 }
@@ -344,7 +348,7 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
     }*/
     for(uint j = 0;j < clz->implementing.size() + virt;j++) {
         clz->varNames.push_back("");
-        if(!clz->extending)clz->types.push_back(llvm::PointerType::get(*Generator::m_contxt,0));
+        if(!clz->extending)clz->types.push_back(llvm::PointerType::get(*Generator::instance->m_contxt,0));
         clz->finals[""] = false;
         Igel::Access acc;
         acc.setPublic();
@@ -362,7 +366,7 @@ std::optional<Class *> ASTVisitor::parseClass(clang::CXXRecordDecl *decl) {
         i++;
     }
 
-    clz->strType = llvm::StructType::create(*Generator::m_contxt,clz->types,clz->mangle());
+    clz->strType = llvm::StructType::create(*Generator::instance->m_contxt,clz->types,clz->mangle());
 
     return clz;
 }
@@ -380,7 +384,75 @@ std::optional<Interface *> ASTVisitor::parseInterface(clang::CXXRecordDecl *decl
     return intf;
 }
 
-Consumer::Consumer(CXX_Parser *parser) : parser(parser),visitor(parser) {
+ASTIndexer::ASTIndexer(CXX_Parser *parser) : parser(parser) {
+}
+
+bool ASTIndexer::VisitNamespaceDecl(clang::NamespaceDecl *namespace_decl) {
+    auto nmsp = new NamesSpace;
+    nmsp->_extern = true;
+    nmsp->name = namespace_decl->getName();
+    nmsp->contType = getTypeFromDecl(namespace_decl->getParent());
+    parser->m_header->nameTypeMap[nmsp->mangle()] = nmsp;
+    return true;
+}
+
+bool ASTIndexer::VisitEnumDecl(clang::EnumDecl *enum_decl) {
+    auto _enum = new Enum;
+    _enum->_extern = true;
+    _enum->name = enum_decl->getName();
+    uint i = 0;
+    for(auto it = enum_decl->enumerator_begin();it != enum_decl->enumerator_end();++it) {
+        _enum->values.push_back(it->getName().str());
+        _enum->valueIdMap[it->getName().str()] = i;
+        i++;
+    }
+    parser->m_header->nameTypeMap[_enum->mangle()] = _enum;
+    _enum->contType = getTypeFromDecl(enum_decl->getParent());
+    return true;
+}
+
+bool ASTIndexer::VisitCXXRecordDecl(clang::CXXRecordDecl *record_decl) {
+    uint type = 0;
+    type += !record_decl->fields().empty();
+    bool intfQual = true;
+    for (auto method : record_decl->methods()) {
+        if(!method->isPureVirtual() && !method->getNameAsString().contains("operator") && !method->getNameAsString().contains(record_decl->getNameAsString())) {
+            intfQual = false;
+            break;
+        }
+    }
+    type += (!record_decl->methods().empty() * intfQual) * 2;
+    if((type == 1 || type == 0) && record_decl->isStruct()) {
+        auto str = new Struct;
+        str->contType = getTypeFromDecl(record_decl->getParent());
+        parser->m_header->nameTypeMap[str->mangle()] = str;
+        parser->m_header->structs[str->mangle()] = str;
+    }else if(type == 2) {
+        auto intf = new Interface;
+        intf->contType = getTypeFromDecl(record_decl->getParent());
+        parser->m_header->nameTypeMap[intf->mangle()] = intf;
+        parser->m_header->interfaces[intf->mangle()] = intf;
+    }else {
+        auto clz = new Class;
+        parser->m_header->nameTypeMap[clz->mangle()] = clz;
+        parser->m_header->classes[clz->mangle()] = clz;
+    }
+
+    return true;
+}
+
+std::optional<IgType *> ASTIndexer::getTypeFromDecl(clang::DeclContext *cntxt) {
+    if(cntxt->isNamespace()) {
+        return parser->m_header->findContained(cast<NamespaceDecl>(cntxt)->getQualifiedNameAsString());
+    }else if(cntxt->isRecord()) {
+        return parser->m_header->findContained(cast<CXXRecordDecl>(cntxt)->getQualifiedNameAsString());
+    }else if(cntxt->getDeclKind() == Decl::Kind::Enum) {
+        return parser->m_header->findContained(cast<EnumDecl>(cntxt)->getQualifiedNameAsString());
+    }
+    return {};
+}
+
+Consumer::Consumer(CXX_Parser *parser) : parser(parser),indexer(parser),visitor(parser) {
 }
 
 ActionFactory::ActionFactory(CXX_Parser *parser) : parser(parser) {

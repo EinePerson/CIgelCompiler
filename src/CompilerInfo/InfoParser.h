@@ -11,12 +11,24 @@
 #include <vector>
 #include <functional>
 #include <map>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Type.h>
+
+#include <llvm/IR/IRBuilder.h>
 #include <sys/stat.h>
-#include "../types.h"
+
+#include "../tokenizer.h"
 
 class InfoParser;
+struct IgFunction;
+struct IgType;
+struct Struct;
+struct Class;
+struct Interface;
+struct Token;
+struct NodeStmt;
+/*namespace llvm {
+    template <>
+    class IRBuilder;
+}*/
 
 struct Func{
     std::vector<std::string> args {};
@@ -28,16 +40,6 @@ enum class FunctionState{
     _use,
     _inside,
 };
-
-#define DEBUG_FLAG 0b1
-#define OPTIMIZE_FLAG 0b10
-
-//Compiler Info FLAGS
-const std::map<std::string,uint> FLAGS = {
-    {"Debug",DEBUG_FLAG},
-    {"Optimize",OPTIMIZE_FLAG},
-};
-//#define IS_DEBUG 0b1
 
 struct FuncSig {
     FuncSig(std::string name, const std::vector<llvm::Type*>&types) : name(name),types(types),_return(nullptr){}
@@ -87,15 +89,15 @@ struct Header {
 struct SrcFile{
     bool isMain = false;
     bool isGen = false;
+    bool isLive = false;
     std::vector<Header*> includes;
     std::vector<SrcFile*> _using;
     std::string dir;
     std::string name;
     //This is with the path
     std::string fullName;
-    std::string fullNameOExt;
     std::vector<Token> tokens;
-    size_t tokenPtr;
+    size_t tokenPtr = 0;
     std::vector<NodeStmt*> stmts;
     std::vector<IgType*> types;
     std::vector<std::string> typeNames;
@@ -125,42 +127,47 @@ struct Directory{
     static void genFile(std::string path);
 };
 
-struct Info{
+/*struct CmpInfo{
+    std::vector<SrcFile*> liveFiles;///files which are Just-in-time compiled machine files may not reference those
     std::vector<SrcFile*> files;
     std::vector<Header*> headers;
     std::vector<Directory*> src;
     std::vector<Directory*> include;
     std::vector<Func> calls;
     std::vector<std::string> libs {};
-    SrcFile* main;
+    SrcFile* main = nullptr;
     std::string m_name;
     std::unordered_map<std::string,SrcFile*> file_table;
     std::unordered_map<std::string,Header*> header_table;
-    uint flags;
+    uint flags = 0;
 
     std::string execDir;
 
     bool hasFlag(const std::string&flag) const;
-};
+};*/
 
 struct FileItterator{
     std::vector<SrcFile*> files;
-    Directory* dir{};
+    Directory* dir = nullptr;
 };
 
 struct HeaderItterator {
     std::vector<Header*> files;
-    Directory* dir{};
+    Directory* dir = nullptr;
 };
 
 std::string removeExtension(const std::string& filename);
-class InfoParser {
+
+inline std::string getExtension(const std::string &filename) {
+    return filename.substr(filename.find_last_of('.') + 1);
+}
+/*class InfoParser {
 public:
     explicit InfoParser(std::vector<Token> tokens);
 
     static std::map<std::string,std::function<void(InfoParser*,std::vector<std::string>)>> funcs;
 
-    Info* parse();
+    CmpInfo* parse();
 
     std::optional<Func> parseFuncCall();
 
@@ -194,8 +201,8 @@ private:
     std::vector<Token> m_tokens;
     size_t m_I = 0;
     std::string m_main;
-    Info* m_info;
-};
+    CmpInfo* m_info;
+};*/
 
 
 #endif //IGEL_COMPILER_INFOPARSER_H

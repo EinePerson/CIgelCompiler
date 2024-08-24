@@ -4,17 +4,6 @@
 
 #include "PreParser.h"
 
-PreParser::PreParser(Info* info): m_info(info) {
-
-}
-
-
-void PreParser::parse() {
-    for (auto file : m_info->file_table) {
-        parse(file.second);
-    }
-}
-
 void PreParser::parse(SrcFile* file) {
     currentFile = file;
     m_tokens = file->tokens;
@@ -58,13 +47,13 @@ void PreParser::parseScope(bool contain,bool parenth) {
                 peak(2).value().type != TokenType::openParenth) {
             std::string name = tryConsume(TokenType::id,"Expected id").value.value();
             std::string varName = tryConsume(TokenType::id,"Expected id").value.value();
-            if(currentFile->findClass(name,nullptr)) {
+            /*if(currentFile->findClass(name,nullptr)) {
                 m_super.back()->varTypes[varName] = Igel::VarType::ClassVar;
                 m_super.back()->varTypeNames[varName] = name;
             }else if(currentFile->findStruct(name,nullptr)) {
                 m_super.back()->varTypes[varName] = Igel::VarType::StructVar;
                 m_super.back()->varTypeNames[varName] = name;
-            }
+            }*/
         }else if((peak().value().type == TokenType::id  || (peak().value().type >= TokenType::_byte && peak().value().type <= TokenType::_bool)) && peak(1).value().type == TokenType::openBracket) {
             consume();
             while (peak().value().type == TokenType::openBracket) {

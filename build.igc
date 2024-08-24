@@ -1,8 +1,20 @@
 #info
+include "Info.h";
 
-SourceDirectory("tstsrc");
+int build(Info info){
+    info.addSourceDir("tstsrc");
+    info.addIncludeDir("includeTest");
+
+    //info.setFlag("Optimze",true);
+    //info.setFlag("Debug",false);
+    info.setOutName("out");
+    info.setMainFile("tstsrc/main.ig");
+    return 0;
+}
+
+/*SourceDirectory("tstsrc");
 IncludeDirectory("includeTest");
-setMain("tstsrc/main.ig");
+//setMain("tstsrc/main.ig");
 SetBool("Optimize",false);
-SetBool("Debug",true);
-setOutName("out");
+SetBool("Debug",false);
+setOutName("out");*/

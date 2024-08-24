@@ -44,14 +44,14 @@ std::string Igel::Mangler::mangle(BeContained* cont,bool member,bool constructor
 
         str += "N";
         for(int i = conts.size() - 1;i >= destructor;i--) {
-            str += std::to_string(conts[i]->name.size());
+            if(conts[i]->mangleThis)str += std::to_string(conts[i]->name.size());
             str += conts[i]->name;
         }
         if(constructor)str += "C2";
         if(destructor)str += conts.front()->name;
         str += "E";
     }else {
-        str += std::to_string(cont->name.size());
+        if(cont->mangleThis)str += std::to_string(cont->name.size());
         str += cont->name;
     }
 
@@ -67,14 +67,15 @@ std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<Be
     for(uint i = member;i < types.size();i++) {
         std::string name;
         char c = -2;
-        if(types[i]->isIntegerTy(8))c = 'c';
+        if(types[i]->isIntegerTy(1))c = 'b';
+        else if(types[i]->isIntegerTy(8))c = 'c';
         else if(types[i]->isIntegerTy(16))c = 's';
         else if(types[i]->isIntegerTy(32))c = 'i';
         else if(types[i]->isIntegerTy(64))c = 'l';
         else if(types[i]->isDoubleTy())c = 'd';
         else if(types[i]->isFloatTy())c = 'f';
         else name = (types[i]->isPointerTy()||types[i]->isIntegerTy(0)?"P":"") + mangle(typeNames[i]);
-        c += !signage[i];
+        if(c != 'b')c += !signage[i];
         if(c >= 0)str += c;
         else str += name;
     }

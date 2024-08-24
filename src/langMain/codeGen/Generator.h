@@ -13,6 +13,7 @@
 #include <vector>
 #include <llvm/Target/TargetMachine.h>
 
+#include "../../Info.h"
 #include "../../CompilerInfo/InfoParser.h"
 #include "../../types.h"
 
@@ -76,7 +77,7 @@ class Generator {
 
 public:
     explicit Generator(SrcFile* file,Info* info);
-    Generator();
+    explicit Generator(Info* info);
     ~Generator();
     void create(SrcFile* file);
     void setup(SrcFile* file);
@@ -115,6 +116,14 @@ public:
     }
 
     static unsigned getEncodingOfType(Type* type);
+
+    std::unique_ptr<IRBuilder<>> getBuilder() {
+        return std::move(m_builder);
+    }
+
+    DataLayout getDataLayout() {
+        return  DataLayout("");
+    }
 private:
     BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
@@ -124,13 +133,13 @@ private:
     TargetMachine* m_machine;
     uint m_currentVar = 0;
     std::vector<uint> m_sVarId;
-    std::unordered_map<SrcFile*,Module*> modules;
+    std::unordered_map<SrcFile*,std::unique_ptr<Module>> modules;
     std::unordered_map<SrcFile*,std::pair<DICompileUnit*,DIFile*>> dbgModules;
     Debug dbg;
 public:
     const bool debug;
     SrcFile* m_file;
-    Module* m_module;
+    std::unique_ptr<Module> m_module;
     std::vector<std::map<std::string, Var*>> m_vars;
     std::vector<BasicBlock*> after;
     std::vector<BasicBlock*> next;
@@ -141,8 +150,9 @@ public:
     GlobalVariable* cxx_pointer_type_info = nullptr;
     GlobalVariable* cxx_class_type_info = nullptr;
     Function* cxx_pure_virtual = nullptr;
+    std::unique_ptr<LLVMContext> m_contxt;
+    DataLayout dataLayout;
     static Generator* instance;
-    static std::unique_ptr<LLVMContext> m_contxt;
     static std::vector<bool> unreachableFlag;
     static bool lastUnreachable;;
     static Struct* structRet;
@@ -154,7 +164,7 @@ public:
     static bool contained;
     static bool stump;
     static bool _final;
-    static DataLayout dataLayout;
+
 };
 
 

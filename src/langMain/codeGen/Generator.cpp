@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <llvm/Bitcode/BitcodeWriter.h>
+#include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Passes/PassBuilder.h>
 
 #include "../langMain.hpp"
@@ -42,7 +43,6 @@
 
 Generator* Generator::instance = nullptr;
 std::vector<bool> Generator::unreachableFlag {};
-std::unique_ptr<LLVMContext> Generator::m_contxt = std::make_unique<LLVMContext>();
 bool Generator::lastUnreachable = false;
 Struct* Generator::structRet = nullptr;
 Class* Generator::classRet = nullptr;
@@ -53,21 +53,30 @@ std::vector<BasicBlock*> Generator::catchCont {};
 bool Generator::contained = false;
 bool Generator::stump = false;
 bool Generator::_final = false;
-DataLayout Generator::dataLayout = (new Module("",*m_contxt))->getDataLayout();
 
-Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0) {
-    m_module = new Module(file->fullName, *m_contxt);
+
+Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
+    m_contxt(std::make_unique<LLVMContext>()),dataLayout((new Module("",*m_contxt))->getDataLayout()) {
+    //dataLayout = (new Module("",*m_contxt))->getDataLayout();
+    m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
+
 }
 
-Generator::Generator(): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(nullptr),debug(false) {
+Generator::Generator(Info* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(false),
+    m_contxt(std::make_unique<LLVMContext>()),dataLayout(getDataLayout()){
+    LLVMContext cnt;
+    auto mod = new Module("dataLayout",cnt);
+    dataLayout = mod->getDataLayout();
+    delete mod;
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
+    instance = this;
 }
 
 void Generator::setup(SrcFile* file) {
-    m_module = modules[file];
+    m_module = std::move(modules[file]);
     if(!m_module) {
         create(file);
         return;
@@ -81,11 +90,12 @@ void Generator::setup(SrcFile* file) {
     setupFlag = true;
     instance = this;
     m_vars.push_back({});
+    instance = this;
 }
 
 void Generator::create(SrcFile *file) {
-    m_module = new Module(file->fullName, *m_contxt);
-    modules[file] = m_module;
+    m_module = std::make_unique<Module>(file->fullName, *m_contxt);
+    modules[file] = std::move(m_module);
     m_file = file;
     if(debug) {
         dbg.builder = new DIBuilder(*m_module);
@@ -116,7 +126,9 @@ void Generator::generateSigs() {
     }
 }
 
-Generator::~Generator() = default;
+Generator::~Generator() {
+    m_contxt.release();
+}
 
 void Generator::generate() {
     if(!setupFlag) {
@@ -138,19 +150,21 @@ void Generator::generate() {
     for (const auto& [fst, snd] : m_file->funcs) {
         snd->genFunc(m_builder.get());
     }
+
+    if(m_file->isLive)modules[m_file] = std::move(m_module);
 }
 
 Type* Generator::getType(TokenType type) {
     if(type <= TokenType::_ulong) {
         int i = static_cast<int>(type) % 4;
         int b = (i + 1) * 8 + 8 * std::max(i - 1,0) + 16 * std::max(i - 2,0);
-        Type* t = IntegerType::get(*m_contxt,b);
+        Type* t = IntegerType::get(*instance->m_contxt,b);
         return t;
     }
     if(type == TokenType::_float)return llvm::IntegerType::getFloatTy(instance->m_module->getContext());
     if(type == TokenType::_double)return llvm::IntegerType::getDoubleTy(instance->m_module->getContext());
     if(type == TokenType::_bool)return llvm::IntegerType::getInt1Ty(instance->m_module->getContext());
-    if(type == TokenType::_void)return Type::getVoidTy(*m_contxt);
+    if(type == TokenType::_void)return Type::getVoidTy(*instance->m_contxt);
     return nullptr;
 }
 

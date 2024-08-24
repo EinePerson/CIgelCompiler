@@ -1,5 +1,0 @@
-/*class Exception{
-    void print(){
-
-    }
-}*/

@@ -3,7 +3,6 @@
 #include <sstream>
 
 #include "langMain/langMain.hpp"
-#include "CompilerInfo/CompilerInfo.hpp"
 #include "CompilerInfo/OptionsParser.h"
 #include "cxx_extension/CXX_Parser.h"
 
@@ -27,24 +26,23 @@ int main(int argc,char* argv[]) {
     OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 
-    Info *info = nullptr;
-    if(options->infoFile) {
-        CompilerInfo cmpinfo(options->infoFile.value());
+    Info *info = options->info;
+    /*if(options->infoFile) {
         info = cmpinfo.getInfo();
     }else {
         std::cerr << "Currently a build file is needed" << std::endl;
         exit(EXIT_FAILURE);
-    }
-    optParser.modify(info);
+    }*/
     if(options->infoFile) {
         std::string name = options->infoFile.value();
         auto pos = name.find_last_of('/');
         if(pos != std::string::npos)name.erase(pos);
-        info->execDir = name;
+        //info->execDir = name;
     }
 
     LangMain main(info,options);
     main.compile();
+    main.exec();
 
     return EXIT_SUCCESS;
 }

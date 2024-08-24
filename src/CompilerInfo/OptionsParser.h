@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include "InfoParser.h"
+#include "../Info.h"
+#include "../langMain/fileCompiler.hpp"
 
 struct Options{
     std::optional<std::string> infoFile;
@@ -25,9 +27,12 @@ public:
     void modify(Info* info);
 
 private:
+    void setup();
+
     std::vector<std::string> m_options;
     std::vector<std::string> m_files;
     Options* m_opts = nullptr;
+    JITFileCompiler cmp;
 };
 
 

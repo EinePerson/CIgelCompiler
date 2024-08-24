@@ -10,9 +10,11 @@
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Process.h>
+#include <iostream>
 
 #include "../CompilerInfo/InfoParser.h"
 #include "../util/Process.h"
+#include "../types.h"
 
 namespace CXX_Ext {
     inline void err(const std::string &err) {
@@ -26,9 +28,10 @@ class Consumer;
 
 class ASTVisitor : public clang::RecursiveASTVisitor<ASTVisitor> {
 public:
+    friend Consumer;
+
     explicit ASTVisitor(CXX_Parser* parser);
 
-    friend Consumer;
     bool VisitFunctionDecl(clang::FunctionDecl* function_decl);
 
     bool VisitNamespaceDecl(clang::NamespaceDecl* namespace_decl);
@@ -55,14 +58,31 @@ private:
     CXX_Parser* parser;
 };
 
+class ASTIndexer : public clang::RecursiveASTVisitor<ASTIndexer> {
+public:
+    explicit ASTIndexer(CXX_Parser* parser);
+
+    bool VisitNamespaceDecl(clang::NamespaceDecl* namespace_decl);
+
+    bool VisitEnumDecl(clang::EnumDecl* enum_decl);
+    bool VisitCXXRecordDecl(clang::CXXRecordDecl* record_decl);
+
+private:
+    std::optional<IgType*> getTypeFromDecl(clang::DeclContext* cntxt);
+
+    CXX_Parser* parser;
+};
+
 class Consumer : public clang::ASTConsumer {
 public:
     explicit Consumer(CXX_Parser* parser);
 
     void HandleTranslationUnit(clang::ASTContext &context) override{
+        indexer.TraverseDecl(context.getTranslationUnitDecl());
         visitor.TraverseDecl(context.getTranslationUnitDecl());
     }
 private:
+    ASTIndexer indexer;
     ASTVisitor visitor;
     CXX_Parser* parser;
 };
@@ -77,8 +97,8 @@ private:
 
 class IgFrontendAction final : public clang::ASTFrontendAction {
 public:
-    IgFrontendAction(CXX_Parser* parser);
-    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef file);
+    explicit IgFrontendAction(CXX_Parser* parser);
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef file) override;
 
 private:
     CXX_Parser* parser;
@@ -89,6 +109,7 @@ class CXX_Parser {
     friend ActionFactory;
     friend Consumer;
     friend ASTVisitor;
+    friend ASTIndexer;
 public:
     //static std::unique_ptr<llvm::LLVMContext> m_contxt;
 
@@ -98,30 +119,42 @@ public:
 
 private:
     Header* m_header;
+    static std::vector<std::string> includes;
 
-    static
-std::vector<std::string> getClangIncludePaths() {
-        std::vector<std::string> includePaths;
-        std::string cmd = "/bin/clang++ -E -x c++ - -v < /dev/null 2>&1";
-        std::string result = Process::exec(cmd.c_str());
+public:
+    static std::vector<std::string> getClangIncludePaths() {
+        if(includes.empty()){
 
-        std::string line;
-        bool found = false;
-        std::istringstream iss(result);
-        while (std::getline(iss, line)) {
-            if (line.find("#include <...> search starts here:") != std::string::npos) {
-                found = true;
-                continue;
-            }
-            if (found) {
-                if (line.find("End of search list.") != std::string::npos) {
-                    break;
+            std::string cmd = "/bin/clang++ -E -x c++ - -v < /dev/null 2>&1";
+            std::string result = Process::exec(cmd.c_str());
+
+            std::string line;
+            bool found = false;
+            std::istringstream iss(result);
+            while (std::getline(iss, line)) {
+                if (line.find("#include <...> search starts here:") != std::string::npos) {
+                    found = true;
+                    continue;
                 }
-                // Trim leading spaces and add the path
-                includePaths.push_back("-I" + std::string(line.begin() + line.find_first_not_of(" "), line.end()));
+                if (found) {
+                    if (line.find("End of search list.") != std::string::npos) {
+                        break;
+                    }
+                    // Trim leading spaces and add the path
+                    includes.push_back(std::string(line.begin() + line.find_first_not_of(" "), line.end()));
+                }
             }
         }
+        std::vector<std::string> includePaths;
+        for (auto include : includes) {
+            includePaths.push_back("-I" + include);
+        }
         return includePaths;
+    }
+
+    static std::vector<std::string> getIncludes() {
+        if(includes.empty())getClangIncludePaths();
+        return includes;
     }
 };
 
