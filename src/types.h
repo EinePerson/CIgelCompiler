@@ -22,6 +22,10 @@ struct ContainableType;
 struct SrcFile;
 
 namespace Igel {
+    void err(const std::string &msg,const Position &t);
+}
+
+namespace Igel {
     int getSize(TokenType type);
 
     enum class VarType {
@@ -386,6 +390,22 @@ struct NodeBinExprDiv final : NodeBinExpr{
 
         return builder->CreateFDiv(lsv,rsv);
     };
+};
+
+struct NodeBinExprMod final : NodeBinExpr {
+    llvm::Value* generate(llvm::IRBuilder<> *builder) override {
+        llvm::Value* lsv = ls->generate(builder);
+        llvm::Value* rsv = rs->generate(builder);
+
+        char type = 0;
+        type += rsv->getType()->isFloatingPointTy()? 1 : 0;
+        type += lsv->getType()->isFloatingPointTy()? 2 : 0;
+        if(type == 0) {
+            if(ls->_signed && rs->_signed)return builder->CreateSRem(lsv,rsv);
+            return builder->CreateURem(lsv,rsv);
+        }
+        Igel::err("Modulus does not accept float-type arguments",pos);
+    }
 };
 
 struct NodeBinAreth final : NodeBinExpr{

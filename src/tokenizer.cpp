@@ -36,6 +36,7 @@ typedef unsigned int uint;
                 return 2;
             case TokenType::div:
             case TokenType::mul:
+            case TokenType::mod:
                 return 3;
             case TokenType::pow:
                 return 4;
@@ -322,7 +323,9 @@ Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_
                 consume();
                 continue;
             }else {
-                err("Unkown Symbol " + consume());
+                std::string er = "Unkown Symbol ";
+                er += consume();
+                err(er);
             }
         }
 

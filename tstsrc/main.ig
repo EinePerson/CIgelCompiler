@@ -1,10 +1,9 @@
-include "includeTest/test.h";
+using "tstsrc/test.ig";
 
 int main(){
-    Amogus a;
-    a.i = 69;
-    printf("%d",a.i);
-    Test t = new Test();
-    t.amogus();
+    int i = 25;
+    int j = 3;
+    printf("%d",i % j);
+    printf("ABC");
     return 0;
 }

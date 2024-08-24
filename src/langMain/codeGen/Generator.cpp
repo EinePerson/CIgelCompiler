@@ -127,12 +127,14 @@ void Generator::generateSigs() {
 }
 
 Generator::~Generator() {
-    m_contxt.release();
+    for (auto& module : modules) {
+        module.second.release();
+    }
 }
 
 void Generator::generate() {
     if(!setupFlag) {
-        std::cerr << "Usage of Uninitalized Generator\n";
+        std::cerr << "Usage of Uninitialized Generator\n";
         exit(EXIT_FAILURE);
     }
 
@@ -247,6 +249,7 @@ void Generator::write() {
 
     reset();
 
+    modules[m_file] = std::move(m_module);
     
     setupFlag = false;
 

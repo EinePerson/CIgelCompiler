@@ -58,6 +58,7 @@ enum class TokenType{
     sub,
     div,
     mul,
+    mod,
     pow,
 
     _and,
@@ -267,6 +268,7 @@ class Tokenizer{
             {'-',TokenType::sub},
             {'/',TokenType::div},
             {'*',TokenType::mul},
+            {'%',TokenType::mod},
             {'^',TokenType::pow},
 
 

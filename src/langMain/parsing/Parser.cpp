@@ -205,6 +205,11 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                     mul->ls = expr;
                     mul->rs = exprR.value();
                     expr = mul;
+                }else if(op.type == TokenType::mod) {
+                    auto mod = new NodeBinExprMod;
+                    mod->ls = expr;
+                    mod->rs = exprR.value();
+                    expr = mod;
                 }else if(op.type == TokenType::div){
                     auto div = new NodeBinExprDiv;
                     div->ls = expr;

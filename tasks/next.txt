@@ -4,7 +4,6 @@ add partly libraries;
 add package manager;
 add c(++) header emission for usage in c(++) files
 loop labels
-add modulus(%) operator
 add real string as type
 
 add throwables common super class; //Not needed but nice
