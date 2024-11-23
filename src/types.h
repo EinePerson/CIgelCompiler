@@ -1102,6 +1102,9 @@ namespace Igel {
     llvm::Value* stat_Cast(llvm::IRBuilder<> *builder,BeContained* target,BeContained* src,llvm::Value* val);
 
     llvm::Instruction* setDbg(llvm::IRBuilder<> *builder,llvm::Instruction* inst,Position pos);
+
+    void check_Pointer(llvm::IRBuilder<> *builder,llvm::Value* ptr);
+    void check_Arr(llvm::IRBuilder<> *builder,llvm::Value* ptr,llvm::Value* idx);
 }
 
 #endif //TYPES_H

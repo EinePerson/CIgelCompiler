@@ -11,11 +11,15 @@
 ///\brief these are all the flags that can be set
 #define DEBUG_FLAG 0x1
 #define OPTIMIZE_FLAG 0x2
+#define NO_ARRAY_CHECK 0x4
+#define NO_POINTER_CHECK 0x8
 
 ///\brief this map keeps track of the names of the specific flags
 const std::map<std::string,long> FLAGS = {
-    {"Debug",DEBUG_FLAG},
-    {"Optimize",OPTIMIZE_FLAG},
+    {"DEBUG_FLAG",DEBUG_FLAG},
+    {"OPTIMIZE_FLAG",OPTIMIZE_FLAG},
+    {"NO_ARRAY_CHECK",NO_ARRAY_CHECK},
+    {"NO_POINTER_CHECK",NO_POINTER_CHECK},
 };
 
 inline FileItterator listFiles(std::string path,const std::string& name) {
@@ -114,7 +118,9 @@ public:
     std::string m_name;
     std::unordered_map<std::string,SrcFile*> file_table;
     std::unordered_map<std::string,Header*> header_table;
+    std::vector<std::string> linkerCommands;
     long flags = 0;
+    bool link = false;
 public:
 
     void addSourceDir(char* dir) __attribute__((used)) {
@@ -163,8 +169,22 @@ public:
         return flags & FLAGS.at(f);
     }
 
-    void setFlag(char* flag,bool value) __attribute__((used)){
-        flags |= (FLAGS.at(flag) * value);
+    /*void setFlag(char* flag,bool value) __attribute__((used)){
+        //printf("A,%s,%d\n",flag,(int) FLAGS.at(flag));
+        flags |= (FLAGS.at(std::string(flag)) * (value & 0x1));
+        //printf("B\n");
+    }*/
+
+    void setFlag(int _flags) __attribute__((used)){
+        flags = _flags;
+    }
+
+    void addLinkerFlag(char* flag) __attribute__((used)) {
+        linkerCommands.emplace_back(flag);
+    }
+
+    void shouldLink(bool val){
+        link = val;
     }
 
     ///this function checks if the Info is valid, it throws errors whenever non-usable values are found

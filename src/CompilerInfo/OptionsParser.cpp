@@ -9,23 +9,31 @@
 #include "../Info.h"
 
 std::map<int,std::function<void(Options*)>> opts{
-    {'h',[](Options* opts) -> void{
+    /*{'h',[](Options* opts) -> void{
 
-    }},
-    {'o',[](Options* opts) -> void {
-        /*if(optarg)opts->info->m_name = optarg;
-        else; //TODO err*/
-    }}
+    }},*/
+
+
 };
 
 std::map<int,std::function<void(Options*,std::optional<std::string>)>> long_opts{
-
+        {'o',[](Options* opts,std::optional<std::string> str) -> void {
+            if(!str.has_value())OptionsParser::cmdErr("Expected output file name after '-o'");
+            opts->info->setOutName(str.value().data());
+        }},
+        {'L',[](Options* opts,std::optional<std::string> str) -> void {
+            if(!str.has_value())OptionsParser::cmdErr("Expected Linker Flag after '-L'");
+            opts->info->addLinkerFlag(str.value().data());
+        }}
 };
 
 const struct option long_vals[] = {
-        //{"o",optional_argument,0,'o'},
-    {"gaming",required_argument,0,1},
-{0,0,0,0}
+        {"h",no_argument,0,'h'},
+        {"o",required_argument,0,'o'},
+        {"Linker",required_argument,0,'L'},
+        {"nostdlib",no_argument,0,0},
+    //{"gaming",required_argument,0,1},
+    {0,0,0,0}
 };
 
 std::string getName(const std::string &filename) {
@@ -37,8 +45,9 @@ std::string getName(const std::string &filename) {
 OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp(nullptr){
     int opt;
     std::stringstream options;
-    options << ":";
-    for (const auto& [fst, snd] : opts)options << fst;
+    options << "";
+    for (const auto& [fst, snd] : opts)options << ((char) fst) << ":";
+    for (const auto &item: long_vals)if(item.val != NULL)options << ((char) item.val) << ":";
 
     int id = 0;
     while((opt = getopt_long(argc,argv,options.str().c_str(),long_vals,&id)) != -1) {
@@ -47,7 +56,7 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
                 opts[optopt](m_opts);
             }else {
                 std::cerr << "Unknown option " << optopt << std::endl;
-                exit(EXIT_FAILURE);
+                //exit(EXIT_FAILURE);
             }
         }else {
             if(long_opts.contains(opt)) {
@@ -57,7 +66,7 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
                     long_opts[opt](m_opts,{});
             }else {
                 std::cerr << "Unknown option " << opt << std::endl;
-                exit(EXIT_FAILURE);
+                //exit(EXIT_FAILURE);
             }
         }
     }
@@ -100,12 +109,21 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
 
     cmp.addHeader("src/Info.h");
     //cmp.addHeader("src/CompilerInfo/Info.cpp");
+    /*Generator::instance->m_vars.emplace_back();
+    for (const auto &item: FLAGS){
+        auto builder = Generator::instance->getBuilder();
+        auto alloc = builder->CreateAlloca(builder->getInt64Ty());
+        builder->CreateStore(ConstantInt::get(builder->getInt64Ty(),item.second),alloc);
+        Var* v = new Var(alloc,false,true);
+        Generator::instance->createVar(item.first,v);
+    }*/
     cmp.preParse();
     cmp.parse();
     cmp.preGen();
     cmp.gen();
     cmp.compileHeaders();
     cmp.link();
+    //Generator::instance->m_vars.pop_back();
 
     auto exb = cmp.jit->lookupLinkerMangled("_Z5buildP4Info");
     auto exp = cmp.jit->lookup("_Z5buildP4Info");
@@ -159,6 +177,11 @@ void OptionsParser::modify(Info* info) {
 
 void OptionsParser::setup() {
 
+}
+
+void OptionsParser::cmdErr(std::string err) {
+    std::cerr << "Error in command line args: " << err << std::endl;
+    exit(EXIT_FAILURE);
 }
 
 

@@ -34,4 +34,15 @@ void Igel::GeneratedException::throwException(llvm::IRBuilder<> *builder, std::s
 
     builder->CreateCall(constrExc,{excpAlloc,nameAlloc,msgAlloc});
     builder->CreateCall(throwInt,{excpAlloc});
+    builder->CreateUnreachable();
+}
+
+void Igel::GeneratedException::exception(llvm::IRBuilder<> *builder, std::string msg,std::vector<llvm::Value*> prms) {
+    llvm::FunctionCallee prnt = Generator::instance->m_module->getOrInsertFunction("printf",FunctionType::get(builder->getVoidTy(),{builder->getPtrTy()},true));
+
+    prms.insert(prms.begin(),builder->CreateGlobalString(msg + "\n"));
+    builder->CreateCall(prnt,prms);
+    llvm::FunctionCallee abrt = Generator::instance->m_module->getOrInsertFunction("abort",FunctionType::get(builder->getVoidTy(),{},false));
+    builder->CreateCall(abrt);
+    builder->CreateUnreachable();
 }

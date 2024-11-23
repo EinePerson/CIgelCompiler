@@ -1,6 +1,7 @@
 #include "tokenizer.h"
 
 #include "langMain/codeGen/Generator.h"
+#include "util/Mangler.h"
 
 typedef unsigned int uint;
 
@@ -45,7 +46,13 @@ typedef unsigned int uint;
         }
     }
 
-Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_funcs(extended_funcs){}
+    Tokenizer:: Tokenizer(const std::set<std::string>& extended_funcs) : m_extended_funcs(extended_funcs){
+        if(merged)return;
+        merged = true;
+        for (const auto &item: FLAGS){
+            REPLACE[item.first] = Token(TokenType::int_lit,(uint) -1,-1,"",std::to_string(item.second));
+        }
+    }
 
      std::vector<Token> Tokenizer::tokenize(const std::string&file){
         m_src = read(file);

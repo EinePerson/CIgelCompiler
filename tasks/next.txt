@@ -8,3 +8,8 @@ add real string as type
 
 add throwables common super class; //Not needed but nice
 add class enums;
+
+add expends for structs (like extends for classes)
+
+memory safety:
+    pointers always need size parameter to identify overflow

@@ -26,8 +26,11 @@ public:
 
     void modify(Info* info);
 
+    static void cmdErr(std::string err);
+
 private:
     void setup();
+
 
     std::vector<std::string> m_options;
     std::vector<std::string> m_files;

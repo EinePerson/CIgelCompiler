@@ -124,17 +124,18 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                }
 
                val = arrVar->alloc;
-               if(arrVar->typeName.has_value() && Generator::instance->m_file->findClass(arrVar->typeName.value()->mangle(),builder))
-                    val = Igel::setDbg(builder,builder->CreateLoad(builder->getPtrTy(),val),pos);
+               //if(arrVar->typeName.has_value() && Generator::instance->m_file->findClass(arrVar->typeName.value()->mangle(),builder))
+               val = Igel::setDbg(builder,builder->CreateLoad(builder->getPtrTy(),val),pos);
+               Igel::check_Pointer(builder,val);
                val = builder->CreateInBoundsGEP(val->getType(),val,builder->getInt64(0));
                return Igel::setDbg(builder,builder->CreateLoad(builder->getInt64Ty(),val),(Position) acc);
           }
-          //TODO add lenght for Array Var
      }
 
      if(!(str || var || clz || clzVar)) {
           Igel::err("Neither contained value nor variable",acc);
      }
+     Igel::check_Pointer(builder,val);
 
      if(!isClz) {
           uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
@@ -197,6 +198,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
                auto clz = Generator::instance->m_file->findClass(func.value()->retTypeName,builder);
                auto str = Generator::instance->m_file->findStruct(func.value()->retTypeName,builder);
                if(!clz || !str)return nullptr;
+               Igel::check_Pointer(builder,val);
 
                if(clz.has_value())Generator::typeNameRet = clz.value().second;
                else Generator::typeNameRet = str.value().second;
@@ -258,6 +260,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
      if(!(str || var || clz || clzVar)) {
           Igel::err("Neither contained value nor variable",acc);
      }
+     Igel::check_Pointer(builder,val);
 
      if(!isClz) {
           //TODO add error when variable name is not contained in the struct
@@ -358,11 +361,13 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(!ptr && !var) {
           Igel::err("Neither contained value nor variable",pos);
      }
+     Igel::check_Pointer(builder,ptr);
      uint i = 0;
 
      Type* ty;
      if(llvm::AllocaInst::classof(var->alloc))ty = static_cast<AllocaInst*>(var->alloc)->getAllocatedType();
      else if(GlobalVariable::classof(var->alloc))ty = static_cast<GlobalVariable*>(var->alloc)->getValueType();
+     Igel::check_Pointer(builder,builder->CreateLoad(var->alloc->getType(),var->alloc));
      while (i < exprs.size() - 1 && exprs.size() >= 1) {
           Value* val = Igel::setDbg(builder,builder->CreateLoad(ptr?ptr->getType():ty,ptr?ptr:var->alloc),pos);
           Value* idx = builder->CreateAdd(builder->getInt64(1),exprs[i]->generate(builder));
@@ -375,6 +380,7 @@ llvm::Value* NodeTermArrayAcces::generatePointer(llvm::IRBuilder<>* builder) {
      Value* expr = exprs[i]->generate(builder);
      Value* idx = builder->CreateMul(builder->getInt64(Generator::instance->m_module->getDataLayout().getTypeSizeInBits(expr->getType()) / 8),expr);
      idx = builder->CreateAdd(builder->getInt64(8),idx);
+     Igel::check_Arr(builder,val,expr);
      ptr = builder->CreateInBoundsGEP(builder->getInt8Ty(),val,idx);
 
      return ptr;
@@ -522,6 +528,7 @@ llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
      if(!str && !var) {
           Igel::err("Neither contained value nor variable",acc);
      }
+     Igel::check_Pointer(builder,val);
 
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
      Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
@@ -548,6 +555,7 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
           if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
                auto str = Generator::instance->m_file->findClass(func.value()->retTypeName,builder);
                if(!str)return nullptr;
+               Igel::check_Pointer(builder,val);
                Generator::typeNameRet = str.value().second;
                uint fid = str->second->varIdMs[acc.value.value()];
                return builder->CreateStructGEP(str.value().first,val,fid);
@@ -570,6 +578,7 @@ llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
      if(!str && !var) {
           Igel::err("Neither contained value nor variable",acc);
      }
+     Igel::check_Pointer(builder,val);
 
      //TODO add error when variable name is not contained in the struct
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
@@ -597,10 +606,10 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
           if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
                auto str = Generator::instance->m_file->findClass(func.value()->retTypeName,builder);
                if(!str)return nullptr;
+               Igel::check_Pointer(builder,val);
                Generator::typeNameRet = str.value().second;
                uint fid = str->second->varIdMs[acc.value.value()];
                return  val;
-
           }
      }
 
@@ -620,6 +629,7 @@ llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
      if(!str && !var) {
           Igel::err("Neither contained value nor variable",acc);
      }
+     Igel::check_Pointer(builder,val);
 
      //TODO add error when variable name is not contained in the struct
      const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
@@ -2057,6 +2067,7 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                               }
                               auto ptr = clz->generateClassPointer(builder);
                               std::vector<Value*> vals {ptr};
+                              Igel::check_Pointer(builder,ptr);
                               vals.reserve(exprs.size());
                               for (auto expr : exprs) vals.push_back(expr->generate(builder));
                               return Igel::setDbg(builder,builder->CreateCall(func.value()->getLLVMFunc(),vals),pos);
@@ -2064,6 +2075,7 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                     }
                     auto ptr = clz->generateClassPointer(builder);
                     std::vector<Value*> vals{ptr};
+                    Igel::check_Pointer(builder,ptr);
                     vals.reserve(exprs.size());
 
                     std::vector<Type*> types;
@@ -2273,6 +2285,35 @@ llvm::Instruction * Igel::setDbg(llvm::IRBuilder<> *builder, llvm::Instruction *
      inst->setDebugLoc(DILocation::get(builder->getContext(),pos.line,pos._char,scope));
 
      return inst;
+}
+
+void Igel::check_Pointer(llvm::IRBuilder<> *builder,llvm::Value *ptr) {
+    if(Generator::instance->no_ptr_check)return;
+    if(!ptr)return;
+
+    Value* cmp = builder->CreateCmp(CmpInst::ICMP_EQ,ptr,ConstantPointerNull::get(builder->getPtrTy()));
+    llvm::Function* parFunc = builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock* err = llvm::BasicBlock::Create(builder->getContext(),"then",parFunc);
+    llvm::BasicBlock* notErr = llvm::BasicBlock::Create(builder->getContext(),"ifcont",parFunc);
+    builder->CreateCondBr(cmp,err,notErr);
+    builder->SetInsertPoint(err);
+    Igel::GeneratedException::exception(builder,"Null pointer Exception",{});
+    builder->SetInsertPoint(notErr);
+}
+
+void Igel::check_Arr(llvm::IRBuilder<> *builder,llvm::Value *ptr, llvm::Value *idx) {
+    if(Generator::instance->no_arr_check)return;
+
+    Value* val = builder->CreateInBoundsGEP(ptr->getType(),ptr,builder->getInt64(0));
+    val = builder->CreateLoad(builder->getInt64Ty(),val);
+    Value* cmp = builder->CreateCmp(CmpInst::ICMP_ULE,val,builder->CreateZExt(idx,val->getType()));
+    llvm::Function* parFunc = builder->GetInsertBlock()->getParent();
+    llvm::BasicBlock* err = llvm::BasicBlock::Create(builder->getContext(),"then",parFunc);
+    llvm::BasicBlock* notErr = llvm::BasicBlock::Create(builder->getContext(),"ifcont",parFunc);
+    builder->CreateCondBr(cmp,err,notErr);
+    builder->SetInsertPoint(err);
+    Igel::GeneratedException::exception(builder,"Array index out of Bounds exception: tried to access element %d of %d elements",{builder->CreateZExt(idx,val->getType()),val});
+    builder->SetInsertPoint(notErr);
 }
 
 llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {

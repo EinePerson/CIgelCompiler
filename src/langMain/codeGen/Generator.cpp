@@ -56,6 +56,7 @@ bool Generator::_final = false;
 
 
 Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
+    no_ptr_check(info->flags & NO_POINTER_CHECK != 0),no_arr_check(info->flags & NO_ARRAY_CHECK),
     m_contxt(std::make_unique<LLVMContext>()),dataLayout((new Module("",*m_contxt))->getDataLayout()) {
     //dataLayout = (new Module("",*m_contxt))->getDataLayout();
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
@@ -65,8 +66,17 @@ Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefault
 
 }
 
-Generator::Generator(Info* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(false),
-    m_contxt(std::make_unique<LLVMContext>()),dataLayout(getDataLayout()){
+Generator::Generator(Info* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info)/*,debug(false),
+                                  no_ptr_check(false),no_arr_check(false)*/,m_contxt(std::make_unique<LLVMContext>()),dataLayout(getDataLayout()){
+    if(info){
+        debug = info->flags & DEBUG_FLAG;
+        no_ptr_check = info->flags & NO_POINTER_CHECK;
+        no_arr_check = info->flags & NO_ARRAY_CHECK;
+    }else{
+        debug = false;
+        no_ptr_check = false;
+        no_arr_check = false;
+    }
     LLVMContext cnt;
     auto mod = new Module("dataLayout",cnt);
     dataLayout = mod->getDataLayout();
@@ -95,17 +105,17 @@ void Generator::setup(SrcFile* file) {
 
 void Generator::create(SrcFile *file) {
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
-    modules[file] = std::move(m_module);
     m_file = file;
     if(debug) {
         dbg.builder = new DIBuilder(*m_module);
         dbg.unit = dbg.builder->createCompileUnit(dwarf::DW_LANG_C,dbg.builder->createFile(m_file->name,m_file->dir),
-            ((std::string) "Igel Compiler: v") + COMPILER_VERSION,m_info->hasFlag("Optimize"),"",0);
+            ((std::string) "Igel Compiler: v") + COMPILER_VERSION,m_info->hasFlag("OPTIMIZE_FLAG"),"",0);
         dbg.file = dbg.builder->createFile(dbg.unit->getFilename(),dbg.unit->getDirectory());
         m_module->addModuleFlag(Module::Warning, "Debug Info Version",
                            DEBUG_METADATA_VERSION);
         dbgModules[file] = std::make_pair(dbg.unit,dbg.file);
     }
+    modules[file] = std::move(m_module);
     setupFlag = true;
     instance = this;
     m_vars.push_back({});
@@ -227,7 +237,7 @@ void Generator::write() {
         exit(EXIT_FAILURE);
     }
 
-    if(m_info->hasFlag("Optimize")) {
+    if(m_info->hasFlag("OPTIMIZE_FLAG")) {
         PassBuilder PB;
         PB.registerModuleAnalyses(MAM);
         PB.registerCGSCCAnalyses(CGAM);

@@ -12,6 +12,7 @@ namespace Igel {
     class GeneratedException {
     public:
         static void throwException(llvm::IRBuilder<> *builder, std::string name,std::string message);
+        static void exception(llvm::IRBuilder<> *builder, std::string msg,std::vector<llvm::Value*>);
     };
 }
 

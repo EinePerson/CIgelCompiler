@@ -12,7 +12,7 @@ extern "C"{
             void* ptr = GC_MALLOC(arr[0] * size + sizeof(unsigned long));
             ///NULL init
             memset(ptr,0,arr[0] * size + sizeof(unsigned long));
-            memcpy(ptr,arr,8);
+            ((unsigned long*)ptr)[0] = arr[0];
             return ptr;
         }
         void* ptr = GC_MALLOC(arr[idX] * sizeof(void*) + sizeof(unsigned long));

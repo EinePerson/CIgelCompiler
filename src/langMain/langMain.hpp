@@ -61,6 +61,8 @@ public:
         for (const auto& lib : m_info->libs) outFiles << lib << " ";
         for (const auto& compiler_libs : COMPILER_LIBS) outFiles << compiler_libs << " ";
 
+        for (const auto &item: m_info->linkerCommands)outFiles << "-" << item;
+
         if(!m_info->files.empty()) {
             outFiles << " -std=c++23 -lstdc++exp -fsized-deallocation ";
             std::string temp = outFiles.str();

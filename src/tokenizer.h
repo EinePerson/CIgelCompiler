@@ -247,7 +247,8 @@ class Tokenizer{
             {"switch",TokenType::_switch}
     };
 
-    const std::map<std::string,Token> REPLACE = {
+    bool merged = false;
+    /*const*/ std::map<std::string,Token> REPLACE = {
             {"false",Token(TokenType::int_lit,(uint) -1,-1,"","0Z")},
             {"true",Token(TokenType::int_lit,(uint) -1,-1,"","1Z")},
     };

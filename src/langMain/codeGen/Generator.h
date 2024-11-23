@@ -137,7 +137,9 @@ private:
     std::unordered_map<SrcFile*,std::pair<DICompileUnit*,DIFile*>> dbgModules;
     Debug dbg;
 public:
-    const bool debug;
+    bool debug;
+    bool no_ptr_check;
+    bool no_arr_check;
     SrcFile* m_file;
     std::unique_ptr<Module> m_module;
     std::vector<std::map<std::string, Var*>> m_vars;

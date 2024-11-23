@@ -7,14 +7,8 @@ int build(Info info){
 
     //info.setFlag("Optimze",true);
     //info.setFlag("Debug",false);
+    info.setFlag(DEBUG_FLAG);
     info.setOutName("out");
     info.setMainFile("tstsrc/main.ig");
     return 0;
 }
-
-/*SourceDirectory("tstsrc");
-IncludeDirectory("includeTest");
-//setMain("tstsrc/main.ig");
-SetBool("Optimize",false);
-SetBool("Debug",false);
-setOutName("out");*/
