@@ -55,7 +55,7 @@ bool Generator::stump = false;
 bool Generator::_final = false;
 
 
-Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
+Generator::Generator(SrcFile* file,InternalInfo* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
     no_ptr_check(info->flags & NO_POINTER_CHECK != 0),no_arr_check(info->flags & NO_ARRAY_CHECK),
     m_contxt(std::make_unique<LLVMContext>()),dataLayout((new Module("",*m_contxt))->getDataLayout()) {
     //dataLayout = (new Module("",*m_contxt))->getDataLayout();
@@ -66,7 +66,7 @@ Generator::Generator(SrcFile* file,Info* info) : m_target_triple(sys::getDefault
 
 }
 
-Generator::Generator(Info* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info)/*,debug(false),
+Generator::Generator(InternalInfo* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info)/*,debug(false),
                                   no_ptr_check(false),no_arr_check(false)*/,m_contxt(std::make_unique<LLVMContext>()),dataLayout(getDataLayout()){
     if(info){
         debug = info->flags & DEBUG_FLAG;
@@ -127,6 +127,8 @@ void Generator::generateSigs() {
         exit(EXIT_FAILURE);
     }
 
+    m_module = std::move(modules[m_file]);
+
     for (auto type : m_file->types) {
         type->generateSig(m_builder.get());
     }
@@ -134,6 +136,8 @@ void Generator::generateSigs() {
     for (auto type : m_file->types) {
         type->generatePart(m_builder.get());
     }
+
+    modules[m_file] = std::move(m_module);
 }
 
 Generator::~Generator() {

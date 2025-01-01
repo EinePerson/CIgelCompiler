@@ -26,7 +26,7 @@ int main(int argc,char* argv[]) {
     OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 
-    Info *info = options->info;
+    InternalInfo *info = options->info;
     /*if(options->infoFile) {
         info = cmpinfo.getInfo();
     }else {

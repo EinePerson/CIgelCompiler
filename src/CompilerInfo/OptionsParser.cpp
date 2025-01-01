@@ -19,11 +19,11 @@ std::map<int,std::function<void(Options*)>> opts{
 std::map<int,std::function<void(Options*,std::optional<std::string>)>> long_opts{
         {'o',[](Options* opts,std::optional<std::string> str) -> void {
             if(!str.has_value())OptionsParser::cmdErr("Expected output file name after '-o'");
-            opts->info->setOutName(str.value().data());
+            opts->info->outName = str.value();
         }},
         {'L',[](Options* opts,std::optional<std::string> str) -> void {
             if(!str.has_value())OptionsParser::cmdErr("Expected Linker Flag after '-L'");
-            opts->info->addLinkerFlag(str.value().data());
+            opts->info->linkerCommands.emplace_back(str.value());
         }}
 };
 
@@ -40,6 +40,10 @@ std::string getName(const std::string &filename) {
     size_t lastdot = filename.find_last_of('/');
     if(lastdot == std::string::npos)return filename;
     return filename.substr(lastdot,filename.length());
+}
+
+bool InternalInfo::hasFlag(const char *str) {
+    return FLAGS.at(str) & flags;
 }
 
 OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp(nullptr){
@@ -80,7 +84,7 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
             exit(EXIT_FAILURE);
         }
 
-        auto file = new SrcFile;
+        auto file = new SrcFile();
         file->dir = "./";
         file->name = argv[optind];
         file->fullName = argv[optind];
@@ -89,7 +93,7 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
         files.push_back(file);
     }
     auto header = new Header;
-    header->fullName = "src/Info.h";
+    header->fullName = "./src/Info.h";
     std::unordered_map<std::string,Header*> list;
     list["Info.h"] = header;
 
@@ -135,9 +139,11 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
         exit(EXIT_FAILURE);
     }
     auto mainFunc = exp.get().toPtr<int(Info*)>();
-    auto ret = mainFunc(m_opts->info);
+    auto exInfo = new Info;
+    auto ret = mainFunc(exInfo);
 
-    modify(m_opts->info);
+    m_opts->info = modify(exInfo);
+    delete exInfo;
     if(ret != 0) {
         std::cerr << "Build script exited with: " << ret << std::endl;
         exit(EXIT_FAILURE);
@@ -161,9 +167,41 @@ Options *OptionsParser::getOptions() {
     return m_opts;
 }
 
-void OptionsParser::modify(Info* info) {
-    if(info == nullptr)return;
-    for (const auto &item: m_files){
+InternalInfo* OptionsParser::modify(Info* oldInfo) {
+    if(oldInfo == nullptr)return nullptr;
+    InternalInfo* info = new InternalInfo;
+    for (auto table : oldInfo->file_table) {
+        info->file_table[table.first] = new SrcFile(table.second);
+        if (table.second->isLive)info->liveFiles.push_back(new SrcFile(table.second));
+        else info->files.push_back(new SrcFile(table.second));
+    }
+
+    //info->headers.reserve(oldInfo->header_table.size());
+    for (auto table : oldInfo->header_table) {
+        info->header_table[table.first] = new Header(table.second);
+        //info->headers.push_back(new Header(table.first));
+    }
+
+    info->flags = oldInfo->flags;
+    info->libs = oldInfo->libs;
+    info->link = oldInfo->link;
+    info->outName = oldInfo->outName;
+    info->mainFile = oldInfo->mainFile;
+    info->sourceDirs = oldInfo->sourceDirs;
+    info->mainFile = oldInfo->mainFile;
+    info->main = info->file_table[oldInfo->mainFile];
+    info->linkerCommands = oldInfo->linkerCommands;
+    info->includeDirs = oldInfo->includeDirs;
+    for (auto include : oldInfo->include) {
+        info->include.push_back(new Directory(include));
+    }
+    for (auto src : oldInfo->src) {
+        info->src.push_back(new Directory(src));
+    }
+
+    return info;
+
+    /*for (const auto &item: m_files){
         auto file = new SrcFile;
         file->tokenPtr = 0;
         file->name += getName(item);
@@ -172,7 +210,7 @@ void OptionsParser::modify(Info* info) {
         //file->fullNameOExt += removeExtension(item);
         info->file_table.reserve(1);
         info->file_table[file->fullName] = file;
-    }
+    }*/
 }
 
 void OptionsParser::setup() {

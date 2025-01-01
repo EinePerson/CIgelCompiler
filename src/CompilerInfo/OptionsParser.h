@@ -9,12 +9,34 @@
 #include <string>
 #include <vector>
 #include "InfoParser.h"
-#include "../Info.h"
 #include "../langMain/fileCompiler.hpp"
+
+struct InternalInfo {
+    std::vector<std::string> sourceDirs;
+    std::vector<std::string> includeDirs;
+    std::string mainFile;
+    std::string outName;
+    std::vector<SrcFile*> liveFiles;///files which are Just-in-time compiled machine files may not reference those
+    std::vector<SrcFile*> files;
+    //std::vector<Header*> headers;
+    std::vector<Directory*> src;
+    std::vector<Directory*> include;
+    //std::vector<Func> calls;
+    std::vector<std::string> libs {};
+    SrcFile* main = nullptr;
+    std::string m_name;
+    std::unordered_map<std::string,SrcFile*> file_table;
+    std::unordered_map<std::string,Header*> header_table;
+    std::vector<std::string> linkerCommands;
+    long flags = 0;
+    bool link = false;
+
+    bool hasFlag(const char * str);
+};
 
 struct Options{
     std::optional<std::string> infoFile;
-    Info* info = new Info;
+    InternalInfo* info;
 };
 
 class OptionsParser {
@@ -24,7 +46,7 @@ public:
 
     Options* getOptions();
 
-    void modify(Info* info);
+    InternalInfo* modify(Info* info);
 
     static void cmdErr(std::string err);
 
