@@ -35,6 +35,8 @@ add_executable(igel
         src/util/Process.cpp
         src/langMain/fileCompiler.hpp
         src/Info.h
+        src/util/String.h
+        src/util/String.cpp
 )
 set_target_properties(igel PROPERTIES OUTPUT_NAME "igelCompiler")
 

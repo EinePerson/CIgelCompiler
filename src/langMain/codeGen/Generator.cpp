@@ -45,9 +45,10 @@ Generator* Generator::instance = nullptr;
 std::vector<bool> Generator::unreachableFlag {};
 bool Generator::lastUnreachable = false;
 Struct* Generator::structRet = nullptr;
-Class* Generator::classRet = nullptr;
+PolymorphicType* Generator::classRet = nullptr;
 bool Generator::arrRet = false;
-BeContained* Generator::typeNameRet = nullptr;
+GeneratedType* const Generator::typeNameRet = new GeneratedType;
+std::vector<std::unordered_map<std::string,BeContained*>> Generator::templateStack {};
 std::vector<BasicBlock*> Generator::catches {};
 std::vector<BasicBlock*> Generator::catchCont {};
 bool Generator::contained = false;
@@ -390,7 +391,7 @@ void Generator::createVar(Argument* arg,bool _signed, const std::string&typeName
             if(structT.value().second->varIdMs.empty())structT.value().second->varIdMs = var->vars;
             createVar(Igel::Mangler::mangle(arg->getName().str()),var);
             return;
-        }else if(auto clazzT = Generator::instance->m_file->findClass(typeName,m_builder.get())){
+        }else if(auto clazzT = Generator::findClass(typeName,m_builder.get())){
             auto var = new ClassVar(alloc,false);
             var->clazz = clazzT.value().second;
             var->type = arg->getType()->isPointerTy()?static_cast<PointerType*>(arg->getType()):PointerType::get(*m_contxt,0);
@@ -474,4 +475,25 @@ int unsigned Generator::getEncodingOfType(Type *type) {
         return dwarf::DW_ATE_float;
     }
     return -1;
+}
+
+std::optional<std::pair<llvm::StructType*,Class*>> Generator::findClass(std::string name,llvm::IRBuilder<>* builder) {
+
+    for (const auto &item: templateStack){
+        if(item.contains(name) && dynamic_cast<Class*>(item.at(name)))return std::make_pair(dynamic_cast<Class*>(item.at(name))->strType,dynamic_cast<Class*>(item.at(name)));
+    }
+    return instance->m_file->findClass(name,builder);
+}
+
+std::optional<Interface*> Generator::findInterface(std::string name) {
+    if(name == TEMPLATE_EMPTY_NAME)return Parser::templateEmpty;
+    for (const auto &item: templateStack){
+        if(item.contains(name) && dynamic_cast<Interface*>(item.at(name)))return dynamic_cast<Interface*>(item.at(name));
+    }
+    return instance->m_file->findInterface(name);
+}
+
+std::optional<PolymorphicType *> Generator::findType(std::string name, llvm::IRBuilder<> *builder) {
+    if(auto clz = findClass(name,builder))return clz->second;
+    return findInterface(name);
 }

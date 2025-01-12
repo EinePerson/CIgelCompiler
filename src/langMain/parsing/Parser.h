@@ -10,8 +10,14 @@
 
 #include "../codeGen/Generator.h"
 
+#define TEMPLATE_EMPTY_NAME "templateEmptyPlaceholderInterface"
+
 class Parser {
 public:
+    Parser(){
+        templateEmpty->name = TEMPLATE_EMPTY_NAME;
+    }
+
     static char sidChar(char c) {
         c = std::toupper(c);
         switch (c) {
@@ -42,7 +48,9 @@ public:
     NodeStmtWhile* parseWhile();
     NodeStmtIf* parseIf();
     std::optional<IgFunction*> parseFunc(bool constructor = false);
-    std::optional<BeContained*> parseContained();
+    std::optional<std::pair<BeContained*,int>> parseContained();
+    std::optional<BeContained*> parseContained(std::string str);
+    std::optional<std::pair<IgType*,int>> findContained(std::string name);
 
     std::optional<IgType*> parseType();
 
@@ -90,6 +98,10 @@ private:
     std::vector<ContainableType*> m_super {};
     IgType* varHolder = nullptr;
     std::vector<std::unordered_map<std::string,Igel::VarType>> varTypes;
+    std::vector<std::unordered_map<std::string,IgType*>> templateTypes;
+
+public:
+    static Interface* templateEmpty;
 };
 
 

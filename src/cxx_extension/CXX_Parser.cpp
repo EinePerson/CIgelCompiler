@@ -199,8 +199,8 @@ IgFunction * ASTVisitor::parseFunc(clang::FunctionDecl* method_decl) {
     func->_return = convert(method_decl->getReturnType().getTypePtr());
 
     auto tst = method_decl->getDeclaredReturnType().getTypePtr()->getPointeeType().getAsString();
-    if(!method_decl->getDeclaredReturnType().getTypePtr()->isPointerType())func->retTypeName = "";
-    else func->retTypeName = method_decl->getDeclaredReturnType().getTypePtr()->getPointeeType().getAsString();
+    if(!method_decl->getDeclaredReturnType().getTypePtr()->isPointerType())func->retTypeName = nullptr;
+    else func->retTypeName = new GeneratedType(new Name(method_decl->getDeclaredReturnType().getTypePtr()->getPointeeType().getAsString()));
 
     auto val = getTypeFromDecl(method_decl->getParent());
     if(val) {

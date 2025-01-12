@@ -83,6 +83,18 @@ void PreParser::parseScope(bool contain,bool parenth) {
                     if(peak().value().type != TokenType::_class)break;
                     consume();
                 case TokenType::_class:
+                    if(tryConsume(TokenType::small)){
+                        bool b = false;
+                        while (tryConsume(TokenType::id)) {
+                            if(tryConsume(TokenType::extends)){
+                                parseContained();
+                            }
+                            b = tryConsume(TokenType::comma).has_value();
+                        }
+                        if(b)err("Expected type name");
+                        tryConsume(TokenType::big);
+                    }
+
                     if(tryConsume(TokenType::extends)) {
                         if(parseContained())err("Expected type name");
                     }
