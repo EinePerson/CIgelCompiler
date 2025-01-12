@@ -61,6 +61,8 @@ struct ClassVar final : Var {
     std::vector<Type*> types;
     std::vector<bool> signage;
 
+    std::vector<PolymorphicType*> templateVals;
+
     std::unordered_map<std::string,uint> funcs;
     PointerType* type = nullptr;
     StructType* strType = nullptr;
@@ -124,6 +126,36 @@ public:
     DataLayout getDataLayout() {
         return  DataLayout("");
     }
+
+    static inline void setTypeNameRet(BeContained* cont){
+        typeNameRet->type = cont;
+        typeNameRet->templateTypes = {};
+    }
+
+    static inline void setTypeNameRet(BeContained* cont,std::vector<PolymorphicType*> types){
+        typeNameRet->type = cont;
+        typeNameRet->templateTypes = types;
+    }
+
+    static inline void setTypeNameRet(ClassVar* var){
+        typeNameRet->type = var->clazz;
+        typeNameRet->templateTypes = var->templateVals;
+    }
+
+    static inline void setTypeNameRet(GeneratedType* type){
+        typeNameRet->type = type->type;
+        typeNameRet->templateTypes = type->templateTypes;
+    }
+
+    static inline void clearTypeNameRet(){
+        typeNameRet->type = nullptr;
+        typeNameRet->templateTypes = {};
+    }
+
+    static std::optional<std::pair<llvm::StructType*,Class*>> findClass(std::string name,llvm::IRBuilder<>* builder);;
+    static std::optional<Interface*> findInterface(std::string name);
+    static std::optional<PolymorphicType*> findType(std::string name,llvm::IRBuilder<>* builder);
+
 private:
     BasicBlock* staticInit = nullptr;
     std::unique_ptr<IRBuilder<>> m_builder;
@@ -156,11 +188,12 @@ public:
     DataLayout dataLayout;
     static Generator* instance;
     static std::vector<bool> unreachableFlag;
-    static bool lastUnreachable;;
+    static bool lastUnreachable;
     static Struct* structRet;
-    static Class* classRet;
+    static PolymorphicType* classRet;
     static bool arrRet;
-    static BeContained* typeNameRet;
+    static GeneratedType* const typeNameRet;
+    static std::vector<std::unordered_map<std::string,BeContained*>> templateStack;
     static std::vector<BasicBlock*> catches;
     static std::vector<BasicBlock*> catchCont;
     static bool contained;

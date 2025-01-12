@@ -18,6 +18,7 @@ struct Class;
 struct Var;
 struct IgFunction;
 struct ContainableType;
+struct PolymorphicType;
 
 struct SrcFile;
 
@@ -69,7 +70,7 @@ namespace Igel {
 
     class SecurityManager {
     public:
-        static bool canAccess(ContainableType* type,IgFunction* func);
+        static bool canAccess(ContainableType *type, IgFunction* func);
 
         /**
          * \brief checks weather accessed can be accessed from accessor, access describes the governing access modifier
@@ -103,7 +104,15 @@ struct BeContained {
     virtual std::string mangle() = 0;
 };
 
+struct GeneratedType {
+    BeContained* type = nullptr;
+    std::vector<PolymorphicType*> templateTypes {};
+};
 
+struct GeneratedClass{
+    PolymorphicType* clazz;
+    std::vector<PolymorphicType*> templateTypes;
+};
 
 struct FuncInfo {
 
@@ -253,10 +262,10 @@ struct NodeTermStructAcces final : NodeTermAcces {
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
-struct NodeTermClassAcces final : NodeTermAcces {
+/*struct NodeTermClassAcces final : NodeTermAcces {
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
-};
+};*/
 
 struct NodeTermFuncCall final : NodeTerm{
     BeContained* name = nullptr;
@@ -277,6 +286,7 @@ struct NodeTermClassNew final : NodeTerm {
     std::vector<bool> signage {};
     std::vector<llvm::Type*> paramType {};
     std::vector<BeContained*> paramTypeName {};
+    std::vector<PolymorphicType*> templateArgs {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -297,7 +307,7 @@ struct NodeTermArrNew final : NodeTerm {
 };
 
 struct NodeTermCast final : NodeTerm {
-    BeContained* target = nullptr;
+    GeneratedType* target = nullptr;
     NodeExpr* expr = nullptr;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
@@ -492,8 +502,12 @@ struct NodeStmtLet : NodeStmt,BeContained{
     IgType* typeName = nullptr;
     bool final = false;
     bool _static = false;
+    bool isTemplate = false;
+    int templateId = -1;
+    std::string templateName = "";
 
     Igel::Access acc;
+
     std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder,bool full) = 0;;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<> *builder) override;
@@ -520,6 +534,7 @@ struct NodeStmtStructNew final : NodeStmtNew{
 
 struct NodeStmtClassNew final : NodeStmtNew {
     NodeTerm* term = nullptr;
+    std::vector<PolymorphicType*> templateVals;
 
     std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 };
@@ -652,7 +667,8 @@ struct IgFunction final : BeContained{
     std::vector<BeContained*> paramTypeName;
     std::vector<bool> signage;
 
-    std::string retTypeName;
+    GeneratedType* retTypeName = nullptr;
+    int templateId = -1;
     llvm::Type* _return = nullptr;
     bool returnSigned = false;
     bool _static = false;
@@ -749,22 +765,8 @@ struct ContainableType : IgType {
     explicit ContainableType() = default;
     std::vector<BeContained*> contained {};
 
-    /**
-     * @param type
-     * @return checks weather type is a super of this
-     */
-    virtual bool isSubTypeOf(ContainableType* type) = 0;
-
-    /**
-     *\brief returns -1 if not found
-     */
-    virtual uint getSuperOffset(ContainableType* type) = 0;
-
-    virtual uint getExtendingOffset() = 0;
-
     virtual std::vector<std::vector<IgFunction*>> getFuncsRec() = 0;
 
-    virtual std::vector<llvm::Constant*> getTypeInfoRec(llvm::IRBuilder<> *builder) = 0;
 };
 
 struct NamesSpace final : ContainableType {
@@ -785,26 +787,11 @@ struct NamesSpace final : ContainableType {
         return {funcs};
     }
 
-    std::vector<llvm::Constant *> getTypeInfoRec(llvm::IRBuilder<> *builder) override {
-        return  {};
-    }
-
     void unregister() override{}
-
-    bool isSubTypeOf(ContainableType* type) override {
-        return false;
-    }
-
-    uint getSuperOffset(ContainableType *type) override {
-        return -1;
-    }
-
-    uint getExtendingOffset() override {
-        return 0;
-    }
 };
 
 struct Interface;
+
 
 struct ClassInfos {
     friend Class;
@@ -820,8 +807,27 @@ private:
     bool init = false;
 };
 
-struct Interface final : ContainableType {
-    Interface() : ContainableType(){}
+struct PolymorphicType : public ContainableType{
+    /**
+     * @param type
+     * @return checks weather type is a super of this
+     */
+    virtual bool isSubTypeOf(ContainableType* type) = 0;
+
+    /**
+     *\brief returns -1 if not found
+     */
+    virtual uint getSuperOffset(ContainableType* type) = 0;
+
+    virtual uint getExtendingOffset() = 0;
+
+    virtual std::vector<llvm::Constant*> getTypeInfoRec(llvm::IRBuilder<> *builder) = 0;
+
+    virtual ClassInfos getClassInfos(llvm::IRBuilder<> *builder) = 0;
+};
+
+struct Interface final : PolymorphicType {
+    Interface() : PolymorphicType(){}
 
     std::vector<IgFunction*> funcs;
     std::vector<Interface*> extending {};
@@ -837,7 +843,7 @@ struct Interface final : ContainableType {
 
     void generate(llvm::IRBuilder<>* builder) override;
 
-    ClassInfos getClassInfos(llvm::IRBuilder<> *builder);
+    ClassInfos getClassInfos(llvm::IRBuilder<> *builder) override;
 
     std::vector<std::vector<IgFunction*>> getFuncsRec() override {
         std::vector<std::vector<IgFunction*>> funcsRet {};
@@ -912,13 +918,14 @@ struct Enum final : IgType {
 
 
 
-struct Class final : ContainableType {
-    Class() : ContainableType(){}
+struct Class final : PolymorphicType {
+    Class() : PolymorphicType(){}
     std::vector<NodeStmtLet*> vars;
     std::vector<std::string> varNames;
     std::unordered_map<std::string,uint> varIdMs;
     std::unordered_map<std::string,Igel::Access> varAccesses;
     std::unordered_map<std::string,bool> finals;
+    std::unordered_map<std::string,bool> templates;
 
     std::vector<NodeStmtLet*> staticVars;
     std::unordered_map<std::string,BeContained*> staticTypeName;
@@ -944,6 +951,11 @@ struct Class final : ContainableType {
     std::optional<IgFunction*> defaulfConstructor = {};
     bool hasConstructor = false;
 
+    bool isTemplate = false;
+    std::unordered_map<std::string,uint> templateIdMs;
+    std::vector<std::string> templateNames;
+    std::vector<IgType*> templateConstraints;
+
     Position pos;
 
 
@@ -964,7 +976,7 @@ struct Class final : ContainableType {
 
     std::string mangle() override;
 
-    ClassInfos getClassInfos(llvm::IRBuilder<> *builder);
+    ClassInfos getClassInfos(llvm::IRBuilder<> *builder) override;
 
     std::pair<Class*,uint> getVarialbe(const std::string &name) {
         if(varIdMs.contains(name))return {this,varIdMs[name]};
@@ -1051,7 +1063,7 @@ namespace Igel {
     }
 
     inline void err(const std::string &msg,const Position &t) {
-        std::cerr << msg << std::endl;
+        std::cerr << msg;
         errAt(t);
     }
 
@@ -1105,6 +1117,8 @@ namespace Igel {
 
     void check_Pointer(llvm::IRBuilder<> *builder,llvm::Value* ptr);
     void check_Arr(llvm::IRBuilder<> *builder,llvm::Value* ptr,llvm::Value* idx);
+
+    inline llvm::Value* getString(std::string str,llvm::IRBuilder<> *builder);
 }
 
 #endif //TYPES_H

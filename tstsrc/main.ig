@@ -1,23 +1,30 @@
 using "tstsrc/test.ig";
 
-class Test{
+class Gaming{
+    int i;
+    int j;
+}
+
+class Sus{
+    int z;
+}
+
+class Test<T>{
+    T amogus;
     void test(){
 
+    }
+
+    T get(){
+        return this.amogus;
     }
 }
 
 int main(){
-
-    int[] arr = new int[5];
-    arr[4] = 10;
-    Test t;
-    printf("%p,%lu,%d\n",arr,arr.length,arr[4]);
-    t.test();
-
-    arr[5] = 69;
-    /*int i = 25;
-    int j = 3;
-    printf("%d",i % j);
-    printf("ABC");*/
+    Test<Gaming> g = new Test<Gaming>();
+    g.amogus = new Gaming();
+    g.amogus.i = 69;
+    Gaming a = g.get();
+    printf("%d",a.i);
     return 0;
 }
