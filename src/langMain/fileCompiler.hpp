@@ -37,7 +37,7 @@ private:
 public:
     std::vector<SrcFile*> files;
     std::unordered_map<std::string,SrcFile*> file_table;
-    std::vector<Header*> header;
+    //std::vector<Header*> header;
     std::unordered_map<std::string,Header*> header_table;
     Tokenizer m_tokenizer;
     Indexer m_indexer;
@@ -45,19 +45,19 @@ public:
     Parser m_parser;
     Generator* m_gen;
 
-    FileCompiler(Generator* gen,std::vector<SrcFile*> files,std::unordered_map<std::string,SrcFile*> file_table,std::vector<Header*> header = {},std::unordered_map<std::string,Header*> header_table = {}) :
-    files(files),file_table(file_table),header(header),header_table(header_table),m_indexer(file_table,header_table),m_gen(gen) {
+    FileCompiler(Generator* gen,std::vector<SrcFile*> files,std::unordered_map<std::string,SrcFile*> file_table,std::unordered_map<std::string,Header*> header_table = {}) :
+    files(files),file_table(file_table)/*,header(header)*/,header_table(header_table),m_indexer(file_table,header_table),m_gen(gen) {
         isInit = true;
         own = false;
     }
 
-    FileCompiler(Info* info,std::vector<SrcFile*> files,std::unordered_map<std::string,SrcFile*> file_table,std::vector<Header*> header = {},std::unordered_map<std::string,Header*> header_table = {}) :
-    files(files),file_table(file_table),header(header),header_table(header_table),m_indexer(file_table,header_table),m_gen(new Generator(info)) {
+    FileCompiler(InternalInfo* info,std::vector<SrcFile*> files,std::unordered_map<std::string,SrcFile*> file_table,std::unordered_map<std::string,Header*> header_table = {}) :
+    files(files),file_table(file_table)/*,header(header)*/,header_table(header_table),m_indexer(file_table,header_table),m_gen(new Generator(info)) {
         isInit = true;
         own = true;
     }
 
-    explicit FileCompiler(Info* info) {
+    explicit FileCompiler(InternalInfo* info) {
         own = true;
         m_gen = new Generator(info);
     }
@@ -70,7 +70,7 @@ public:
         ,std::vector<Header*> header = {}, const std::unordered_map<std::string,Header*> &header_table = {}) {
         this->files = files;
         this->file_table = file_table;
-        this->header = header;
+        //this->header = header;
         this->header_table = header_table;
         m_indexer.setup(file_table,header_table);
         isInit = true;
@@ -147,7 +147,7 @@ class JITFileCompiler : public FileCompiler {
 public:
     std::unique_ptr<orc::LLJIT> jit;
 
-    explicit JITFileCompiler(Info* info):FileCompiler((Generator*) nullptr,{},{}){
+    explicit JITFileCompiler(InternalInfo* info):FileCompiler((Generator*) nullptr,{},{}){
         m_gen = new Generator(info);
         InitializeAllTargetInfos();
         InitializeAllTargets();
@@ -164,9 +164,9 @@ public:
         addLib("/lib64/libclang.so");
     }
 
-    JITFileCompiler(Info* info,std::vector<SrcFile*> files,std::vector<SrcFile*> liveFiles,std::unordered_map<std::string,SrcFile*> file_table,std::vector<Header*> header = {}
+    JITFileCompiler(InternalInfo* info,std::vector<SrcFile*> files,std::vector<SrcFile*> liveFiles,std::unordered_map<std::string,SrcFile*> file_table
         ,std::unordered_map<std::string,Header*> header_table = {}) :
-    /*cntxtPtr(std::make_unique<LLVMContext>()),*/FileCompiler(info,join(files,liveFiles),std::move(file_table),std::move(header),std::move(header_table)),live(liveFiles),nonLive(files){
+    /*cntxtPtr(std::make_unique<LLVMContext>()),*/FileCompiler(info,join(files,liveFiles),std::move(file_table),std::move(header_table)),live(liveFiles),nonLive(files){
         InitializeAllTargetInfos();
         InitializeAllTargets();
         InitializeAllTargetMCs();

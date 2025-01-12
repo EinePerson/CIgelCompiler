@@ -18,15 +18,15 @@ const static std::vector<std::string> COMPILER_LIBS {"./libs/libigc.a","./libs/l
 
 class LangMain{
 public:
-    explicit LangMain(Info* info,Options* options): m_info(info),m_options(options),//cmp(m_options->info,info->files,info->file_table,info->headers,info->header_table),
-    jit(m_options->info,info->files,info->liveFiles,info->file_table,info->headers,info->header_table)
+    explicit LangMain(InternalInfo* info,Options* options): m_info(info),m_options(options),//cmp(m_options->info,info->files,info->file_table,info->headers,info->header_table),
+    jit(m_options->info,info->files,info->liveFiles,info->file_table/*,info->headers*/,info->header_table)
         {
 
     }
 
     void compile(){
-        for (auto header : m_info->headers) {
-            CXX_Parser(header).parseHeader();
+        for (auto header : m_info->header_table) {
+            CXX_Parser(header.second).parseHeader();
         }
 
         jit.tokenize();
@@ -50,11 +50,11 @@ public:
             outFiles << "./build/cmp/" << file->fullName << ".bc ";
         });
 
-        for (auto header : m_info->headers) {
-            outFiles << "./build/cmp/" << header->fullName << ".pch ";
+        for (auto header : m_info->header_table) {
+            outFiles << "./build/cmp/" << header.second->fullName << ".pch ";
             std::string cmdStr = "clang++ -g -o ./build/cmp/";
-            cmdStr += header->fullName + ".pch ";
-            cmdStr += header->fullName;
+            cmdStr += header.second->fullName + ".pch ";
+            cmdStr += header.second->fullName;
             const char* cmd = cmdStr.c_str();
             if(system(cmd))err();
         }
@@ -116,7 +116,7 @@ private:
     }
 
     std::stringstream outFiles;
-    Info* m_info;
+    InternalInfo* m_info;
     Options* m_options;
 
     //FileCompiler cmp;

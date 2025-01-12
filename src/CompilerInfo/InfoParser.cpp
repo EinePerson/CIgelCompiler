@@ -12,6 +12,7 @@
 #include "../cxx_extension/CXX_Parser.h"
 #include "../langMain/codeGen/Generator.h"
 #include "../types.h"
+#include "../Info.h"
 
     /*InfoParser::InfoParser(std::vector<Token> tokens) : m_tokens(std::move(tokens)),m_info(nullptr) {
     }
@@ -220,6 +221,15 @@ std::optional<IgType *> Header::findUnmangledContained(const std::string &name) 
         return {};
 }
 
+Header::Header(std::string second) : fullName(second) {
+}
+
+SrcFile::SrcFile(InfoSrcFile *src) : dir(src->dir), name(src->name),fullName(src->fullName),isLive(src->isLive),isMain(src->isMain) {
+}
+
+SrcFile::SrcFile() {
+}
+
 
 std::optional<std::pair<llvm::FunctionCallee,bool>> SrcFile::findFunc(std::string name,std::vector<Type*> types) {
         if(funcs.contains(name)) {
@@ -348,6 +358,13 @@ std::optional<IgType *> SrcFile::findUnmangledContained(std::string name) {
         }
 
         return {};
+}
+
+Directory::Directory(InfoDirectory *dir):name(dir->name) {
+        sub_dirs.reserve(dir->sub_dirs.size());
+        for (const auto &item: dir->sub_dirs) {
+            sub_dirs.push_back(new Directory(item));
+        }
 }
 
 void Directory::genFile(std::string path) {

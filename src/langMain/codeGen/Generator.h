@@ -23,6 +23,7 @@ struct SrcFile;
 struct IgFunction;
 struct BeContained;
 struct Struct;
+struct InternalInfo;
 
 struct Var {
     explicit Var(AllocaInst* alloc,bool _signed,bool _final) : alloc(alloc),_signed(_signed),_final(_final) {}
@@ -78,8 +79,8 @@ struct Debug {
 class Generator {
 
 public:
-    explicit Generator(SrcFile* file,Info* info);
-    explicit Generator(Info* info);
+    explicit Generator(SrcFile* file,InternalInfo* info);
+    explicit Generator(InternalInfo* info);
     ~Generator();
     void create(SrcFile* file);
     void setup(SrcFile* file);
@@ -179,7 +180,7 @@ public:
     std::vector<BasicBlock*> next;
     std::vector<SwitchInst*> _switch;
     std::vector<DIScope*> dbgScopes;
-    Info* m_info;
+    InternalInfo* m_info;
     BasicBlock* unreach = nullptr;
     GlobalVariable* cxx_pointer_type_info = nullptr;
     GlobalVariable* cxx_class_type_info = nullptr;

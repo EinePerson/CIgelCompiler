@@ -6,7 +6,35 @@
 #include <vector>
 #include <unordered_map>
 #include <iostream>
-#include "./CompilerInfo/InfoParser.h"
+
+struct InfoSrcFile{
+    std::string dir;
+    std::string name;
+    std::string fullName;
+    bool isLive = false;
+    bool isMain = false;
+};
+
+struct InfoDirectory{
+    std::string name;
+    std::vector<InfoDirectory*> sub_dirs;
+    std::vector<InfoSrcFile*> files;
+    std::vector<std::string> headers;
+};
+
+struct FileItterator{
+    InfoDirectory* dir = nullptr;
+    std::vector<InfoSrcFile*> files;
+};
+
+struct HeaderItterator{
+    InfoDirectory* dir = nullptr;
+    std::vector<std::string> files ;
+};
+
+inline std::string getExtension(const std::string &filename) {
+    return filename.substr(filename.find_last_of('.') + 1);
+}
 
 ///\brief these are all the flags that can be set
 #define DEBUG_FLAG 0x1
@@ -24,9 +52,9 @@ const std::map<std::string,long> FLAGS = {
 
 inline FileItterator listFiles(std::string path,const std::string& name) {
     path += name;
-    auto direct = new Directory;
+    auto direct = new InfoDirectory;
     direct->name = name;
-    std::vector<SrcFile*> files;
+    std::vector<InfoSrcFile*> files;
     if (auto dir = opendir(path.c_str())) {
         while (auto f = readdir(dir)) {
             if (f->d_name[0] == '.')continue;
@@ -40,8 +68,7 @@ inline FileItterator listFiles(std::string path,const std::string& name) {
             }
 
             if (f->d_type == DT_REG){
-                auto file = new SrcFile();
-                file->tokenPtr = 0;
+                auto file = new InfoSrcFile();
                 file->name += f->d_name;
                 file->fullName = path;
                 file->fullName += f->d_name;
@@ -64,9 +91,9 @@ inline FileItterator listFiles(std::string path,const std::string& name) {
 
 inline HeaderItterator listHeaders(std::string path, const std::string& name) {
     path += name;
-    auto direct = new Directory;
+    auto direct = new InfoDirectory;
     direct->name = name;
-    std::vector<Header*> files;
+    std::vector<std::string> files;
     if (auto dir = opendir(path.c_str())) {
         while (auto f = readdir(dir)) {
             if (f->d_name[0] == '.')continue;
@@ -80,11 +107,11 @@ inline HeaderItterator listHeaders(std::string path, const std::string& name) {
             }
 
             if (f->d_type == DT_REG){
-                auto file = new Header;
-                file->fullName = path;
-                file->fullName += f->d_name;
-                direct->headers.push_back(file);
-                files.push_back(file);
+                std::string name;
+                name = path;
+                name += f->d_name;
+                direct->headers.push_back(name);
+                files.push_back(name);
             }
         }
         closedir(dir);
@@ -107,17 +134,17 @@ public:
     std::vector<std::string> includeDirs;
     std::string mainFile;
     std::string outName;
-    std::vector<SrcFile*> liveFiles;///files which are Just-in-time compiled machine files may not reference those
-    std::vector<SrcFile*> files;
-    std::vector<Header*> headers;
-    std::vector<Directory*> src;
-    std::vector<Directory*> include;
-    std::vector<Func> calls;
+    //std::vector<InfoSrcFile*> liveFiles;///files which are Just-in-time compiled machine files may not reference those
+    //std::vector<InfoSrcFile*> files;
+    //std::vector<InfoHeader*> headers;
+    std::vector<InfoDirectory*> src;
+    std::vector<InfoDirectory*> include;
+    //std::vector<Func> calls;
     std::vector<std::string> libs {};
-    SrcFile* main = nullptr;
+    InfoSrcFile* main = nullptr;
     std::string m_name;
-    std::unordered_map<std::string,SrcFile*> file_table;
-    std::unordered_map<std::string,Header*> header_table;
+    std::unordered_map<std::string,InfoSrcFile*> file_table;
+    std::unordered_map<std::string,std::string> header_table;
     std::vector<std::string> linkerCommands;
     long flags = 0;
     bool link = false;
@@ -126,10 +153,10 @@ public:
     void addSourceDir(char* dir) __attribute__((used)) {
         sourceDirs.emplace_back(dir);
         FileItterator it = listFiles("",std::string(dir) + "/");
-        for (auto src_file : it.files) {
+        /*for (auto src_file : it.files) {
             if(src_file->isLive)liveFiles.push_back(src_file);
             else files.push_back(src_file);
-        }
+        }*/
         src.push_back(it.dir);
         file_table.reserve(it.files.size());
         for(auto file:it.files){
@@ -142,11 +169,11 @@ public:
     void addIncludeDir(char* dir) __attribute__((used)) {
         includeDirs.emplace_back(dir);
         HeaderItterator it = listHeaders("",std::string(dir) + "/");
-        headers.insert(headers.cend(),it.files.cbegin(),it.files.cend());
+        //headers.insert(headers.cend(),it.files.cbegin(),it.files.cend());
         include.push_back(it.dir);
         header_table.reserve(it.files.size());
         for(auto file:it.files){
-            header_table[file->fullName] = file;
+            header_table[file] = file;
         }
     }
 

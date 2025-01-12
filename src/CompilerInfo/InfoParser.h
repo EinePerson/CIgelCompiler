@@ -15,6 +15,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <sys/stat.h>
 
+#include "../Info.h"
 #include "../tokenizer.h"
 
 class InfoParser;
@@ -25,6 +26,7 @@ struct Class;
 struct Interface;
 struct Token;
 struct NodeStmt;
+struct InfoSrcFile;
 /*namespace llvm {
     template <>
     class IRBuilder;
@@ -84,9 +86,17 @@ struct Header {
     std::optional<Interface*> findInterface(std::string name);
     std::optional<IgType*> findContained(const std::string & name);
     std::optional<IgType*> findUnmangledContained(const std::string & name);
+
+    Header() = default;
+
+    explicit Header(std::string second);
 };
 
 struct SrcFile{
+    SrcFile(InfoSrcFile* src);
+
+    SrcFile();
+
     bool isMain = false;
     bool isGen = false;
     bool isLive = false;
@@ -118,6 +128,8 @@ struct SrcFile{
 };
 
 struct Directory{
+    explicit Directory(InfoDirectory* dir);
+
     std::vector<SrcFile*> files;
     std::vector<Header*> headers;
     std::vector<Directory*> sub_dirs;
@@ -146,7 +158,7 @@ struct Directory{
     bool hasFlag(const std::string&flag) const;
 };*/
 
-struct FileItterator{
+/*struct FileItterator{
     std::vector<SrcFile*> files;
     Directory* dir = nullptr;
 };
@@ -154,13 +166,13 @@ struct FileItterator{
 struct HeaderItterator {
     std::vector<Header*> files;
     Directory* dir = nullptr;
-};
+};*/
 
 std::string removeExtension(const std::string& filename);
 
-inline std::string getExtension(const std::string &filename) {
+/*inline std::string getExtension(const std::string &filename) {
     return filename.substr(filename.find_last_of('.') + 1);
-}
+}*/
 /*class InfoParser {
 public:
     explicit InfoParser(std::vector<Token> tokens);
