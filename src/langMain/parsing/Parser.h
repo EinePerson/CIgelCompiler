@@ -16,6 +16,7 @@ class Parser {
 public:
     Parser(){
         templateEmpty->name = TEMPLATE_EMPTY_NAME;
+        templateEmpty->overrideSub = true;
     }
 
     static char sidChar(char c) {
@@ -59,6 +60,8 @@ public:
     bool isprocedingFund();
 
     Igel::Access parseAccess();
+
+    std::optional<GeneratedType*> parseComplexType(std::optional<BeContained*> cont = {});
 
 private:
     Position currentPosition() {

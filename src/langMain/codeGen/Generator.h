@@ -62,7 +62,7 @@ struct ClassVar final : Var {
     std::vector<Type*> types;
     std::vector<bool> signage;
 
-    std::vector<PolymorphicType*> templateVals;
+    std::vector<GeneratedType*> templateVals;
 
     std::unordered_map<std::string,uint> funcs;
     PointerType* type = nullptr;
@@ -133,7 +133,7 @@ public:
         typeNameRet->templateTypes = {};
     }
 
-    static inline void setTypeNameRet(BeContained* cont,std::vector<PolymorphicType*> types){
+    static inline void setTypeNameRet(BeContained* cont,std::vector<GeneratedType*> types){
         typeNameRet->type = cont;
         typeNameRet->templateTypes = types;
     }

@@ -164,7 +164,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
           if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
                Igel::err("Can only access fields of classes",acc);
           }
-          std::vector<PolymorphicType*> templateVals = clzVar?clzVar->templateVals:Generator::typeNameRet->templateTypes;
+          std::vector<GeneratedType*> templateVals = clzVar?clzVar->templateVals:Generator::typeNameRet->templateTypes;
           if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
           Value* ptr = nullptr;
           auto ret = clz->getVarialbe(acc.value.value());
@@ -182,7 +182,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
           Generator::setTypeNameRet(clz,templateVals);
           if(Generator::contained) {
                if (clz->templateIdMs.contains(acc.value.value()) && !templateVals.empty()) {
-                    Generator::classRet = templateVals[clz->templateIdMs[acc.value.value()]];
+                    Generator::classRet = dynamic_cast<PolymorphicType *>(templateVals[clz->templateIdMs[acc.value.value()]]->type);
                }else if(const auto strT = Generator::findType(ret.first->vars[fid - ret.first->vTablePtrs]->typeName->mangle(),builder)) {
                     Generator::classRet = strT.value();
                     Generator::structRet = nullptr;
@@ -190,7 +190,7 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                Generator::contained = false;
           }else {
                if (clz->templateIdMs.contains(acc.value.value()) && !templateVals.empty()) {
-                        Generator::classRet = templateVals[clz->templateIdMs[acc.value.value()]];
+                        Generator::classRet = dynamic_cast<PolymorphicType*>(templateVals[clz->templateIdMs[acc.value.value()]]->type);
                }else Generator::classRet = clz;
                Generator::structRet = nullptr;
           }
@@ -296,7 +296,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
           if(!dynamic_cast<Class*>(clzVar?clzVar->clazz:clz)) {
                Igel::err("Can only access fields of classes",acc);
           }
-          std::vector<PolymorphicType*> templateVals = clzVar?clzVar->templateVals:Generator::typeNameRet->templateTypes;
+          std::vector<GeneratedType*> templateVals = clzVar?clzVar->templateVals:Generator::typeNameRet->templateTypes;
           if(!clz)clz = dynamic_cast<Class*>(clzVar->clazz);
 
           uint fid;
@@ -323,7 +323,7 @@ llvm::Value * NodeTermAcces::generatePointer(llvm::IRBuilder<> *builder) {
                Generator::contained = false;
           }else {
                if (clz->templateIdMs.contains(acc.value.value())) {
-                    Generator::classRet = templateVals[clz->templateIdMs[acc.value.value()]];
+                    Generator::classRet = dynamic_cast<PolymorphicType*>(templateVals[clz->templateIdMs[acc.value.value()]]->type);
                }else Generator::classRet = clz;
                Generator::structRet = nullptr;
           }
@@ -827,7 +827,7 @@ std::pair<llvm::Value*, Var*> NodeStmtClassNew::generateImpl(llvm::IRBuilder<>* 
           return {gen,var};
      }
 
-     if(Generator::typeNameRet->templateTypes != templateVals && !Generator::typeNameRet->templateTypes.empty())Igel::err("Template types do not match",pos);
+     if(!Igel::compareTemplate(Generator::typeNameRet->templateTypes,templateVals) && !Generator::typeNameRet->templateTypes.empty())Igel::err("Template types do not match",pos);
      if(Generator::typeNameRet->type != typeName && !dynamic_cast<NodeTermNull*>(term)) {
           Igel::err("Cannot assign a value of type " + (Generator::typeNameRet->type?Generator::typeNameRet->type->mangle():"null") + " to a variable of type " + typeName->mangle(),pos);
      }
@@ -2106,22 +2106,28 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                                    Igel::err("Cannot access function: " + name->mangle(),pos);
                               }
                               auto ptr = clz->generateClassPointer(builder);
-                              std::vector<PolymorphicType*> templates = Generator::typeNameRet->templateTypes;
+                              std::vector<GeneratedType*> templates = Generator::typeNameRet->templateTypes;
                               std::vector<Value*> vals {ptr};
                               Igel::check_Pointer(builder,ptr);
                               vals.reserve(exprs.size());
                               for (auto expr : exprs) vals.push_back(expr->generate(builder));
-                              Generator::structRet = dynamic_cast<Struct*>(func.value()->retTypeName->type);
-                              Generator::classRet = dynamic_cast<Interface*>(func.value()->retTypeName->type);
-                              if (Generator::classRet && func.value()->templateId != -1) {
-                                   Generator::classRet == templates[func.value()->templateId];
-                                   Generator::setTypeNameRet(templates[func.value()->templateId]);
+                              if (func.value()->retTypeName) {
+                                   Generator::structRet = dynamic_cast<Struct*>(func.value()->retTypeName->type);
+                                   Generator::classRet = dynamic_cast<Interface*>(func.value()->retTypeName->type);
+                                   if (Generator::classRet && func.value()->templateId != -1) {
+                                        Generator::classRet = dynamic_cast<PolymorphicType*>(templates[func.value()->templateId]->type);
+                                        Generator::setTypeNameRet(templates[func.value()->templateId]);
+                                   }
+                              }else {
+                                   Generator::clearTypeNameRet();
+                                   Generator::classRet = nullptr;
+                                   Generator::structRet = nullptr;
                               }
                               return Igel::setDbg(builder,builder->CreateCall(func.value()->getLLVMFunc(),vals),pos);
                          }
                     }
                     auto ptr = clz->generateClassPointer(builder);
-                    std::vector<PolymorphicType*> templates = Generator::typeNameRet->templateTypes;
+                    std::vector<GeneratedType*> templates = Generator::typeNameRet->templateTypes;
                     std::vector<Value*> vals{ptr};
                     Igel::check_Pointer(builder,ptr);
                     vals.reserve(exprs.size());
@@ -2159,8 +2165,38 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                          if(clazz->directFuncs.contains(funcName)) {
                               auto func = clazz->directFuncs[funcName];
                               return Igel::setDbg(builder,builder->CreateCall(func->getLLVMFunc(),vals),pos);
+                         }else {
+
+                              std::vector<IgFunction*> validFuncs {};
+                              for (auto func : clazz->funcs) {
+                                   if (func->name != name->name)continue;
+                                   if (func->paramType.size() - func->member != types.size())continue;
+
+                                   bool valid = true;
+                                   for (int i = 0;i < typeNames.size();i++) {
+                                        if (!valid)break;
+                                        if (!(dynamic_cast<ContainableType*>(typeNames[i]) && dynamic_cast<PolymorphicType*>(func->paramTypeName[i + func->member]))) {
+                                             if (types[i] != func->paramType[i + func->member]) {
+                                                  valid = false;
+                                                  break;
+                                             }
+                                        }else if (!dynamic_cast<PolymorphicType*>(func->paramTypeName[i + func->member])->isSubTypeOf(dynamic_cast<ContainableType*>(typeNames[i]))) {
+                                             valid = false;
+                                             break;
+                                        }
+                                   }
+
+                                   if (valid)validFuncs.push_back(func);
+                              }
+
+                              if (validFuncs.size() > 1)Igel::err("Ambiguous function call, cast parameters to parent class type used in function declaration",pos);
+                              if (!validFuncs.empty()) {
+                                   found = true;
+                                   return Igel::setDbg(builder,builder->CreateCall(validFuncs[0]->getLLVMFunc(),vals),pos);
+                              }
                          }
                     }
+
                     if(!found) {
                          auto funcName = Igel::Mangler::mangle(name,types,typeNames,signage,false,false);
                          Igel::err("Unknown function: " + name->mangle(),pos);
@@ -2176,11 +2212,17 @@ llvm::Value* NodeTermFuncCall::generate(llvm::IRBuilder<>* builder) {
                     auto funcPtrGEP = builder->CreateInBoundsGEP(vtable->getType(),vtable,builder->getInt64(fid.second));
                     auto funcPtr = Igel::setDbg(builder,builder->CreateLoad(builder->getPtrTy(),funcPtrGEP),pos);
 
-                    Generator::structRet = dynamic_cast<Struct*>(func->retTypeName->type);
-                    Generator::classRet = dynamic_cast<Interface*>(func->retTypeName->type);
-                    if (Generator::classRet && func->templateId != -1) {
-                         Generator::classRet = templates[func->templateId];
-                         Generator::setTypeNameRet(templates[func->templateId]);
+                    if (func->retTypeName) {
+                         Generator::structRet = dynamic_cast<Struct*>(func->retTypeName->type);
+                         Generator::classRet = dynamic_cast<PolymorphicType*>(func->retTypeName->type);
+                         if (Generator::classRet && func->templateId != -1) {
+                              Generator::classRet = dynamic_cast<PolymorphicType*>(templates[func->templateId]->type);
+                              Generator::setTypeNameRet(templates[func->templateId]);
+                         }
+                    }else {
+                         Generator::clearTypeNameRet();
+                         Generator::classRet = nullptr;
+                         Generator::structRet = nullptr;
                     }
 
                     return Igel::setDbg(builder,builder->CreateCall(func->getLLVMFuncType(),funcPtr,vals),pos);
@@ -2375,6 +2417,17 @@ void Igel::check_Arr(llvm::IRBuilder<> *builder,llvm::Value *ptr, llvm::Value *i
 
 llvm::Value *Igel::getString(std::string str,llvm::IRBuilder<> *builder) {
     return builder->CreateGlobalString(str);
+}
+
+bool Igel::compareTemplate(std::vector<GeneratedType *> first, std::vector<GeneratedType *> second) {
+     if (first.size() != second.size())return false;
+
+     for (int i = 0;i < first.size();i++) {
+          if (first[i]->type != second[i]->type)return false;
+          if (!compareTemplate(first[i]->templateTypes,second[i]->templateTypes))return false;
+     }
+
+     return true;
 }
 
 llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {

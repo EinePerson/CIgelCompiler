@@ -9,8 +9,12 @@ class Sus{
     int z;
 }
 
-class Test<T>{
+class Test<T extends Gaming>{
     T amogus;
+    void test(T field){
+
+    }
+
     void test(){
 
     }
@@ -25,6 +29,7 @@ int main(){
     g.amogus = new Gaming();
     g.amogus.i = 69;
     Gaming a = g.get();
+    g.test(a);
     printf("%d",a.i);
     return 0;
 }

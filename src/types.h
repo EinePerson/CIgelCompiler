@@ -106,7 +106,7 @@ struct BeContained {
 
 struct GeneratedType {
     BeContained* type = nullptr;
-    std::vector<PolymorphicType*> templateTypes {};
+    std::vector<GeneratedType*> templateTypes {};
 };
 
 struct GeneratedClass{
@@ -286,7 +286,7 @@ struct NodeTermClassNew final : NodeTerm {
     std::vector<bool> signage {};
     std::vector<llvm::Type*> paramType {};
     std::vector<BeContained*> paramTypeName {};
-    std::vector<PolymorphicType*> templateArgs {};
+    std::vector<GeneratedType*> templateArgs {};
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
 
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override {
@@ -534,7 +534,7 @@ struct NodeStmtStructNew final : NodeStmtNew{
 
 struct NodeStmtClassNew final : NodeStmtNew {
     NodeTerm* term = nullptr;
-    std::vector<PolymorphicType*> templateVals;
+    std::vector<GeneratedType*> templateVals;
 
     std::pair<llvm::Value*, Var*> generateImpl(llvm::IRBuilder<>* builder,bool full) override;
 };
@@ -833,6 +833,8 @@ struct Interface final : PolymorphicType {
     std::vector<Interface*> extending {};
     bool gen = false;
 
+    bool overrideSub = false;
+
     std::string mangle() override;
 
     void generateSig(llvm::IRBuilder<>* builder) override;
@@ -873,6 +875,7 @@ struct Interface final : PolymorphicType {
     }
 
     bool isSubTypeOf(ContainableType *type) override {
+        if (overrideSub)return true;
         if(std::count(extending.begin(),extending.end(),type)) return true;
         for (auto interface : extending) {
             if(interface->isSubTypeOf(type))return true;
@@ -1119,6 +1122,8 @@ namespace Igel {
     void check_Arr(llvm::IRBuilder<> *builder,llvm::Value* ptr,llvm::Value* idx);
 
     inline llvm::Value* getString(std::string str,llvm::IRBuilder<> *builder);
+
+    bool compareTemplate(std::vector<GeneratedType*> first,std::vector<GeneratedType*> second);
 }
 
 #endif //TYPES_H

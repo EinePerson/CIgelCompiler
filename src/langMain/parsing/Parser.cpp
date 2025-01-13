@@ -118,20 +118,9 @@ std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,No
                         auto _nCz = new NodeTermClassNew;
                         _nCz->pos = currentPosition();
                         _nCz->typeName = typeName.value().first;
-                        if(tryConsume(TokenType::small)){
-                            bool next = true;
-                            while (next){
-                                if(auto val = parseContained()){
-                                    if(auto pol = dynamic_cast<PolymorphicType*>(val.value().first)){
-                                        _nCz->templateArgs.push_back(pol);
-                                    }else err("Template can only be Interface or Class");
-                                }else err("Expected typename in template");
-
-                                next = tryConsume(TokenType::comma).has_value();
-                            }
-
-                            tryConsume(TokenType::big,"Expected '>' at end of Template Parameter declaration");
-                        }
+                        auto gen = parseComplexType(_nCz->typeName);
+                        if (!gen)err("Expected Type");
+                        _nCz->templateArgs = gen.value()->templateTypes;
                         tryConsume(TokenType::openParenth,"Expected '(' after new Class");
                         char i = 0;
                         while(auto expr = parseExpr()){
@@ -560,7 +549,7 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
 }
 
 std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optional<BeContained*> contP) {
-    IgType* cont;
+    /*IgType* cont;
     if(auto val = dynamic_cast<IgType*>(contP.has_value()?contP.value():parseContained().value().first))cont = val;
     else return {};
     std::vector<PolymorphicType*> templateParams;
@@ -575,7 +564,12 @@ std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optio
         }
 
         tryConsume(TokenType::big,"Expected '>'");
-    }
+    }*/
+    auto gen = parseComplexType(contP);
+    if (!gen)err("Could not parse type");
+    std::vector<GeneratedType*> templateParams = gen.value()->templateTypes;
+    IgType* cont = dynamic_cast<IgType *>(gen.value()->type);
+    if (!cont)err("Expected type");
 
     Token varName = tryConsume(TokenType::id,"Expected name");
     if(dynamic_cast<Struct*>(cont)) {
@@ -1178,6 +1172,33 @@ Igel::Access Parser::parseAccess() {
     else if(tryConsume(TokenType::_protected))acc.setProtected();
     else if(tryConsume(TokenType::_private))acc.setPrivate();
     return acc;
+}
+
+std::optional<GeneratedType*> Parser::parseComplexType(std::optional<BeContained*> cont) {
+    if (!cont.has_value()) {
+        auto val = parseContained();
+        if (val)cont = val->first;
+        else err("Expected type name");
+    }
+
+    auto type = new GeneratedType;
+    type->type = cont.value();
+    if (tryConsume(TokenType::small)) {
+        bool next = true;
+        while (next){
+            if (auto temp = parseComplexType()) {
+                if(auto pol = dynamic_cast<PolymorphicType*>(temp.value()->type)){
+                    type->templateTypes.push_back(temp.value());
+                }else err("Template can only be Interface or Class");
+            }else err("Expected typename in template");
+
+            next = tryConsume(TokenType::comma).has_value();
+        }
+
+        tryConsume(TokenType::big,"Expected '>' at end of Template Parameter declaration");
+    }
+
+    return type;
 }
 
 std::optional<std::pair<IgType*,int>> Parser::findContained(std::string name) {
