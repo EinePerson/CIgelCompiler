@@ -13,3 +13,5 @@ add expends for structs (like extends for classes)
 
 memory safety:
     pointers always need size parameter to identify overflow
+
+make compilable to emscripten

@@ -4,7 +4,6 @@
 
 #include <cstring>
 #include "OptionsParser.h"
-#include <getopt.h>
 #include "../cxx_extension/CXX_Parser.h"
 #include "../Info.h"
 
@@ -16,24 +15,25 @@ std::map<int,std::function<void(Options*)>> opts{
 
 };
 
-std::map<int,std::function<void(Options*,std::optional<std::string>)>> long_opts{
-        {'o',[](Options* opts,std::optional<std::string> str) -> void {
+std::map<int,std::function<void(InternalInfo*,std::optional<std::string>)>> short_opts{
+        {'o',[](InternalInfo* info,std::optional<std::string> str) -> void {
             if(!str.has_value())OptionsParser::cmdErr("Expected output file name after '-o'");
-            opts->info->outName = str.value();
+            info->outName = str.value();
         }},
-        {'L',[](Options* opts,std::optional<std::string> str) -> void {
+        {'L',[](InternalInfo* info,std::optional<std::string> str) -> void {
             if(!str.has_value())OptionsParser::cmdErr("Expected Linker Flag after '-L'");
-            opts->info->linkerCommands.emplace_back(str.value());
+            info->linkerCommands.emplace_back(str.value());
         }}
 };
 
-const struct option long_vals[] = {
-        {"h",no_argument,0,'h'},
-        {"o",required_argument,0,'o'},
-        {"Linker",required_argument,0,'L'},
-        {"nostdlib",no_argument,0,0},
-    //{"gaming",required_argument,0,1},
-    {0,0,0,0}
+std::map<std::string,int> long_to_short = {
+    {"out",'o'},
+    {"Link",'L'},
+};
+
+std::map<int,bool> has_param = {
+    {'o',true},
+    {'L',true},
 };
 
 std::string getName(const std::string &filename) {
@@ -47,53 +47,53 @@ bool InternalInfo::hasFlag(const char *str) {
 }
 
 OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp(nullptr){
-    int opt;
-    std::stringstream options;
-    options << "";
-    for (const auto& [fst, snd] : opts)options << ((char) fst) << ":";
-    for (const auto &item: long_vals)if(item.val != NULL)options << ((char) item.val) << ":";
-
-    int id = 0;
-    while((opt = getopt_long(argc,argv,options.str().c_str(),long_vals,&id)) != -1) {
-        if(opt == '?') {
-            if(opts.contains(optopt)) {
-                opts[optopt](m_opts);
-            }else {
-                std::cerr << "Unknown option " << optopt << std::endl;
-                //exit(EXIT_FAILURE);
-            }
-        }else {
-            if(long_opts.contains(opt)) {
-                if(optarg)
-                    long_opts[opt](m_opts,optarg);
-                else
-                    long_opts[opt](m_opts,{});
-            }else {
-                std::cerr << "Unknown option " << opt << std::endl;
-                //exit(EXIT_FAILURE);
-            }
-        }
-    }
-
     std::vector<SrcFile*> files;
     std::unordered_map<std::string,SrcFile*> file_table;
-    for(; optind < argc; optind++){
-        std::filesystem::path p(argv[optind]);
-        if(!exists(p)) {
-            std::cerr << "Unkown file " << p << std::endl;
-            exit(EXIT_FAILURE);
-        }
 
-        auto file = new SrcFile();
-        file->dir = "./";
-        file->name = argv[optind];
-        file->fullName = argv[optind];
-        file->isLive = true;
-        file_table[argv[optind]] = file;
-        files.push_back(file);
+    std::vector<std::pair<std::function<void(InternalInfo*,std::optional<std::string>)>,std::optional<std::string>>> params;
+
+    for (int i = 1;i < argc;i++) {
+        std::string arg = argv[i];
+        if (arg.starts_with("--")) {
+            if (long_to_short.contains(arg.substr(2))) {
+                int id = long_to_short[arg.substr(2)];
+                std::optional<std::string> param;
+                if (has_param[id]) {
+                    if (id + 1 >= argc) {
+                        param = argv[++i];
+                    }else err("Expected argument after " + arg.substr(2));
+                }
+                params.push_back(std::make_pair(short_opts[id],param));
+            }else err("Unknown option '" + arg.substr(2) + "'");
+        }else if (arg.starts_with("-")) {
+            if (short_opts.contains(arg.at(1))) {
+                std::optional<std::string> param;
+                int id = arg.at(1);
+                if (has_param[id]) {
+                    if (id + 1 >= argc) {
+                        param = argv[++i];
+                    }else err("Expected argument after " + (char) id);
+                }
+                params.push_back(std::make_pair(short_opts[arg.at(1)],param));
+            }else err("Unknown option :" + arg.at(1));
+        }else {
+            std::filesystem::path p(argv[i]);
+            if(!exists(p)) {
+                std::cerr << "Unkown file " << p << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            auto file = new SrcFile();
+            file->dir = "./";
+            file->name = argv[i];
+            file->fullName = argv[i];
+            //file->isLive = true;
+            file_table[argv[i]] = file;
+            files.push_back(file);
+        }
     }
     auto header = new Header;
-    header->fullName = "./src/Info.h";
+    header->fullName = "/usr/include/IGC-Info.h";
     std::unordered_map<std::string,Header*> list;
     list["Info.h"] = header;
 
@@ -111,7 +111,15 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
         }
     }
 
-    cmp.addHeader("src/Info.h");
+    bool hasInfo = false;
+    for (auto file1 : files) {
+        if (file1->tokens[0].type == TokenType::info && file1->tokens[0].value == "info") {
+            hasInfo = true;
+            break;
+        }
+    }
+
+    if (hasInfo)cmp.addHeader("/usr/include/IGC-Info.h");
     //cmp.addHeader("src/CompilerInfo/Info.cpp");
     /*Generator::instance->m_vars.emplace_back();
     for (const auto &item: FLAGS){
@@ -129,24 +137,39 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
     cmp.link();
     //Generator::instance->m_vars.pop_back();
 
-    auto exb = cmp.jit->lookupLinkerMangled("_Z5buildP4Info");
-    auto exp = cmp.jit->lookup("_Z5buildP4Info");
 
-    if(!exp) {
-        if(exp.errorIsA<orc::SymbolsNotFound>())
-            outs() << "Build file has to have function build(Info)\n";
-        else outs() << exp.takeError();
-        exit(EXIT_FAILURE);
+
+    if (hasInfo) {
+        auto exb = cmp.jit->lookupLinkerMangled("_Z5buildP4Info");
+        auto exp = cmp.jit->lookup("_Z5buildP4Info");
+
+        if(!exp) {
+            if(exp.errorIsA<orc::SymbolsNotFound>())
+                outs() << "Build file has to have function build(Info)\n";
+            else outs() << exp.takeError();
+            exit(EXIT_FAILURE);
+        }
+        auto mainFunc = exp.get().toPtr<int(Info*)>();
+        auto exInfo = new Info;
+        auto ret = mainFunc(exInfo);
+
+        m_opts->info = modify(exInfo);
+        delete exInfo;
+        if(ret != 0) {
+            std::cerr << "Build script exited with: " << ret << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }else {
+        m_opts->info = new InternalInfo;
     }
-    auto mainFunc = exp.get().toPtr<int(Info*)>();
-    auto exInfo = new Info;
-    auto ret = mainFunc(exInfo);
 
-    m_opts->info = modify(exInfo);
-    delete exInfo;
-    if(ret != 0) {
-        std::cerr << "Build script exited with: " << ret << std::endl;
-        exit(EXIT_FAILURE);
+    for (auto [func,param] : params) {
+        func(m_opts->info,param);
+    }
+
+    for (auto [name,file] : file_table) {
+        if (file->tokens[0].type == TokenType::info && file->tokens[0].value.value() == "info")continue;
+        m_opts->info->files.push_back(file);
     }
 }
 
@@ -186,7 +209,6 @@ InternalInfo* OptionsParser::modify(Info* oldInfo) {
     info->libs = oldInfo->libs;
     info->link = oldInfo->link;
     info->outName = oldInfo->outName;
-    info->mainFile = oldInfo->mainFile;
     info->sourceDirs = oldInfo->sourceDirs;
     info->mainFile = oldInfo->mainFile;
     info->main = info->file_table[oldInfo->mainFile];

@@ -273,6 +273,7 @@ typedef unsigned int uint;
                 while(peak().has_value() && std::isspace(peak().value())){
                     consume();
                 }
+                std::transform(buf.begin(), buf.end(),buf.begin(),[](unsigned char c){ return std::tolower(c); });
                 m_tokens.emplace_back(TokenType::info,lineCount,charCount,file,buf);
                 buf.clear();
                 continue;

@@ -8,11 +8,12 @@
 
 #include "../../CompilerInfo/InfoParser.h"
 #include "../../types.h"
+#include "../../cxx_extension/CXX_Parser.h"
 
 class Indexer {
 
 public:
-    Indexer(std::unordered_map<std::string,SrcFile*> file_table, std::unordered_map<std::string,Header*> header_table) : file_table(std::move(file_table)),header_table(std::move(header_table)) {
+    Indexer(std::unordered_map<std::string,SrcFile*> file_table, std::unordered_map<std::string,Header*> header_table) : file_table(std::move(file_table)),header_table(std::move(header_table)){
         init = true;
     }
 

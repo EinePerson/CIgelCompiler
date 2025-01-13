@@ -58,6 +58,11 @@ private:
     std::vector<std::string> m_files;
     Options* m_opts = nullptr;
     JITFileCompiler cmp;
+
+    void err(std::string err) {
+        std::cerr << err << std::endl;
+        exit(EXIT_FAILURE);
+    }
 };
 
 

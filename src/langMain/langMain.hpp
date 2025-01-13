@@ -13,7 +13,7 @@
 //#include "../JIT_unit/JIT.h"
 
 //TODO Update Dependencies
-const static std::vector<std::string> COMPILER_LIBS {"./libs/libigc.a","./libs/libgc.a","./libs/libgccpp.a"/*, "-Wl,--whole-archive ./build/cmp/includes.o"*/};
+const static std::vector<std::string> COMPILER_LIBS {"/usr/lib/IGC-libigc.a","/usr/lib/IGC-libgc.a","/usr/lib/IGC-libgccpp.a"/*, "-Wl,--whole-archive ./build/cmp/includes.o"*/};
 
 
 class LangMain{
@@ -40,8 +40,10 @@ public:
         for (const auto src : m_info->include)genDir("./build/cmp/",src);
 
         outFiles << "clang++ -o " << m_info->outName;
-        if(!m_info->main || (!m_info->main && m_info->main->isLive))outFiles << ".so -shared ";
-        else outFiles << " ";
+        //TODO change shared library setting
+        //if(!m_info->main || (!m_info->main && m_info->main->isLive))outFiles << ".so -shared ";
+        //else outFiles << " ";
+        outFiles << " ";
         if(m_info->files.empty())return;
         jit.preGen();
 
@@ -78,7 +80,7 @@ public:
     }
 
     void exec() {
-        if(m_info->main && !m_info->main->isLive)return;
+        if((m_info->main && !m_info->main->isLive) || !m_info->main)return;
         int result = jit.execute("main");
 
         std::cout << "\nProcess finished with exit code: " << result << std::endl;

@@ -82,7 +82,13 @@ SrcFile* Indexer::getFile(std::string name) {
 
 Header * Indexer::getHeader(std::string header) {
     if(header_table.contains(header))return header_table[header];
-    err("Unknown file " + header);
+    if (std::filesystem::exists(header)) {
+        auto headerPtr = new Header;
+        headerPtr->fullName = header;
+        CXX_Parser(headerPtr).parseHeader();
+        header_table[header] = headerPtr;
+        return headerPtr;
+    }err("Unknown file " + header);
     return nullptr;
 }
 

@@ -1128,6 +1128,7 @@ std::optional<IgType*> Parser::parseType() {
             m_tokens = file->tokens;
             m_I = file->tokenPtr;
             m_file = file;
+            if (m_tokens[0].type == TokenType::info && m_tokens[0].value.value() == "info")file->isLive = true;
             while (peak().has_value()){
                 if(tryConsume(TokenType::semi))/*No scope*/;
                 else if(tryConsume(TokenType::info))/*Info does not currently have any properties within the context of this parser unit*/;

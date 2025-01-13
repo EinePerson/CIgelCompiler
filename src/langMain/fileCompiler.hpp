@@ -196,6 +196,7 @@ public:
     }
 
     void link() {
+        for (auto file : live)m_gen->setup(file);
         orc::ThreadSafeContext cnt(std::move(m_gen->m_contxt));
         for (auto src_file : live) {
             m_gen->setup(src_file);
