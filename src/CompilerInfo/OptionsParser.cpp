@@ -6,6 +6,9 @@
 #include "OptionsParser.h"
 #include "../cxx_extension/CXX_Parser.h"
 #include "../Info.h"
+#include "../SelfInfo.h"
+#include "../util/Mangler.h"
+#include "../util/String.h"
 
 std::map<int,std::function<void(Options*)>> opts{
     /*{'h',[](Options* opts) -> void{
@@ -22,18 +25,38 @@ std::map<int,std::function<void(InternalInfo*,std::optional<std::string>)>> shor
         }},
         {'L',[](InternalInfo* info,std::optional<std::string> str) -> void {
             if(!str.has_value())OptionsParser::cmdErr("Expected Linker Flag after '-L'");
-            info->linkerCommands.emplace_back(str.value());
-        }}
+            auto args = String::split(str.value()," ");
+            info->linkerCommands.reserve(args.size());
+            for (auto arg : args)info->linkerCommands.push_back(arg);
+        }},
+        {'I',[](InternalInfo* info,std::optional<std::string> str) -> void {
+            if (!str.has_value())OptionsParser::cmdErr("Expected input directory after '-I'");
+            OptionsParser::addIncludeDir(info,str.value());
+        }},
+        {'c',[](InternalInfo* info,std::optional<std::string> str) -> void {
+           info->link = false;
+        }},
+};
+
+std::map<std::string,std::function<void(InternalInfo*)>> long_opts{
+    {"ffreestanding",[](InternalInfo* info) -> void {
+       info->flags |= FREESTANDING_FLAG;
+    }},
+    {"fno-mangle",[](InternalInfo* info) -> void {
+        Igel::Mangler::init(Igel::NONE);
+    }}
 };
 
 std::map<std::string,int> long_to_short = {
     {"out",'o'},
     {"Link",'L'},
+    {"Include",'I'},
 };
 
 std::map<int,bool> has_param = {
     {'o',true},
     {'L',true},
+    {'I',true}
 };
 
 std::string getName(const std::string &filename) {
@@ -51,6 +74,8 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
     std::unordered_map<std::string,SrcFile*> file_table;
 
     std::vector<std::pair<std::function<void(InternalInfo*,std::optional<std::string>)>,std::optional<std::string>>> params;
+    std::vector<std::function<void(InternalInfo*)>> params_long;
+    std::vector<std::string> include_args;
 
     for (int i = 1;i < argc;i++) {
         std::string arg = argv[i];
@@ -64,8 +89,11 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
                     }else err("Expected argument after " + arg.substr(2));
                 }
                 params.push_back(std::make_pair(short_opts[id],param));
+            }else if (long_opts.contains(arg.substr(2))) {
+                params_long.push_back(long_opts[arg.substr(2)]);
             }else err("Unknown option '" + arg.substr(2) + "'");
         }else if (arg.starts_with("-")) {
+            if (arg == "-I")include_args.push_back(argv[i + 1]);
             if (short_opts.contains(arg.at(1))) {
                 std::optional<std::string> param;
                 int id = arg.at(1);
@@ -75,7 +103,8 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
                     }else err("Expected argument after " + (char) id);
                 }
                 params.push_back(std::make_pair(short_opts[arg.at(1)],param));
-            }else err("Unknown option :" + arg.at(1));
+            }else
+                err("Unknown option: " +  std::string(arg));
         }else {
             std::filesystem::path p(argv[i]);
             if(!exists(p)) {
@@ -92,34 +121,48 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
             files.push_back(file);
         }
     }
-    auto header = new Header;
-    header->fullName = "/usr/include/IGC-Info.h";
-    std::unordered_map<std::string,Header*> list;
-    list["Info.h"] = header;
 
-    CXX_Parser(header).parseHeader();
 
-    cmp.init(files,file_table,{header},list);
+
+
+
+    cmp.init(files,file_table,{},{});
     cmp.setLiveFiles(files);
     cmp.tokenize();
+
+    bool hasInfo = false;
+    for (auto file1 : files) {
+        if (!file1->tokens.empty() && file1->tokens[0].type == TokenType::info && file1->tokens[0].value == "info") {
+            hasInfo = true;
+            break;
+        }
+    }
+
+
+    if (hasInfo) {
+        auto header = new Header;
+        header->fullName = "./src/Info.h";
+
+        std::unordered_map<std::string,Header*> list;
+        list["Info.h"] = header;
+
+        CXX_Parser(header,include_args,std::filesystem::current_path()).parseHeader();
+
+        cmp.init(files,file_table,{header},{list});
+    }
+
     std::vector<SrcFile*> extFiles {};
     for (auto src_file : cmp.files) {
-        if(src_file->tokens.front().type != TokenType::info && src_file->tokens.front().value.value() != "info") {
+        if(!src_file->tokens.empty() && src_file->tokens.front().type != TokenType::info && src_file->tokens.front().value.value() != "info") {
             auto range = std::ranges::remove(cmp.files,src_file);
             cmp.files.erase(range.begin(),range.end());
             extFiles.push_back(src_file);
         }
     }
 
-    bool hasInfo = false;
-    for (auto file1 : files) {
-        if (file1->tokens[0].type == TokenType::info && file1->tokens[0].value == "info") {
-            hasInfo = true;
-            break;
-        }
-    }
 
-    if (hasInfo)cmp.addHeader("/usr/include/IGC-Info.h");
+
+    if (hasInfo)cmp.addHeader("./src/Info.h");
     //cmp.addHeader("src/CompilerInfo/Info.cpp");
     /*Generator::instance->m_vars.emplace_back();
     for (const auto &item: FLAGS){
@@ -163,12 +206,20 @@ OptionsParser::OptionsParser(int argc, char* argv[]) : m_opts(new Options()),cmp
         m_opts->info = new InternalInfo;
     }
 
+    //m_opts->info->files.insert(m_opts->info->files.end(),extFiles.begin(), extFiles.end());
+    for (auto ext_file : extFiles) {
+        m_opts->info->file_table[ext_file->name] = ext_file;
+    }
+    //m_opts->info->file_table.merge(cmp.file_table);
+
     for (auto [func,param] : params) {
         func(m_opts->info,param);
     }
 
+    for (auto long_ : params_long)long_(m_opts->info);
+
     for (auto [name,file] : file_table) {
-        if (file->tokens[0].type == TokenType::info && file->tokens[0].value.value() == "info")continue;
+        if (!file->tokens.empty() && file->tokens[0].type == TokenType::info && file->tokens[0].value.value() == "info")continue;
         m_opts->info->files.push_back(file);
     }
 }

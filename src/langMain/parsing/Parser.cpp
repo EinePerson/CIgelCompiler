@@ -9,6 +9,7 @@
 #include <llvm/Support/CommandLine.h>
 
 Interface* Parser::templateEmpty = new Interface;
+Interface* Parser::ptr_type = new Interface;
 
 std::optional<NodeTerm *> Parser::parseTerm(std::optional<BeContained*> contP,NodeTerm* term) {
             if(auto int_lit = tryConsume(TokenType::int_lit)){
@@ -1125,6 +1126,7 @@ std::optional<IgType*> Parser::parseType() {
         }
 
         SrcFile* Parser::parseProg(SrcFile* file){
+            if (file->tokens.empty())return file;
             m_tokens = file->tokens;
             m_I = file->tokenPtr;
             m_file = file;
@@ -1203,6 +1205,8 @@ std::optional<GeneratedType*> Parser::parseComplexType(std::optional<BeContained
 }
 
 std::optional<std::pair<IgType*,int>> Parser::findContained(std::string name) {
+    if (name == "Pointer")return std::make_pair(Parser::ptr_type,-1);
+
     for (int i = 0;i < templateTypes.size();i++) {
         if(templateTypes[i].contains(name))return std::make_pair(templateTypes[i].at(name),i);
     }

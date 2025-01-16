@@ -113,13 +113,16 @@ class CXX_Parser {
 public:
     //static std::unique_ptr<llvm::LLVMContext> m_contxt;
 
-    explicit CXX_Parser(Header* header);
+    explicit CXX_Parser(Header* header,std::vector<std::string> args,std::string dir);
 
     Header* parseHeader();
 
 private:
     Header* m_header;
     static std::vector<std::string> includes;
+    std::vector<std::string> m_args;
+    bool m_link;
+    std::string m_dir;
 
 public:
     static std::vector<std::string> getClangIncludePaths() {

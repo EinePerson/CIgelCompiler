@@ -15,3 +15,5 @@ memory safety:
     pointers always need size parameter to identify overflow
 
 make compilable to emscripten
+
+annotations for not mangle usw

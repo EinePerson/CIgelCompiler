@@ -55,7 +55,6 @@ bool Generator::contained = false;
 bool Generator::stump = false;
 bool Generator::_final = false;
 
-
 Generator::Generator(SrcFile* file,InternalInfo* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
     no_ptr_check(info->flags & NO_POINTER_CHECK != 0),no_arr_check(info->flags & NO_ARRAY_CHECK),
     m_contxt(std::make_unique<LLVMContext>()),dataLayout((new Module("",*m_contxt))->getDataLayout()) {
@@ -64,7 +63,6 @@ Generator::Generator(SrcFile* file,InternalInfo* info) : m_target_triple(sys::ge
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
     instance = this;
-
 }
 
 Generator::Generator(InternalInfo* info): m_file(nullptr), m_target_triple(sys::getDefaultTargetTriple()),m_layout(nullptr),m_machine(nullptr),m_info(info)/*,debug(false),
@@ -87,6 +85,7 @@ Generator::Generator(InternalInfo* info): m_file(nullptr), m_target_triple(sys::
 }
 
 void Generator::setup(SrcFile* file) {
+    if (m_module)modules[file] = std::move(m_module);
     m_module = std::move(modules[file]);
     if(!m_module) {
         create(file);
@@ -478,7 +477,6 @@ int unsigned Generator::getEncodingOfType(Type *type) {
 }
 
 std::optional<std::pair<llvm::StructType*,Class*>> Generator::findClass(std::string name,llvm::IRBuilder<>* builder) {
-
     for (const auto &item: templateStack){
         if(item.contains(name) && dynamic_cast<Class*>(item.at(name)))return std::make_pair(dynamic_cast<Class*>(item.at(name))->strType,dynamic_cast<Class*>(item.at(name)));
     }
@@ -487,6 +485,7 @@ std::optional<std::pair<llvm::StructType*,Class*>> Generator::findClass(std::str
 
 std::optional<Interface*> Generator::findInterface(std::string name) {
     if(name == TEMPLATE_EMPTY_NAME)return Parser::templateEmpty;
+    if (name == "Pointer")return Parser::ptr_type;
     for (const auto &item: templateStack){
         if(item.contains(name) && dynamic_cast<Interface*>(item.at(name)))return dynamic_cast<Interface*>(item.at(name));
     }

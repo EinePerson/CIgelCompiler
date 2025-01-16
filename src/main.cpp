@@ -2,9 +2,11 @@
 #include <fstream>
 #include <sstream>
 
+#include "SelfInfo.h"
 #include "langMain/langMain.hpp"
 #include "CompilerInfo/OptionsParser.h"
 #include "cxx_extension/CXX_Parser.h"
+#include "util/Mangler.h"
 
 typedef unsigned int uint;
 
@@ -23,6 +25,7 @@ std::string read(const std::string& name){
 }
 
 int main(int argc,char* argv[]) {
+    Igel::Mangler::init(Igel::ITANIUM);
     OptionsParser optParser(argc,argv);
     Options* options = optParser.getOptions();
 
@@ -39,6 +42,7 @@ int main(int argc,char* argv[]) {
         if(pos != std::string::npos)name.erase(pos);
         //info->execDir = name;
     }
+
 
     LangMain main(info,options);
     main.compile();

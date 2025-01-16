@@ -29,7 +29,7 @@ struct FileItterator{
 
 struct HeaderItterator{
     InfoDirectory* dir = nullptr;
-    std::vector<std::string> files ;
+    std::vector<std::pair<std::string,std::string>> files ;
 };
 
 inline std::string getExtension(const std::string &filename) {
@@ -93,7 +93,7 @@ inline HeaderItterator listHeaders(std::string path, const std::string& name) {
     path += name;
     auto direct = new InfoDirectory;
     direct->name = name;
-    std::vector<std::string> files;
+    std::vector<std::pair<std::string,std::string>> files;
     if (auto dir = opendir(path.c_str())) {
         while (auto f = readdir(dir)) {
             if (f->d_name[0] == '.')continue;
@@ -111,7 +111,7 @@ inline HeaderItterator listHeaders(std::string path, const std::string& name) {
                 name = path;
                 name += f->d_name;
                 direct->headers.push_back(name);
-                files.push_back(name);
+                files.push_back({name,f->d_name});
             }
         }
         closedir(dir);
@@ -147,7 +147,7 @@ public:
     std::unordered_map<std::string,std::string> header_table;
     std::vector<std::string> linkerCommands;
     long flags = 0;
-    bool link = false;
+    bool link = true;
 public:
 
     void addSourceDir(char* dir) __attribute__((used)) {
@@ -173,7 +173,7 @@ public:
         include.push_back(it.dir);
         header_table.reserve(it.files.size());
         for(auto file:it.files){
-            header_table[file] = file;
+            header_table[file.second] = file.first;
         }
     }
 

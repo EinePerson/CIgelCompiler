@@ -66,6 +66,8 @@ enum class TokenType{
     ///Not implemented and not directly planed to do so
     _xor,
 
+    ///@ for anotations
+    at,
 
     ///DEPRECATED
     _exit,

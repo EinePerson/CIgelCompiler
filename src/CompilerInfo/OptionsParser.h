@@ -11,6 +11,8 @@
 #include "InfoParser.h"
 #include "../langMain/fileCompiler.hpp"
 
+#define FREESTANDING_FLAG 0x10
+
 struct InternalInfo {
     std::vector<std::string> sourceDirs;
     std::vector<std::string> includeDirs;
@@ -29,7 +31,7 @@ struct InternalInfo {
     std::unordered_map<std::string,Header*> header_table;
     std::vector<std::string> linkerCommands;
     long flags = 0;
-    bool link = false;
+    bool link = true;
 
     bool hasFlag(const char * str);
 };
@@ -62,6 +64,18 @@ private:
     void err(std::string err) {
         std::cerr << err << std::endl;
         exit(EXIT_FAILURE);
+    }
+
+public:
+    static void addIncludeDir(InternalInfo* info,std::string dir) {
+        info->includeDirs.emplace_back(dir);
+        HeaderItterator it = listHeaders("",std::string(dir) + "/");
+        //headers.insert(headers.cend(),it.files.cbegin(),it.files.cend());
+        info->include.push_back(new Directory(it.dir));
+        info->header_table.reserve(it.files.size());
+        for(auto file:it.files){
+            info->header_table[file.second] = new Header(file.first);
+        }
     }
 };
 

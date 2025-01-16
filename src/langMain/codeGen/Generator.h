@@ -200,7 +200,6 @@ public:
     static bool contained;
     static bool stump;
     static bool _final;
-
 };
 
 

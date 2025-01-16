@@ -4,6 +4,8 @@
 
 #include "Indexer.h"
 
+#include "../../SelfInfo.h"
+
 void Indexer::index(SrcFile* file) {
     checkInit();
     currentFile = file;
@@ -85,7 +87,7 @@ Header * Indexer::getHeader(std::string header) {
     if (std::filesystem::exists(header)) {
         auto headerPtr = new Header;
         headerPtr->fullName = header;
-        CXX_Parser(headerPtr).parseHeader();
+        CXX_Parser(headerPtr,{},std::filesystem::current_path()).parseHeader();
         header_table[header] = headerPtr;
         return headerPtr;
     }err("Unknown file " + header);

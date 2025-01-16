@@ -7,7 +7,9 @@
 #include <string>
 #include <utility>
 
-std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
+Igel::Mangler* Igel::Mangler::currentMangler = nullptr;
+
+std::string Igel::ItaniumMangler::mangleTypeNameImpl(BeContained *cont) {
     std::string str;
     std::vector<BeContained*> conts;
     BeContained* cpy = cont;
@@ -26,11 +28,11 @@ std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
     return str;
 }
 
-std::string Igel::Mangler::mangleName(BeContained *cont) {
+std::string Igel::ItaniumMangler::mangleNameImpl(BeContained *cont) {
     return "_Z" + mangle(cont);
 }
 
-std::string Igel::Mangler::mangle(BeContained* cont,bool member,bool constructor,bool destructor) {
+std::string Igel::ItaniumMangler::mangleImpl(BeContained* cont,bool member,bool constructor,bool destructor) {
     if(!cont)return "";
     std::string str;
     if((cont->contType.has_value() && cont->contType.value() != nullptr) || member) {
@@ -58,11 +60,11 @@ std::string Igel::Mangler::mangle(BeContained* cont,bool member,bool constructor
     return str;
 }
 
-std::string Igel::Mangler::mangle(std::string name) {
+std::string Igel::ItaniumMangler::mangleImpl(std::string name) {
     return "_Z" + std::to_string(name.size()) + name;
 }
 
-std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor) {
+std::string Igel::ItaniumMangler::mangleImpl(std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor) {
     std::string str;
     for(uint i = member;i < types.size();i++) {
         std::string name;
@@ -83,13 +85,76 @@ std::string Igel::Mangler::mangle(std::vector<llvm::Type*> types, std::vector<Be
     return str;
 }
 
-std::string Igel::Mangler::mangle(BeContained* cont, std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor,bool destructor) {
+std::string Igel::ItaniumMangler::mangleImpl(BeContained* cont, std::vector<llvm::Type*> types, std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor,bool destructor) {
     if(cont->name == "main")return "main";
     std::string str = "_Z";
     str += mangle(cont,member,constructor,destructor);
     if(str == "_Z6printf")return str;
     str += mangle(std::move(types),std::move(typeNames),std::move(signage),member,constructor);
     return str;
+}
+
+std::string Igel::NoMangler::mangleNameImpl(BeContained *cont) {
+    return cont->name;
+}
+
+std::string Igel::NoMangler::mangleImpl(BeContained *cont, bool member, bool constructor, bool destructor) {
+    return cont->name;
+}
+
+std::string Igel::NoMangler::mangleImpl(std::string name) {
+    return name;
+}
+
+std::string Igel::NoMangler::mangleImpl(std::vector<llvm::Type *> types, std::vector<BeContained *> typeNames,
+    std::vector<bool> signage, bool member, bool constructor) {
+    return "";
+}
+
+std::string Igel::NoMangler::mangleImpl(BeContained *cont, std::vector<llvm::Type *> types,
+    std::vector<BeContained *> typeNames, std::vector<bool> signage, bool member, bool constructor, bool destructor) {
+    return cont->name;
+}
+
+std::string Igel::NoMangler::mangleTypeNameImpl(BeContained *cont) {
+    return cont->name;
+}
+
+void Igel::Mangler::init(ManglerType type) {
+    switch (type) {
+        case ITANIUM:
+            currentMangler = new ItaniumMangler;
+            break;
+        case NONE:
+            currentMangler = new NoMangler;
+            break;
+    }
+}
+
+std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
+    return currentMangler->mangleTypeNameImpl(cont);
+}
+
+std::string Igel::Mangler::mangleName(BeContained *cont) {
+    return currentMangler->mangleNameImpl(cont);
+}
+
+std::string Igel::Mangler::mangle(BeContained *cont, bool member, bool constructor, bool destructor) {
+    return currentMangler->mangleImpl(cont,member,constructor,destructor);
+}
+
+std::string Igel::Mangler::mangle(std::string name) {
+    return currentMangler->mangleImpl(name);
+}
+
+std::string Igel::Mangler::mangle(std::vector<llvm::Type *> types, std::vector<BeContained *> typeNames,
+    std::vector<bool> signage, bool member, bool constructor) {
+    return currentMangler->mangleImpl(types,typeNames,signage,member,constructor);
+}
+
+std::string Igel::Mangler::mangle(BeContained *cont, std::vector<llvm::Type *> types,
+    std::vector<BeContained *> typeNames, std::vector<bool> signage, bool member, bool constructor, bool destructor) {
+    return currentMangler->mangleImpl(cont,types,typeNames,signage,member,constructor,destructor);
 }
 
 char Igel::Mangler::typeToChar(llvm::Type *type, bool _signed) {

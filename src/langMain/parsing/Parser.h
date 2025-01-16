@@ -17,6 +17,7 @@ public:
     Parser(){
         templateEmpty->name = TEMPLATE_EMPTY_NAME;
         templateEmpty->overrideSub = true;
+        ptr_type->name = "Pointer";
     }
 
     static char sidChar(char c) {
@@ -105,6 +106,7 @@ private:
 
 public:
     static Interface* templateEmpty;
+    static Interface* ptr_type;
 };
 
 

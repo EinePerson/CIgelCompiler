@@ -469,7 +469,7 @@ std::unique_ptr<clang::ASTConsumer> IgFrontendAction::CreateASTConsumer(clang::C
     return std::make_unique<Consumer>(parser);
 }
 
-CXX_Parser::CXX_Parser(Header* header) : m_header(header) {
+CXX_Parser::CXX_Parser(Header* header,std::vector<std::string> args,std::string dir) : m_header(header),m_args(args),m_dir(dir) {
 
 }
 
@@ -477,7 +477,12 @@ Header* CXX_Parser::parseHeader() {
     std::vector<std::string> incl = getClangIncludePaths();
     std::vector<std::string> args = {"-x","c++","-Wno-pragma-once-outside-header"};
     args.insert(args.end(),incl.begin(), incl.end());
-    FixedCompilationDatabase db(".",args);
+    args.reserve(m_args.size());
+    for (const auto& m_arg : m_args) {
+        args.push_back("-I" + m_dir + "/" + m_arg);
+    }
+    //args.insert(args.end(),m_args.begin(), m_args.end());
+    FixedCompilationDatabase db(m_dir,args);
     ClangTool tool(db,{m_header->fullName});
     auto fact = new ActionFactory(this);
     tool.run(fact);

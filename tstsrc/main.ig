@@ -1,6 +1,6 @@
-using "tstsrc/test.ig";
+//using "tstsrc/test.ig";
 
-class Gaming{
+/*class Gaming{
     int i;
     int j;
 }
@@ -22,14 +22,18 @@ class Test<T extends Gaming>{
     T get(){
         return this.amogus;
     }
+}*/
+
+int test(int i,int j){
+    return 0;
 }
 
 int main(){
-    Test<Gaming> g = new Test<Gaming>();
+    /*Test<Gaming> g = new Test<Gaming>();
     g.amogus = new Gaming();
     g.amogus.i = 69;
     Gaming a = g.get();
     g.test(a);
-    printf("%d",a.i);
+    printf("%d",a.i);*/
     return 0;
 }

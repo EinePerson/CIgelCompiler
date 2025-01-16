@@ -38,8 +38,8 @@ void PreParser::parseScope(bool contain,bool parenth) {
             continue;
         }
 
-        if(peak(1).has_value() && peak(2).has_value() && (peak().value().type >= TokenType::_byte && peak().value().type <= TokenType::_bool)&& peak(1).value().type == TokenType::id &&
-            peak(2).value().type != TokenType::openParenth) {
+        if(peak(1).has_value() && peak(2).has_value() && (peak().value().type >= TokenType::_byte && peak().value().type <= TokenType::_bool) && peak(1).value().type == TokenType::id &&
+            peak(2).value().type != TokenType::openParenth && peak(2).value().type != TokenType::closeParenth && peak(2).value().type != TokenType::comma) {
             consume();
             m_super.back()->varTypes[tryConsume(TokenType::id,"Expected id").value.value()] = Igel::VarType::PirimVar;
             consume();
