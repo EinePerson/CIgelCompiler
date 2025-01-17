@@ -1,5 +1,4 @@
 add variable access to local variables without usage of this
-add template classes;
 add partly libraries;
 add package manager;
 add c(++) header emission for usage in c(++) files
@@ -17,3 +16,5 @@ memory safety:
 make compilable to emscripten
 
 annotations for not mangle usw
+
+add function calling with array as parameter
