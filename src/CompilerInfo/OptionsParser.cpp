@@ -36,6 +36,10 @@ std::map<int,std::function<void(InternalInfo*,std::optional<std::string>)>> shor
         {'c',[](InternalInfo* info,std::optional<std::string> str) -> void {
            info->link = false;
         }},
+        {'e',[](InternalInfo* info,std::optional<std::string> str) -> void {
+            if (!str.has_value())OptionsParser::cmdErr("Expected input directory after '-e'");
+            info->headerEmitPath = str.value();
+        }},
 };
 
 std::map<std::string,std::function<void(InternalInfo*)>> long_opts{
@@ -44,6 +48,12 @@ std::map<std::string,std::function<void(InternalInfo*)>> long_opts{
     }},
     {"fno-mangle",[](InternalInfo* info) -> void {
         Igel::Mangler::init(Igel::NONE);
+    }},
+    {"emit-c",[](InternalInfo* info) -> void {
+        info->flags |= EMIT_C;
+    }},
+    {"emit-cpp",[](InternalInfo* info) -> void {
+        info->flags |= EMIT_CPP;
     }}
 };
 
@@ -51,12 +61,14 @@ std::map<std::string,int> long_to_short = {
     {"out",'o'},
     {"Link",'L'},
     {"Include",'I'},
+    {"emit",'e'},
 };
 
 std::map<int,bool> has_param = {
     {'o',true},
     {'L',true},
-    {'I',true}
+    {'I',true},
+    {'e',true},
 };
 
 std::string getName(const std::string &filename) {

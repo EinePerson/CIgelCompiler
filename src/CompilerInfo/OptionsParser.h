@@ -12,6 +12,8 @@
 #include "../langMain/fileCompiler.hpp"
 
 #define FREESTANDING_FLAG 0x10
+#define EMIT_C 0x20
+#define EMIT_CPP 0x40
 
 struct InternalInfo {
     std::vector<std::string> sourceDirs;
@@ -32,6 +34,7 @@ struct InternalInfo {
     std::vector<std::string> linkerCommands;
     long flags = 0;
     bool link = true;
+    std::string headerEmitPath;
 
     bool hasFlag(const char * str);
 };

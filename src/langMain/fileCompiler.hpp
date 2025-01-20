@@ -21,6 +21,7 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>
 
+#include "../CompilerInfo/InfoParser.h"
 #include "llvm/ExecutionEngine/Orc/LLJIT.h"
 
 #include "../CompilerInfo/InfoParser.h"
@@ -29,6 +30,7 @@
 #include "parsing/Indexer.h"
 #include "parsing/Parser.h"
 #include "parsing/PreParser.h"
+#include "../CompilerInfo/InfoParser.h"
 
 class FileCompiler {
 private:
@@ -114,6 +116,8 @@ public:
         }
     }
 
+
+
     void gen(const std::optional<std::function<void(SrcFile* file,FileCompiler* cmp)>> &fileCallback = {}) {
         checkInit();
         if(fileCallback) {
@@ -127,6 +131,33 @@ public:
                 m_gen->setup(file);
                 m_gen->generate();
             }
+        }
+    }
+
+    void emitCPP(std::string root) {
+        for(const auto file:files){
+            std::stringstream ss;
+            ss << "#pragma once\n\n";
+            m_gen->setup(file);
+            m_gen->emitCpp(ss,root);
+
+            std::fstream ptr(root + "/" + removeExtension(file->name) + ".h",std::ios::out);
+            ptr << ss.str();
+            ptr.close();
+        }
+    }
+
+    void emitC(std::string root) {
+        for(const auto file:files){
+            std::stringstream ss;
+            ss << "#pragma once\n\n";
+            m_gen->setup(file);
+            m_gen->emitC(ss,root);
+
+
+            std::fstream ptr(root + "/" + removeExtension(file->name) + ".h",std::ios::out);
+            ptr << ss.str();
+            ptr.close();
         }
     }
 

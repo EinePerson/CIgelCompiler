@@ -89,6 +89,10 @@ public:
 
     void generate();
 
+    void emitCpp(std::stringstream& ss,std::string root);
+
+    void emitC(std::stringstream& ss,std::string root);
+
     [[nodiscard]] static Type* getType(TokenType type);
 
     void reset(SrcFile* file);

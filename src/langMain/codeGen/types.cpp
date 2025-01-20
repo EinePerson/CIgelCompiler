@@ -1390,6 +1390,66 @@ void IgFunction::reset() {
      llvmFunc = nullptr;
 }
 
+void IgFunction::writeCpp(std::stringstream &ss) {
+     ss << "virtual ";
+     if (this->_return->isPointerTy()) {
+          this->retTypeName->mangleToCpp(ss);
+          ss << "* ";
+     }else {
+          if (!this->returnSigned) ss << "unsigned ";
+          Igel::writeType(ss,this->_return);
+     }
+
+     ss << mangle();
+
+     ss << "(";
+     for (int i = 1;i < paramType.size();i++) {
+          if (this->paramType[i]->isPointerTy()) {
+               ss  << this->paramTypeName[i]->name << "* ";
+          }else {
+               if (!this->signage[i]) ss << "unsigned ";
+               Igel::writeType(ss,this->paramType[i]);
+          }
+
+          ss << paramName[i] << " ";
+     }
+
+     ss << ")";
+     if (_override) ss << "override";
+     ss << ";\n";
+}
+
+void IgFunction::writeC(std::stringstream &ss) {
+     if (this->_return->isPointerTy()) {
+          ss << "struct " << this->retTypeName->type->name << "* ";
+     }else {
+          Igel::writeType(ss,this->_return);
+     }
+
+     std::optional<BeContained*> supper = this->supper;
+     while (supper.has_value()) {
+          ss << supper.value()->name << "_";
+          supper = supper.value()->contType;
+     }
+     ss << this->name;
+
+     ss << "(";
+     bool next = false;
+     for (int i = 1;i < paramType.size();i++) {
+          if (next)ss << ",";
+          next = true;
+          if (this->paramType[i]->isPointerTy()) {
+               ss << "struct " << this->paramTypeName[i]->name << "* ";
+          }else {
+               Igel::writeType(ss,this->paramType[i]);
+          }
+
+          ss << paramName[i] << " ";
+     }
+
+     ss << ");\n";
+}
+
 int Igel::getSize(TokenType type) {
      if(type > TokenType::_ulong)return -1;
      const int i = static_cast<int>(type) % 4;
@@ -1464,12 +1524,46 @@ std::string Struct::mangle() {
      return Igel::Mangler::mangleTypeName(this);
 }
 
-llvm::StructType * Struct::getStrType(llvm::IRBuilder<> *builder) {
+llvm::StructType * Struct::getStrType(LLVMContext& cntct) {
      if(strType)return strType;
-     strType = StructType::create(builder->getContext(),mangle());
-     Generator::instance->m_file->structs[mangle()] = std::make_pair(strType,this);
+     strType = StructType::create(cntct,mangle());
+     if (Generator::instance->m_file)Generator::instance->m_file->structs[mangle()] = std::make_pair(strType,this);
      strType->setBody(types,false);
      return strType;
+}
+
+void Struct::writeCpp(std::stringstream &ss) {
+     ss << "struct " + this->name << "{\n";
+     for (int i = 0;i < this->vars.size();i++) {
+          if (vars[i]->type == reinterpret_cast<Type*>(0x2)) {
+               ss << "\t" << vars[i]->typeName  << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"")  << " " << vars[i]->name << ";\n";
+          }else if (vars[i]->type->isPointerTy()) {
+               ss << "\t" << vars[i]->typeName  << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"")  << " " << vars[i]->name << ";\n";
+          }else {
+               ss << "\t";
+               Igel::writeType(ss,vars[i]->type);
+               ss << " " << vars[i]->name << ";\n";
+          }
+     }
+
+     ss << "};\n";
+}
+
+void Struct::writeC(std::stringstream &ss) {
+     ss << "struct " + this->name << "{\n";
+     for (int i = 0;i < this->vars.size();i++) {
+          if (vars[i]->type == reinterpret_cast<Type*>(0x2)) {
+               ss << "\tstruct " << vars[i]->typeName->name << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"")  << " " << vars[i]->name << ";\n";
+          }else if (vars[i]->type->isPointerTy()) {
+               ss << "\tstruct " << vars[i]->typeName->name << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"")  << " " << vars[i]->name << ";\n";
+          }else {
+               ss << "\t";
+               Igel::writeType(ss,vars[i]->type);
+               ss << " " << vars[i]->name << ";\n";
+          }
+     }
+
+     ss << "};\n";
 }
 
 void NamesSpace::generateSig(llvm::IRBuilder<>* builder) {
@@ -1490,6 +1584,23 @@ void NamesSpace::generate(llvm::IRBuilder<>* builder) {
 
 std::string NamesSpace::mangle() {
      return Igel::Mangler::mangleTypeName(this);
+}
+
+void NamesSpace::writeCpp(std::stringstream &ss) {
+     ss << "namespace " << name << "{\n";
+     for(auto func : funcs)func->writeCpp(ss);
+     for(auto cont : contained) {
+          if(auto type = dynamic_cast<IgType*>(cont))type->writeCpp(ss);
+     }
+
+     ss << "}\n";
+}
+
+void NamesSpace::writeC(std::stringstream &ss) {
+     for(auto func : funcs)func->writeC(ss);
+     for(auto cont : contained) {
+          if(auto type = dynamic_cast<IgType*>(cont))type->writeC(ss);
+     }
 }
 
 std::string Interface::mangle() {
@@ -1539,6 +1650,28 @@ ClassInfos Interface::getClassInfos(llvm::IRBuilder<> *builder) {
      return classInfos;
 }
 
+void Interface::writeCpp(std::stringstream &ss) {
+     ss << "class " << name << "{\n";
+     if (!extending.empty()) {
+          ss << ":";
+          bool next = false;
+          for (auto interface : extending) {
+               if (next)ss << ",";
+               next = true;
+               ss << "public " << interface->mangle();
+          }
+     }
+
+     for (auto func : funcs)func->writeCpp(ss);
+     for (auto be_contained : contained)be_contained->writeCpp(ss);
+
+     ss << "};\n";
+}
+
+void Interface::writeC(std::stringstream &ss) {
+     Igel::generalErr("Cannot generate an Interface in C");
+}
+
 std::string Enum::mangle() {
      return Igel::Mangler::mangleTypeName(this);
 }
@@ -1554,6 +1687,16 @@ void Enum::generatePart(llvm::IRBuilder<> *builder) {
 }
 
 void Enum::generate(llvm::IRBuilder<> *builder) {
+}
+
+void Enum::writeCpp(std::stringstream &ss) {
+     writeC(ss);
+}
+
+void Enum::writeC(std::stringstream &ss) {
+     ss << "enum " << name << "{\n";
+     for (auto value : values)ss << "\t" << value << ",\n";
+     ss << "};\n";
 }
 
 void Class::generateSig(llvm::IRBuilder<>* builder) {
@@ -1994,6 +2137,65 @@ uint Class::getSuperOffset(ContainableType *type) {
      return 0;
 }
 
+void Class::writeCpp(std::stringstream &ss) {
+     if (isTemplate)Igel::err("C++ and Igel templating do not match,cannot generate c++ template",pos);
+     ss << "class " << name << "{\n";
+     if (extending || !implementing.empty()) {
+          ss << ":";
+          bool next = false;
+          if (extending) {
+               ss << "public " << extending.value()->mangle();
+               next = true;
+          }for (auto interface : implementing) {
+               if (next)ss << ",";
+               next = true;
+               ss << "public " << interface->mangle();
+          }
+     }
+
+     for (int i = 0;i < this->vars.size();i++) {
+          if (vars[i]->type == reinterpret_cast<Type *>(2)) {
+               ss << "\t" << vars[i]->typeName->toString() << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"") << " " << vars[i]->name << ";\n";
+          }else if (vars[i]->type->isPointerTy()) {
+               ss << "\t" << vars[i]->typeName->toString() << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"") << " " << vars[i]->name << ";\n";
+          }else {
+               ss << "\t";
+               Igel::writeType(ss,vars[i]->type);
+               ss << " " << vars[i]->name << ";\n";
+          }
+     }
+
+     for (auto func : funcs)func->writeCpp(ss);
+     for (auto be_contained : contained)be_contained->writeCpp(ss);
+
+     ss << "};\n";
+}
+
+void Class::writeC(std::stringstream &ss) {
+     if (isTemplate)Igel::err("C does not support templates,cannot generate header",pos);
+     if (extending)Igel::err("C does not support polymorphism,cannot generate header",pos);
+     if (!implementing.empty())Igel::err("C does not support polymorphism,cannot generate header",pos);
+
+     ss << "struct " << name << "{\n";
+
+     for (int i = 0;i < this->vars.size();i++) {
+          if (vars[i]->type == reinterpret_cast<Type *>(2)) {
+               ss << "\tstruct " << vars[i]->typeName->name << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"") << " " << vars[i]->name << ";\n";
+          }else if (vars[i]->type->isPointerTy()) {
+               ss << "\tstruct " << vars[i]->typeName->name << (dynamic_cast<Class*>(vars[i]->typeName)?"*":"") << " " << vars[i]->name << ";\n";
+          }else {
+               ss << "\t";
+               Igel::writeType(ss,vars[i]->type);
+               ss << " " << vars[i]->name << ";\n";
+          }
+     }
+
+     ss << "};\n";
+
+     for (auto func : funcs)func->writeC(ss);
+     for (auto be_contained : contained)if (!dynamic_cast<IgFunction*>(be_contained))Igel::err("Cannot generate contained types in C",pos);
+}
+
 bool Igel::SecurityManager::canAccess(ContainableType *type, IgFunction *func) {
      if(func->acc.isPublic())return true;
      if(!func->supper || !type)return false;
@@ -2430,6 +2632,33 @@ bool Igel::compareTemplate(std::vector<GeneratedType *> first, std::vector<Gener
      return true;
 }
 
+void Igel::writeType(std::stringstream &ss, llvm::Type *type) {
+     if (type->isIntegerTy(8)) {
+          ss << "char ";
+     }else if (type->isIntegerTy(16)) {
+          ss << "short ";
+     }else if (type->isIntegerTy(32)) {
+          ss << "int ";
+     }else if (type->isIntegerTy(64)) {
+          ss << "long ";
+     }else if (type->isIntegerTy(128)) {
+          ss << "long long ";
+     }else if (type->isDoubleTy()) {
+          ss << "double ";
+     }else if (type->isFloatTy()) {
+          ss << "float ";
+     }else if (type->isVoidTy()) {
+          ss << "void ";
+     }else if (type->isArrayTy()) {
+          writeType(ss,type->getArrayElementType());
+          ss << "* ";
+     }else if (type == reinterpret_cast<Type *>(2)) {
+          ss << "void* ";
+     }else if (type->isPointerTy()) {
+          ss << "void* ";
+     }
+}
+
 llvm::Value * NodeTermCast::generate(llvm::IRBuilder<> *builder) {
      Generator::clearTypeNameRet();
      Value* val = expr->generate(builder);
@@ -2503,6 +2732,16 @@ llvm::Value * NodeTermInlineIf::generate(llvm::IRBuilder<> *builder) {
 
 std::string Name::mangle() {
      return Igel::Mangler::mangleName(this);
+}
+
+std::string BeContained::toString() {
+     if (contType)return contType.value()->toString() + "::" + name;
+     return name;
+}
+
+void GeneratedType::mangleToCpp(std::stringstream& ss) {
+     ss << this->type->mangle();
+     for (auto template_type : this->templateTypes)template_type->mangleToCpp(ss);
 }
 
 llvm::Type* getType(llvm::Type* type) {

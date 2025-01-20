@@ -125,12 +125,15 @@ Igel::Access ASTVisitor::convert(clang::AccessSpecifier acc) {
     }
 }
 
-llvm::Type * ASTVisitor::convert(const clang::Type *type) {
+llvm::Type* ASTVisitor::convert(const clang::Type *type) {
     if(!type->getAs<BuiltinType>()) {
         //TODO return correct type
         if(type->isClassType())return llvm::PointerType::get(*Generator::instance->m_contxt,0);
         else if(type->isStructureType()) {
-            //type->getAsStructureType().
+            if (auto str = parseStruct(type->getAsStructureType()->getAsCXXRecordDecl())) {
+                return str.value()->getStrType(*Generator::instance->m_contxt);
+            }
+            CXX_Ext::err("Unable to parse struct");
         }
         return llvm::PointerType::get(*Generator::instance->m_contxt,0);
     }

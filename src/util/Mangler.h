@@ -31,6 +31,7 @@ namespace Igel {
     virtual std::string mangleImpl(BeContained* cont,std::vector<llvm::Type*> types,std::vector<BeContained*> typeNames,std::vector<bool> signage,bool member,bool constructor,bool destructor) = 0;
 
     static Mangler* currentMangler;
+    static Mangler* noMangle;
 
     public:
         virtual ~Mangler() = default;
@@ -60,6 +61,8 @@ namespace Igel {
 
 
     class ItaniumMangler final : public Mangler{
+        friend class Mangler;
+
         std::string mangleTypeNameImpl(BeContained *cont) override;
 
         std::string mangleNameImpl(BeContained *cont) override;

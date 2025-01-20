@@ -1,39 +1,19 @@
 //using "tstsrc/test.ig";
 
-/*class Gaming{
-    int i;
-    int j;
-}
+include "test.h";
 
-class Sus{
-    int z;
-}
+class Test{
+    int i = 0;
+    Test t;
 
-class Test<T extends Gaming>{
-    T amogus;
-    void test(T field){
+    void add(int i,int j){
 
     }
-
-    void test(){
-
-    }
-
-    T get(){
-        return this.amogus;
-    }
-}*/
-
-int test(int i,int j){
-    return 0;
 }
 
 int main(){
-    /*Test<Gaming> g = new Test<Gaming>();
-    g.amogus = new Gaming();
-    g.amogus.i = 69;
-    Gaming a = g.get();
-    g.test(a);
-    printf("%d",a.i);*/
+    Amogus a;
+    a.j = 69;
+    printf("%d",a.j);
     return 0;
 }

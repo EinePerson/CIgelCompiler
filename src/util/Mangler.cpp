@@ -8,6 +8,7 @@
 #include <utility>
 
 Igel::Mangler* Igel::Mangler::currentMangler = nullptr;
+Igel::Mangler* Igel::Mangler::noMangle = new NoMangler;
 
 std::string Igel::ItaniumMangler::mangleTypeNameImpl(BeContained *cont) {
     std::string str;
@@ -132,14 +133,18 @@ void Igel::Mangler::init(ManglerType type) {
 }
 
 std::string Igel::Mangler::mangleTypeName(BeContained *cont) {
+    if (!cont->mangleThis)return noMangle->mangleTypeNameImpl(cont);
     return currentMangler->mangleTypeNameImpl(cont);
 }
 
 std::string Igel::Mangler::mangleName(BeContained *cont) {
+    if (!cont->mangleThis)return noMangle->mangleNameImpl(cont);
     return currentMangler->mangleNameImpl(cont);
 }
 
 std::string Igel::Mangler::mangle(BeContained *cont, bool member, bool constructor, bool destructor) {
+    if (!cont)return "";
+    if (!cont->mangleThis)return noMangle->mangleImpl(cont,member,constructor,destructor);
     return currentMangler->mangleImpl(cont,member,constructor,destructor);
 }
 
@@ -154,6 +159,7 @@ std::string Igel::Mangler::mangle(std::vector<llvm::Type *> types, std::vector<B
 
 std::string Igel::Mangler::mangle(BeContained *cont, std::vector<llvm::Type *> types,
     std::vector<BeContained *> typeNames, std::vector<bool> signage, bool member, bool constructor, bool destructor) {
+    if (!cont->mangleThis)return noMangle->mangleImpl(cont,types,typeNames,signage,member,constructor,destructor);
     return currentMangler->mangleImpl(cont,types,typeNames,signage,member,constructor,destructor);
 }
 

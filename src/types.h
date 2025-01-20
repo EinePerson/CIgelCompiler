@@ -97,16 +97,23 @@ struct BeContained {
     std::optional<BeContained*> contType = {};
     std::string name;
 
+    virtual void writeCpp(std::stringstream& ss) = 0;
+    virtual void writeC(std::stringstream& ss) = 0;
+
     bool mangleThis = true;
 
     BeContained() = default;
     virtual ~BeContained() = default;
     virtual std::string mangle() = 0;
+
+    std::string toString();
 };
 
 struct GeneratedType {
     BeContained* type = nullptr;
     std::vector<GeneratedType*> templateTypes {};
+
+    void mangleToCpp(std::stringstream& ss);
 };
 
 struct GeneratedClass{
@@ -219,6 +226,14 @@ struct Name final : BeContained {
         return id;
     }
     std::string mangle() override;
+
+    void writeCpp(std::stringstream &ss) override {
+
+    }
+
+    void writeC(std::stringstream &ss) override {
+
+    }
 };
 
 struct NodeTermParen final : NodeTerm {
@@ -511,6 +526,14 @@ struct NodeStmtLet : NodeStmt,BeContained{
     std::pair<llvm::Value*, Var*> virtual generateImpl(llvm::IRBuilder<>* builder,bool full) = 0;;
     llvm::Value* generate(llvm::IRBuilder<>* builder) override;
     llvm::Value* generatePointer(llvm::IRBuilder<> *builder) override;
+
+    void writeCpp(std::stringstream &ss) override {
+
+    }
+
+    void writeC(std::stringstream &ss) override {
+
+    }
 };
 
 struct NodeStmtPirimitiv final : NodeStmtLet {
@@ -695,6 +718,10 @@ struct IgFunction final : BeContained{
 
     void reset();
 
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override;
+
 private:
     llvm::FunctionType* type = nullptr;
     llvm::Function* llvmFunc = nullptr;
@@ -751,7 +778,15 @@ struct Struct final : IgType {
         strType = nullptr;
     }
 
-    llvm::StructType* getStrType(llvm::IRBuilder<> *builder);
+    llvm::StructType* getStrType(llvm::LLVMContext& cntxt);
+
+    inline llvm::StructType* getStrType(llvm::IRBuilder<> *builder) {
+        return getStrType(builder->getContext());
+    }
+
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override;
 
 private:
     llvm::StructType* strType = nullptr;
@@ -788,6 +823,10 @@ struct NamesSpace final : ContainableType {
     }
 
     void unregister() override{}
+
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override;;
 };
 
 struct Interface;
@@ -899,6 +938,10 @@ struct Interface final : PolymorphicType {
         return 8;
     }
 
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override ;
+
 private:
     ClassInfos classInfos;
 };
@@ -917,6 +960,9 @@ struct Enum final : IgType {
 
     void unregister() override {}
 
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override;
 };
 
 
@@ -1054,10 +1100,26 @@ struct Class final : PolymorphicType {
 
     uint getSuperOffset(ContainableType *type) override;
 
+    void writeCpp(std::stringstream &ss) override;
+
+    void writeC(std::stringstream &ss) override;
+
 private:
 
     ClassInfos classInfos;
 };
+
+/*struct PointerTo final : IgType{
+    std::string mangle() override;
+
+    void generateSig(llvm::IRBuilder<> *builder) override;
+
+    void generatePart(llvm::IRBuilder<> *builder) override;
+
+    void generate(llvm::IRBuilder<> *builder) override;
+
+    void unregister() override;
+};*/
 
 namespace Igel {
     inline void errAt(const Position &t) {
@@ -1124,6 +1186,8 @@ namespace Igel {
     inline llvm::Value* getString(std::string str,llvm::IRBuilder<> *builder);
 
     bool compareTemplate(std::vector<GeneratedType*> first,std::vector<GeneratedType*> second);
+
+    void writeType(std::stringstream& ss,llvm::Type* type);
 }
 
 #endif //TYPES_H

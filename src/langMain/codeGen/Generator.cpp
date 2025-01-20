@@ -167,7 +167,47 @@ void Generator::generate() {
         snd->genFunc(m_builder.get());
     }
 
-    if(m_file->isLive)modules[m_file] = std::move(m_module);
+    modules[m_file] = std::move(m_module);
+}
+
+void Generator::emitCpp(std::stringstream &ss,std::string root) {
+    if(!setupFlag) {
+        std::cerr << "Usage of Uninitialized Generator\n";
+        exit(EXIT_FAILURE);
+    }
+
+    for (auto include : m_file->includes)ss << "#include \"" << include->fullName << "\"\n";
+    for (auto include : m_file->_using)ss << "#include \"" << root << "/" << include->fullName << "\"\n";
+
+    for (auto type : m_file->types) {
+        type->writeCpp(ss);
+    }
+
+    for (const auto& [fst,snd] : m_file->funcs) {
+        snd->writeCpp(ss);
+    }
+
+    modules[m_file] = std::move(m_module);
+}
+
+void Generator::emitC(std::stringstream &ss,std::string root) {
+    if(!setupFlag) {
+        std::cerr << "Usage of Uninitialized Generator\n";
+        exit(EXIT_FAILURE);
+    }
+
+    for (auto include : m_file->includes)ss << "#include <" << include->fullName << ">\n";
+    for (auto include : m_file->_using)ss << "#include <" << root << "/" << include->fullName << ">\n";
+
+    for (auto type : m_file->types) {
+        type->writeC(ss);
+    }
+
+    for (const auto& [fst,snd] : m_file->funcs) {
+        snd->writeC(ss);
+    }
+
+    modules[m_file] = std::move(m_module);
 }
 
 Type* Generator::getType(TokenType type) {
@@ -196,6 +236,7 @@ void Generator::reset(SrcFile* file) {
 
 void Generator::write() {
     m_vars.pop_back();
+    m_module = std::move(modules[m_file]);
     if(staticInit) {
         m_builder->SetInsertPoint(staticInit);
         m_builder->CreateRetVoid();

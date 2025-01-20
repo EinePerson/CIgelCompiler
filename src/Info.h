@@ -148,6 +148,7 @@ public:
     std::vector<std::string> linkerCommands;
     long flags = 0;
     bool link = true;
+    std::string headerEmitPath;
 public:
 
     void addSourceDir(char* dir) __attribute__((used)) {

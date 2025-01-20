@@ -40,8 +40,6 @@ public:
 
         jit.parse();
 
-
-
         outFiles << "clang++ -o " << m_info->outName;
 
         //if (m_info->link) {
@@ -66,6 +64,12 @@ public:
             cmp->m_gen->write();
             outFiles << "./build/cmp/" << file->fullName << ".bc ";
         });
+
+        if ((m_info->flags & EMIT_CPP != 0) || (m_info->flags & EMIT_C != 0)) {
+            genDir(m_info->headerEmitPath);
+            if ((m_info->flags & EMIT_CPP) != 0)jit.emitCPP(m_info->headerEmitPath);
+            else if ((m_info->flags & EMIT_C) != 0)jit.emitC(m_info->headerEmitPath);
+        }
 
         /*for (auto header : m_info->header_table) {
             outFiles << "./build/cmp/" << header.second->fullName << ".pch ";
