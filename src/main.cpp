@@ -30,12 +30,6 @@ int main(int argc,char* argv[]) {
     Options* options = optParser.getOptions();
 
     InternalInfo *info = options->info;
-    /*if(options->infoFile) {
-        info = cmpinfo.getInfo();
-    }else {
-        std::cerr << "Currently a build file is needed" << std::endl;
-        exit(EXIT_FAILURE);
-    }*/
     if(options->infoFile) {
         std::string name = options->infoFile.value();
         auto pos = name.find_last_of('/');

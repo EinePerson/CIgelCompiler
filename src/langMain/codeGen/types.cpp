@@ -127,7 +127,6 @@ llvm::Value * NodeTermAcces::generate(llvm::IRBuilder<> *builder) {
                }
 
                val = arrVar->alloc;
-               //if(arrVar->typeName.has_value() && Generator::instance->m_file->findClass(arrVar->typeName.value()->mangle(),builder))
                val = Igel::setDbg(builder,builder->CreateLoad(builder->getPtrTy(),val),pos);
                Igel::check_Pointer(builder,val);
                val = builder->CreateInBoundsGEP(val->getType(),val,builder->getInt64(0));
@@ -514,107 +513,6 @@ llvm::Value* NodeTermStructAcces::generatePointer(llvm::IRBuilder<>* builder) {
      }else Generator::structRet = nullptr;
      return ptr;
 }
-
-/*llvm::Value* NodeTermClassAcces::generate(llvm::IRBuilder<>* builder) {
-     if(call) {
-          call->generate(builder);
-          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
-               auto str = dynamic_cast<Class*>(func.value()->retTypeName->type);
-               if(!str)return nullptr;
-               Generator::setTypeNameRet(str);
-               uint fid = str->varIdMs[acc.value.value()];
-               return Igel::setDbg(builder,builder->CreateLoad(str->types[fid],this->generatePointer(builder)),(Position) acc);
-          }else return nullptr;
-     }
-
-     Value* val;
-     Class* str = nullptr;
-     ClassVar* var = nullptr;
-     if(contained) {
-          val = contained.value()->generate(builder);
-          if(!dynamic_cast<Class*>(Generator::classRet))Igel::err("This opperation can only be performed on classes",pos);
-          str = dynamic_cast<Class*>(Generator::classRet);
-          Generator::_final = str->finals[acc.value.value()];
-     }else {
-          var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
-          Generator::_final = dynamic_cast<Class*>(var->clazz)?dynamic_cast<Class*>(var->clazz)->finals[acc.value.value()]:false;
-          val = Igel::setDbg(builder,builder->CreateLoad(var->type,var->alloc),pos);
-     }
-     if(!str && !var) {
-          Igel::err("Neither contained value nor variable",acc);
-     }
-     Igel::check_Pointer(builder,val);
-
-     const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
-     Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
-     Generator::setTypeNameRet(str?str:var->clazz);
-     if(var) {
-          Generator::classRet = dynamic_cast<Class*>(var->clazz);
-          Generator::structRet = nullptr;
-          return Igel::setDbg(builder,builder->CreateLoad(var->types[fid],ptr),acc);
-     }
-
-     if(str->typeName[fid - 1] != nullptr) {
-          if(const auto strT = Generator::findClass(str->typeName[fid - 1]->mangle(),builder)) {
-               Generator::classRet = strT.value().second;
-               Generator::structRet = nullptr;
-          }
-          else Generator::classRet = nullptr;
-     }else Generator::classRet = nullptr;
-     return Igel::setDbg(builder,builder->CreateLoad(str->types[fid - 1],ptr),(Position) acc);
-}
-
-llvm::Value* NodeTermClassAcces::generatePointer(llvm::IRBuilder<>* builder) {
-     if(call) {
-          Value* val = call->generate(builder);
-          if(auto func = Generator::instance->m_file->findIgFunc(call->name->mangle(),call->params)) {
-               auto str = dynamic_cast<Class*>(func.value()->retTypeName->type);
-               if(!str)return nullptr;
-               Igel::check_Pointer(builder,val);
-               Generator::setTypeNameRet(str);
-               uint fid = str->varIdMs[acc.value.value()];
-               return builder->CreateStructGEP(str->strType,val,fid);
-
-          }else return nullptr;
-     }
-     Value* val;
-     Class* str = nullptr;
-     ClassVar* var = nullptr;
-     if(contained) {
-          val = contained.value()->generate(builder);
-          if(!dynamic_cast<Class*>(Generator::classRet))Igel::err("This opperation can only be performed on classes",pos);
-          str = dynamic_cast<Class*>(Generator::classRet);
-          Generator::_final = str->finals[acc.value.value()];
-     }else {
-          var = dynamic_cast<ClassVar*>(Generator::instance->getVar(id->mangle()));
-          Generator::_final = dynamic_cast<Class*>(var->clazz)?dynamic_cast<Class*>(var->clazz)->finals[acc.value.value()]:false;
-          val = Igel::setDbg(builder,builder->CreateLoad(var->type,var->alloc),acc);
-     }
-
-     if(!str && !var) {
-          Igel::err("Neither contained value nor variable",acc);
-     }
-     Igel::check_Pointer(builder,val);
-
-     //TODO add error when variable name is not contained in the struct
-     const uint fid = var ? var->vars[acc.value.value()]:str->varIdMs[acc.value.value()];
-     Value* ptr = builder->CreateStructGEP(var?var->strType:str->strType,val,fid);
-     Generator::setTypeNameRet(str?str:var->clazz);
-     if(var) {
-          Generator::classRet = dynamic_cast<Class*>(var->clazz);
-          Generator::structRet = nullptr;
-          return ptr;
-     }
-
-     if(str->typeName[fid - 1] != nullptr) {
-          if(const auto strT = Generator::findClass(str->typeName[fid - 1]->mangle(),builder)) {
-               Generator::classRet = strT.value().second;
-               Generator::structRet = nullptr;
-          }
-          else Generator::classRet = nullptr;
-     }else Generator::classRet = nullptr;
-     return ptr;
-}*/
 
 llvm::Value* NodeTermAcces::generateClassPointer(llvm::IRBuilder<>* builder) {
      if(call) {

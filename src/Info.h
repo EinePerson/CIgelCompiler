@@ -134,12 +134,8 @@ public:
     std::vector<std::string> includeDirs;
     std::string mainFile;
     std::string outName;
-    //std::vector<InfoSrcFile*> liveFiles;///files which are Just-in-time compiled machine files may not reference those
-    //std::vector<InfoSrcFile*> files;
-    //std::vector<InfoHeader*> headers;
     std::vector<InfoDirectory*> src;
     std::vector<InfoDirectory*> include;
-    //std::vector<Func> calls;
     std::vector<std::string> libs {};
     InfoSrcFile* main = nullptr;
     std::string m_name;
@@ -170,7 +166,6 @@ public:
     void addIncludeDir(char* dir) __attribute__((used)) {
         includeDirs.emplace_back(dir);
         HeaderItterator it = listHeaders("",std::string(dir) + "/");
-        //headers.insert(headers.cend(),it.files.cbegin(),it.files.cend());
         include.push_back(it.dir);
         header_table.reserve(it.files.size());
         for(auto file:it.files){
@@ -190,18 +185,8 @@ public:
 
     bool hasFlag(char* flag) const __attribute__((used)){
         std::string f = flag;
-        /*if(!FLAGS.contains(f)) {
-            std::cerr << "Unknown flag: " << f << std::endl;
-            exit(EXIT_FAILURE);
-        }*/
         return flags & FLAGS.at(f);
     }
-
-    /*void setFlag(char* flag,bool value) __attribute__((used)){
-        //printf("A,%s,%d\n",flag,(int) FLAGS.at(flag));
-        flags |= (FLAGS.at(std::string(flag)) * (value & 0x1));
-        //printf("B\n");
-    }*/
 
     void setFlag(int _flags) __attribute__((used)){
         flags = _flags;

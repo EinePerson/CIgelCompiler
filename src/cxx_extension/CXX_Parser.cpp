@@ -211,9 +211,6 @@ IgFunction * ASTVisitor::parseFunc(clang::FunctionDecl* method_decl) {
             func->supper = clz;
         }
     }
-    /*if(func->constructor) {
-        func->contType = func->contType.has_value()?func->contType.value()->contType:{};
-    }*/
     return func;
 }
 

@@ -550,22 +550,6 @@ std::optional<NodeStmtPirimitiv*> Parser::parsePirim(bool _static, bool final) {
 }
 
 std::optional<NodeStmtNew*> Parser::parseNew(bool _static, bool final,std::optional<BeContained*> contP) {
-    /*IgType* cont;
-    if(auto val = dynamic_cast<IgType*>(contP.has_value()?contP.value():parseContained().value().first))cont = val;
-    else return {};
-    std::vector<PolymorphicType*> templateParams;
-    if(tryConsume(TokenType::small)){
-        bool next = true;
-        while (next){
-            if(auto con = parseContained()){
-                if(auto type = dynamic_cast<PolymorphicType*>(con.value().first))templateParams.push_back(type);
-                else err("Expected typename in '<>'");
-            }else err("Expected typename in '<>'");
-            next = tryConsume(TokenType::comma).has_value();
-        }
-
-        tryConsume(TokenType::big,"Expected '>'");
-    }*/
     auto gen = parseComplexType(contP);
     if (!gen)err("Could not parse type");
     std::vector<GeneratedType*> templateParams = gen.value()->templateTypes;
@@ -906,7 +890,6 @@ NodeStmtFor* Parser::parseFor() {
 
 std::optional<std::pair<BeContained*,int>> Parser::parseContained() {
     if (peak().value().type != TokenType::id) return {};
-    //if(peak(1).value().type != TokenType::dConnect)return {};
     std::string typeName;
     IgType* cont = nullptr;
     while (peak().value().type == TokenType::id && peak(1).value().type == TokenType::dConnect) {

@@ -277,11 +277,6 @@ struct NodeTermStructAcces final : NodeTermAcces {
     llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
 };
 
-/*struct NodeTermClassAcces final : NodeTermAcces {
-    llvm::Value* generate(llvm::IRBuilder<>* builder) override;
-    llvm::Value* generatePointer(llvm::IRBuilder<>* builder) override;
-};*/
-
 struct NodeTermFuncCall final : NodeTerm{
     BeContained* name = nullptr;
     std::vector<NodeExpr*> exprs;
@@ -1108,18 +1103,6 @@ private:
 
     ClassInfos classInfos;
 };
-
-/*struct PointerTo final : IgType{
-    std::string mangle() override;
-
-    void generateSig(llvm::IRBuilder<> *builder) override;
-
-    void generatePart(llvm::IRBuilder<> *builder) override;
-
-    void generate(llvm::IRBuilder<> *builder) override;
-
-    void unregister() override;
-};*/
 
 namespace Igel {
     inline void errAt(const Position &t) {

@@ -12,7 +12,6 @@
 #include "parsing/PreParser.h"
 #include "../cxx_extension/CXX_Parser.h"
 #include "../util/String.h"
-//#include "../JIT_unit/JIT.h"
 #include "../SelfInfo.h"
 
 //TODO Update Dependencies
@@ -28,9 +27,6 @@ public:
     }
 
     void compile(){
-        //std::vector<std::string> includeArgs;
-        //includeArgs.reserve(m_info->includeDirs.size());
-        //for (auto include_dir : m_info->includeDirs)includeArgs.push_back("-I " + include_dir);
         for (auto header : m_info->header_table) {
             CXX_Parser(header.second,m_info->includeDirs,std::filesystem::current_path()).parseHeader();
         }
@@ -70,16 +66,6 @@ public:
             if ((m_info->flags & EMIT_CPP) != 0)jit.emitCPP(m_info->headerEmitPath);
             else if ((m_info->flags & EMIT_C) != 0)jit.emitC(m_info->headerEmitPath);
         }
-
-        /*for (auto header : m_info->header_table) {
-            outFiles << "./build/cmp/" << header.second->fullName << ".pch ";
-            std::string cmdStr = "clang++ -g -o ./build/cmp/";
-            cmdStr += header.second->fullName + ".pch ";
-            cmdStr += header.second->fullName;
-            const char* cmd = cmdStr.c_str();
-            if(system(cmd))err();
-        }*/
-
 
         for (const auto& lib : m_info->libs) outFiles << lib << " ";
         if ((m_info->flags & FREESTANDING_FLAG) == 0)
@@ -186,6 +172,5 @@ private:
     InternalInfo* m_info;
     Options* m_options;
 
-    //FileCompiler cmp;
     JITFileCompiler jit;
 };

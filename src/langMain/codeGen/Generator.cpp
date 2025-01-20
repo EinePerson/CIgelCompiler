@@ -58,7 +58,6 @@ bool Generator::_final = false;
 Generator::Generator(SrcFile* file,InternalInfo* info) : m_target_triple(sys::getDefaultTargetTriple()), m_file(file),m_layout(nullptr),m_machine(nullptr),m_info(info),debug(info->flags & DEBUG_FLAG != 0),
     no_ptr_check(info->flags & NO_POINTER_CHECK != 0),no_arr_check(info->flags & NO_ARRAY_CHECK),
     m_contxt(std::make_unique<LLVMContext>()),dataLayout((new Module("",*m_contxt))->getDataLayout()) {
-    //dataLayout = (new Module("",*m_contxt))->getDataLayout();
     m_module = std::make_unique<Module>(file->fullName, *m_contxt);
     m_builder = std::make_unique<IRBuilder<>>(*m_contxt);
     setupFlag = true;
