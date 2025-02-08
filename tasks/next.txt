@@ -17,3 +17,5 @@ make compilable to emscripten
 annotations for not mangle usw
 
 add function calling with array as parameter
+
+add multithreading support:
